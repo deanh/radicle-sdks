@@ -136,7 +136,9 @@ fn s3_repo_storage(profile: &radicle::Profile) -> Result<RepoId> {
         commit.author().when().seconds(), commit.author().when().offset_minutes());
     println!("    committer name matches author: {}",
         commit.author().name_bytes() == commit.committer().name_bytes());
-    println!("    message bytes = {:?} (lossy str = {:?})", msg_bytes, commit.message());
+    // NOTE: git2's message() is STRICT (Result), not lossy; any `message_str` convenience in
+    // the binding is our own String::from_utf8_lossy(message_bytes()).
+    println!("    message bytes = {:?} (strict message() = {:?})", msg_bytes, commit.message());
     println!("    tree = {}  parents = {:?}", commit.tree_id(),
         commit.parent_ids().collect::<Vec<_>>());
 
@@ -151,7 +153,8 @@ fn s3_repo_storage(profile: &radicle::Profile) -> Result<RepoId> {
             e.id().to_string(),
         ));
     }
-    entries.sort_by(|a, b| a.0.cmp(&b.0));
+    entries.sort_by(|a, b| a.0.cmp(&b.0)); // byte-sort for DISPLAY only; git's canonical tree
+    // ordering (incl. directory sort quirks) is a Phase 2 schema question — not validated here.
     for (name, kind, mode, oid) in &entries {
         println!("    entry: name_bytes={name:?} kind={kind} mode={mode:#o} oid={oid}");
     }
@@ -202,13 +205,19 @@ fn s4_cob_raw(profile: &radicle::Profile, rid: RepoId) -> Result<()> {
         return Err(anyhow!("created issue {iid} not found via raw types()"));
     }
 
-    // Raw history for the entity: refs → change commits → entries → raw ops.
+    // Raw history for the entity: refs → tip entries → CAUSAL parents only.
+    //
+    // CRITICAL (0A review): COB change commits have THREE categories of git parents —
+    // causal history tips, related objects, and the identity/resource commit. Walking raw
+    // git parent_ids() conflates them and pulls in the *identity COB's* entry, which is NOT
+    // part of this issue's history. The entry itself provides the split: `entry.parents`
+    // (causal), `entry.related`, `entry.resource()` (identity link). Traverse entry.parents.
     let objects = repo.objects(&typename, &iid)?;
     let mut seen_entries = 0usize;
+    let mut total_actions = 0usize;
     for reference in objects.iter() {
         let tip = reference.target.id;
-        println!("  ref {} → change commit {tip}", reference.name);
-        // Walk the change commit graph (parents) from each ref tip.
+        println!("  cob ref {} → change commit {tip}", reference.name);
         let mut stack = vec![tip];
         let mut visited = vec![];
         while let Some(oid) = stack.pop() {
@@ -224,7 +233,7 @@ fn s4_cob_raw(profile: &radicle::Profile, rid: RepoId) -> Result<()> {
             let entry = repo.load(oid)
                 .with_context(|| format!("load entry {oid}"))?;
             let actions: Vec<&[u8]> = entry.contents().iter().map(|b| b.as_slice()).collect();
-            println!("    entry {} author={} timestamp={} actions={} parents={} related={} identity={:?}",
+            println!("    entry {} author={} timestamp={} actions={} causal_parents={} related={} identity_link={:?}",
                 entry.id(), entry.author(), entry.timestamp, actions.len(),
                 entry.parents.len(), entry.related.len(), entry.resource());
             for (i, action) in actions.iter().enumerate() {
@@ -234,18 +243,22 @@ fn s4_cob_raw(profile: &radicle::Profile, rid: RepoId) -> Result<()> {
                     action.len(), json.get("type").and_then(|t| t.as_str()).unwrap_or("?"));
             }
             seen_entries += 1;
+            total_actions += actions.len();
 
-            // Parents via git (change commits are the entries).
-            let commit = repo.backend.find_commit(to_raw_oid(oid)?)?;
-            for p in commit.parent_ids() {
-                stack.push(Oid::try_from(p).map_err(|e| anyhow!("{e}"))?);
+            // CAUSAL parents ONLY — never raw git parent_ids() (see note above).
+            for p in &entry.parents {
+                stack.push(Oid::from(*p));
             }
         }
     }
-    if seen_entries == 0 {
-        return Err(anyhow!("raw history walk found no entries"));
+    // A fresh issue is exactly ONE operation with TWO actions (comment + edit); its identity
+    // commit belongs to the identity COB and must not appear in this history.
+    if seen_entries != 1 || total_actions != 2 {
+        return Err(anyhow!(
+            "expected 1 issue op with 2 actions, saw {seen_entries} entries / {total_actions} actions"
+        ));
     }
-    println!("  raw walk: {seen_entries} entries decoded via entry.contents() (per-action JSON blobs)");
+    println!("  raw walk: {seen_entries} issue op(s), {total_actions} action(s) — identity entry correctly NOT in history (link only)");
 
     Ok(())
 }

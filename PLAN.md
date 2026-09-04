@@ -1,8 +1,8 @@
 # Plan: `radicle-py` — a comprehensive Python binding for the `radicle` crate
 
-Status: **v3.1** — Phase 0A complete (all spikes green); findings in [`radicle-py/FINDINGS-0A.md`](./radicle-py/FINDINGS-0A.md). v3.1 deltas: §5.4 UTF-8 policy resolved (bytes-first), §5.5 raw-action representation corrected, §8 PyPI + UTF-8 resolved, CI manylinux task recorded.
-Reference pattern: [`python-community-computer/`](./python-community-computer/) (PyO3 + maturin hybrid, hand-written `.pyi` stubs, API.md as the contract, pytest conformance suite, wheels CI).
-Target: **published `radicle = "=0.25.1"` (crates.io) — dependency decision settled.** The crates.io 0.25.1 source is **authoritative** for API shapes; [`heartwood/`](./heartwood/) HEAD is a useful reading reference only, since pinning unreleased HEAD would define a different target despite the unchanged package version. Exact pin (`=`, not `^`) because the binding is source-coupled and Cargo semver would otherwise let incompatible 0.25.x patch releases through; upgrade pins deliberately, per release.
+Status: **v3.2** — Phase 0A complete (packaging leg partial, gated by first `wheels.yml` run); findings in [`FINDINGS-0A.md`](./FINDINGS-0A.md). **This file (`radicle-py/PLAN.md`) is canonical**; `../radicle-py-plan.md` is a symlink to it. Links are relative to `radicle-py/`. v3.1: UTF-8 policy (bytes-first) + raw-action representation resolved. v3.2 (post-review): raw history traversal rule added to §5.5 (`entry.parents` only); COB-refs terminology corrected; packaging gate tracked in `wheels.yml`.
+Reference pattern: [`../python-community-computer/`](../python-community-computer/) (PyO3 + maturin hybrid, hand-written `.pyi` stubs, API.md as the contract, pytest conformance suite, wheels CI).
+Target: **published `radicle = "=0.25.1"` (crates.io) — dependency decision settled.** The crates.io 0.25.1 source is **authoritative** for API shapes; [`../heartwood/`](../heartwood/) HEAD is a useful reading reference only, since pinning unreleased HEAD would define a different target despite the unchanged package version. Exact pin (`=`, not `^`) because the binding is source-coupled and Cargo semver would otherwise let incompatible 0.25.x patch releases through; upgrade pins deliberately, per release.
 
 ### Changelog
 
@@ -120,7 +120,9 @@ patch = rad.patch.Patches.open(repo)           # same shape for patch::Patch
 raw = rad.cob.Raw.open(repo)
 raw.typenames() -> list[str]                     # from COB git refs
 raw.entities(typename) -> list[ObjectId]         # entity ids from COB refs
-raw.refs(typename, entity_id) -> list[CobRef]    # signed refs pointing at change commits
+raw.refs(typename, entity_id) -> list[CobRef]    # COB refs pointing at change commits
+                                               # (NOT "signed refs": authenticity comes from
+                                               #  rad/sigrefs; COB refs aren't individually signed)
 raw.history(typename, entity_id) -> list[RawOp]  # runtime-generic: load entries and evaluate to
                                                  # NonEmpty<Entry> — no domain type required
 class RawOp:                                     # full wire spec in API.md;
@@ -213,6 +215,13 @@ radicle-py/
    - Signatures/OIDs on the wire: lowercase hex strings, always.
    - Git/COB objects are returned as **immutable pyclass instances with read-only properties** (not bare dicts), so types evolve without breaking typing. History/branch listings are `list`s of these.
 5. **Raw COB op wire representation (API.md)** — corrected by Phase 0A: action blobs come from `entry.contents().iter()` (one raw JSON blob per action, non-empty by construction), **not** from `Op<Vec<u8>>::try_from(&entry)` (panics/fails at runtime: serde can't deserialize a JSON object into `Vec<u8>`). Each action is decoded independently by `actions_json()`. `id` hex string. `actor` has exactly one representation — **canonical NodeId string** (upstream stores a `PublicKey`; NodeId chosen because that is the native identity of a COB actor; DID derivation is the caller's job). `timestamp` integer (epoch ms — match upstream `Timestamp`). `parents`, `related`, `identity`, `manifest` exposed per the class sketch in §3. `actions_json()` raises `CobError` if any action isn't valid canonical JSON/UTF-8. Known typed actions (issue/patch) are consumed via the typed adapters, not via `actions_json()`.
+   - **Traversal rule (0A review):** a COB change commit has three categories of git parents —
+     causal tips, related objects, and the identity/resource commit. `Raw.history` walks
+     **`entry.parents` only**; `entry.related` and `entry.resource()` (identity) are exposed as
+     links but never traversed. Walking raw git `parent_ids()` wrongly pulls the identity COB's
+     entries into the domain COB's history (a real bug in spike rev 1). A fresh issue is one op
+     with two actions; its identity commit belongs to the identity COB and is *not* in the
+     issue's history.
 6. **Owned handles, reopen-per-op** (as sibling project). Consequence for iteration: **no lazy iterators holding storage/git handles open**. `history()` is page-based (`limit`, `from_`, returns eager `HistoryPage`); store reads (`issue.all()`) return eager lists. Bounded, predictable handle lifetimes.
 7. **Test fixtures — no new escape hatch.** `Profile::init` takes an explicit `Seed` and does **not** read `RAD_KEYGEN_SEED` itself (`profile::env::seed()` does — the caller must fetch and pass it). Fixtures: `Profile::init(temp_home, alias, None, seed)` with a deterministic seed; unencrypted temp keys avoid ssh-agent and `RAD_PASSPHRASE` entirely. Fixtures pass explicit paths/`Home` everywhere — **no process-global `RAD_HOME` mutation** (parallel-pytest safe). **Public Python init contract:** `Profile.init(...)` generates a secure random seed — implementation note: `Seed::new([u8; 32])` exists but there is **no production `generate()`**, so we fill 32 bytes from the OS RNG (likely `getrandom`, matching radicle-cli's key generation); deterministic seed injection stays private/test-only — not shipped as a documented Python parameter, exercised from the Rust side of the binding's fixtures only.
 8. **Errors**: `ValueError` for our own validator failures (`parse_*` only); domain hierarchy for operational failures — including revspecs, where `GitError` covers both invalid and unresolved (`rev_parse` semantics are git's, not ours). Every mapper function documents which upstream error enum it covers; `GitError`/`DatabaseError` added for low-level crossings.
@@ -230,7 +239,7 @@ radicle-py/
 
 | Phase | Deliverable | Gate / risk |
 |---|---|---|
-| **0A — Feasibility spikes** ✅ **complete** ([findings](./radicle-py/FINDINGS-0A.md)) (throwaway code, in `radicle-py/`) | Build against `=0.25.1` (crates.io source authoritative). Deterministic temp profile: seed constructed explicitly, passed to `Profile::init`. Open a repo, hand-convert one commit + one tree. Load raw COB history for an arbitrary typename as `NonEmpty<Entry>`; validate `entities`/`refs` enumeration against refs. Confirm manylinux wheel build with bundled sqlite/libgit2. Check PyPI `radicle-py`. | Decides §5.4 UTF-8 policy, COB ref layout assumptions, dependency pin, spike-derived API corrections. Exit = updated plan, then implement. |
+| **0A — Feasibility spikes** ✅ complete, ◐ packaging gate → first `wheels.yml` run ([findings](./FINDINGS-0A.md)) (throwaway code, in `spike/` + `wheel-probe/`) | Build against `=0.25.1` (crates.io source authoritative). Deterministic temp profile: seed constructed explicitly, passed to `Profile::init`. Open a repo, hand-convert one commit + one tree. Load raw COB history for an arbitrary typename as `NonEmpty<Entry>`; validate `entities`/`refs` enumeration against refs. Confirm manylinux wheel build with bundled sqlite/libgit2. Check PyPI `radicle-py`. | Decides §5.4 UTF-8 policy, COB ref layout assumptions, dependency pin, spike-derived API corrections. Exit = updated plan, then implement. |
 | **1** | Identifiers + aliases in stubs, `Home`, `Profile` (`load`/`init` surface), `Signer`, error hierarchy, fixture strategy from §5.6 committed as `conftest.py` | Fixture approach proven in 0A |
 | **2** | `Storage.from_profile`, read-only `Repository`, value classes with API.md schemas (commit/tree/tag/blob/history pages/remotes) | Highest user value; handle-lifetime rules from §5.6 |
 | **3** | `PolicyStore`, `RoutingStore` named after upstream traits, config-carrying primary ctors via `profile.*_store()`; address store if spike-clean | Verify DB open/lock semantics |
@@ -264,8 +273,8 @@ radicle-py/
 
 **Still open:**
 1. Whether the address store is in Phase 3 scope or parked.
-2. CI task: manylinux rebuild + auditwheel check (host wheel tagged manylinux_2_34; local docker unusable — must run in CI before 0.1.0).
+2. CI task: manylinux rebuild + auditwheel check (host wheel tagged manylinux_2_34; local docker unusable). `wheels.yml` added (maturin default glibc manylinux container — explicitly *no* musl tooling) to close this gate on its first run.
 
 ---
 
-*Sources: [`python-community-computer/`](./python-community-computer/); [`heartwood/`](./heartwood/) monorepo, `crates/radicle` — `storage.rs` / `storage/git.rs` (`WriteRepository` without signer; `sign_refs(signer)`; `head() -> (Qualified, Oid)`; `Storage::open(path, UserInfo)`), `cob/store.rs` (`Store<'a, T, _>`, `open_for`), `cob/issue.rs` / `cob/patch.rs` (`Issue` / `Patch` materializers, `Thread` internal), `cob/op.rs` (`GenericOp`: `actions: NonEmpty<A>`, `parents`, `related`, `identity`, `manifest`), `profile.rs` (`Profile::init(seed)`, `env::seed()` / `RAD_KEYGEN_SEED`, `Aliases` lookup facade, `routing(config)`), `node.rs` (`Node` control socket), `node/policy/store.rs`, `node/routing.rs`, `node/address/store.rs`. Cross-checked against the crates.io `radicle` 0.25.1 tarball. Both review rounds verified in source before incorporation.*
+*Sources: [`../python-community-computer/`](../python-community-computer/); [`../heartwood/`](../heartwood/) monorepo, `crates/radicle` — `storage.rs` / `storage/git.rs` (`WriteRepository` without signer; `sign_refs(signer)`; `head() -> (Qualified, Oid)`; `Storage::open(path, UserInfo)`), `cob/store.rs` (`Store<'a, T, _>`, `open_for`), `cob/issue.rs` / `cob/patch.rs` (`Issue` / `Patch` materializers, `Thread` internal), `cob/op.rs` (`GenericOp`: `actions: NonEmpty<A>`, `parents`, `related`, `identity`, `manifest`), `profile.rs` (`Profile::init(seed)`, `env::seed()` / `RAD_KEYGEN_SEED`, `Aliases` lookup facade, `routing(config)`), `node.rs` (`Node` control socket), `node/policy/store.rs`, `node/routing.rs`, `node/address/store.rs`. Cross-checked against the crates.io `radicle` 0.25.1 tarball. Both review rounds verified in source before incorporation.*

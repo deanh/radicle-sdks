@@ -1,0 +1,38 @@
+name: wheels
+
+# Phase 0A packaging gate (from plan review): build the wheel-probe extension in
+# maturin's default glibc manylinux container on Linux and audit the result.
+# Deliberately NO musl/musl-cross tooling — we validate glibc manylinux wheels.
+#
+# When the real binding lands (Phase 1+), point `args`/working-directory at it
+# and extend the matrix (macOS etc.) following the sibling project's wheels.yml.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  manylinux:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build wheel (maturin, default manylinux glibc container)
+        uses: PyO3/maturin-action@v1
+        with:
+          working-directory: wheel-probe
+          args: --release --out dist
+          # Explicit glibc manylinux container (maturin's default family for x86_64-linux).
+          container: quay.io/pypa/manylinux_2_28_x86_64
+
+      - name: Audit wheel (manylinux compliance)
+        run: |
+          pipx run auditwheel show dist/*.whl
+          pipx run auditwheel check  dist/*.whl
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: wheels
+          path: dist/*.whl
