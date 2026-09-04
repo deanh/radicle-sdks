@@ -27,14 +27,14 @@ A new sibling project following the same engineering pattern as `python-communit
 - `WriteRepository` provides: `set_symbolic_ref`, `set_canonical_symbolic_refs`, `set_default_branch_to_canonical_head(&self)`, `set_identity_head(&self)`, `set_remote_identity_root(&self, remote)`. **None take a signer** — only `sign_refs(&self, signer)` does. No generic branch create/delete transactions; `RefUpdate` belongs to fetch/storage internals, not this trait.
 - `ReadRepository::head()` returns `(Qualified, Oid)` — the qualified ref name plus target OID.
 - Typed COB stores materialize `Store<'a, issue::Issue, Repo, Access>` and `Store<'a, patch::Patch, Repo, Access>`; `Thread` is an internal field/concept inside those objects.
-- `GenericOp` fields: `actions: NonEmpty<A>` (a raw op uses `A = Vec<u8>` — **one or more** action payloads per op), `parents: Vec<EntryId>`, `related: Vec<Oid>`, `identity: Option<Oid>`, `manifest: Manifest`. A COB entity is addressed by refs → change commits → histories (`NonEmpty<Entry>`); there is no generic serialized "entity" byte value.
+- `GenericOp` fields: `actions: NonEmpty<A>` (**one or more** action payloads per op), `parents: Vec<EntryId>`, `related: Vec<Oid>`, `identity: Option<Oid>`, `manifest: Manifest`. The binding's `RawOp.actions` is populated directly from `Entry::contents()` — a non-empty collection of raw action blobs — and is **not** constructed through `Op<Vec<u8>>::try_from` (fails at runtime; §5.5). A COB entity is addressed by refs → change commits → histories (`NonEmpty<Entry>`); there is no generic serialized "entity" byte value.
 - `Aliases` (via `Profile::aliases()`) is a lookup facade — `alias(node_id)` / `reverse_lookup(alias)` — not an enumerable collection.
 - `Home::routing(config)` requires `node::db::config::Config`; `Profile::routing()` supplies the profile's configured value. Same pattern for the database/policy stores.
 - `radicle::node::Node` is a **synchronous client for the node control socket** (`struct Node { socket: PathBuf }`) — requires a running node daemon.
 - Node data layer is a set of separate traits/stores: `node::policy::Store` (`follow`/`unfollow`/`seed`/`unseed`/`set_follow_policy`/`follow_policies`/`is_seeding`/…), `node::routing::Store` (`get`, `get_inventory`, `entry`, `entries`, `add_inventory`, `remove_inventory`, `count`, `prune`), `node::address::Store` (+ `StoreExt`). There is no single `Database.repositories()/track_repo()` API.
 - `storage::git::Storage::open(path, git::UserInfo)` — **requires `UserInfo`**, not just a `Home`.
 - `Profile::init(...)` accepts an explicit `Seed`. It does **not** read `RAD_KEYGEN_SEED` — `profile::env::seed()` does; a caller must fetch it and pass it to `init`.
-- `RepositoryInfo`, `SetHead` are not `Serialize`; git2 objects are borrowed handles; a raw `Op` carries a `Vec<u8>` payload.
+- `RepositoryInfo`, `SetHead` are not `Serialize`; git2 objects are borrowed handles; a raw op's actions are opaque byte blobs, decoded per-action (§5.5).
 
 ## 2. Surface map
 
@@ -48,7 +48,7 @@ A new sibling project following the same engineering pattern as `python-communit
 | routing store | `node::routing::Store` (inventory, entries) | ✅ | 3 |
 | address store | `node::address::Store` | ✅ if Phase 3 spike is clean | 3 |
 | `cob::store` — **typed** | `Store<issue::Issue>`, `Store<patch::Patch>` concrete adapters | ✅ | 4 |
-| `cob` — **raw inspection** | COB git refs, entity enumeration, histories as `NonEmpty<Entry>`, raw `Op`s (`NonEmpty<Vec<u8>>` actions) | ✅ (bytes/JSON per explicit wire spec) | 4 |
+| `cob` — **raw inspection** | COB git refs, entity enumeration, histories as `NonEmpty<Entry>`, raw ops (actions from `Entry::contents()`, §5.5) | ✅ (bytes/JSON per explicit wire spec) | 4 |
 | writes | `WriteRepository::{set_default_branch_to_canonical_head, set_identity_head, set_remote_identity_root, set_symbolic_ref}` (no signer) + `sign_refs(signer)` + typed COB actions | ✅ narrow set only | 5 |
 | `node::Node` control socket | requires running daemon; out of local-data scope | ❌ v1 | — |
 | p2p transport/`sync`, `web`, `cli`, `test`, `logger`-adjacent | — | ❌ | — |
@@ -222,6 +222,11 @@ radicle-py/
      entries into the domain COB's history (a real bug in spike rev 1). A fresh issue is one op
      with two actions; its identity commit belongs to the identity COB and is *not* in the
      issue's history.
+   - **Phase 4 implementation notes (from 0A review):** `Raw.history` must deduplicate entries
+     **globally across all COB refs of the entity**, not per ref — multiple namespaces routinely
+     carry overlapping histories (the spike's per-ref `visited` is deliberately simplified).
+     Result **ordering must be explicit**: causal topological order (documented in API.md), not
+     ref-enumeration order.
 6. **Owned handles, reopen-per-op** (as sibling project). Consequence for iteration: **no lazy iterators holding storage/git handles open**. `history()` is page-based (`limit`, `from_`, returns eager `HistoryPage`); store reads (`issue.all()`) return eager lists. Bounded, predictable handle lifetimes.
 7. **Test fixtures — no new escape hatch.** `Profile::init` takes an explicit `Seed` and does **not** read `RAD_KEYGEN_SEED` itself (`profile::env::seed()` does — the caller must fetch and pass it). Fixtures: `Profile::init(temp_home, alias, None, seed)` with a deterministic seed; unencrypted temp keys avoid ssh-agent and `RAD_PASSPHRASE` entirely. Fixtures pass explicit paths/`Home` everywhere — **no process-global `RAD_HOME` mutation** (parallel-pytest safe). **Public Python init contract:** `Profile.init(...)` generates a secure random seed — implementation note: `Seed::new([u8; 32])` exists but there is **no production `generate()`**, so we fill 32 bytes from the OS RNG (likely `getrandom`, matching radicle-cli's key generation); deterministic seed injection stays private/test-only — not shipped as a documented Python parameter, exercised from the Rust side of the binding's fixtures only.
 8. **Errors**: `ValueError` for our own validator failures (`parse_*` only); domain hierarchy for operational failures — including revspecs, where `GitError` covers both invalid and unresolved (`rev_parse` semantics are git's, not ours). Every mapper function documents which upstream error enum it covers; `GitError`/`DatabaseError` added for low-level crossings.
