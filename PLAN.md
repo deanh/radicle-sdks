@@ -1,6 +1,6 @@
 # Plan: `radicle-py` — a comprehensive Python binding for the `radicle` crate
 
-Status: **v3** — approved; Phase 0A in progress (spikes live in [`radicle-py/`](./radicle-py/)).
+Status: **v3.1** — Phase 0A complete (all spikes green); findings in [`radicle-py/FINDINGS-0A.md`](./radicle-py/FINDINGS-0A.md). v3.1 deltas: §5.4 UTF-8 policy resolved (bytes-first), §5.5 raw-action representation corrected, §8 PyPI + UTF-8 resolved, CI manylinux task recorded.
 Reference pattern: [`python-community-computer/`](./python-community-computer/) (PyO3 + maturin hybrid, hand-written `.pyi` stubs, API.md as the contract, pytest conformance suite, wheels CI).
 Target: **published `radicle = "=0.25.1"` (crates.io) — dependency decision settled.** The crates.io 0.25.1 source is **authoritative** for API shapes; [`heartwood/`](./heartwood/) HEAD is a useful reading reference only, since pinning unreleased HEAD would define a different target despite the unchanged package version. Exact pin (`=`, not `^`) because the binding is source-coupled and Cargo semver would otherwise let incompatible 0.25.x patch releases through; upgrade pins deliberately, per release.
 
@@ -209,10 +209,10 @@ radicle-py/
    - `Commit`: author/committer name/email encoding; commit vs author timestamp semantics (TZ handling); message bytes vs str (invalid UTF-8 → `bytes` field or documented replacement policy).
    - `Tree`: entry ordering (git sort order stated explicitly), mode encoding (int, with constants), submodule/symlink entries.
    - `TagInfo`: raw tag target OID vs **fully-peeled** target ("peeled" = resolve the tag chain to the final object — tags may target commits, trees, blobs, or other tags; NOT specifically "the commit"); expose the peeled object's `kind`; annotated vs lightweight distinguished.
-   - Invalid UTF-8 in any name/message field: representation fixed up front (`bytes` alongside lossy `str` mirror, or bytes-only — decide in Phase 0A spike, then document).
+   - Invalid UTF-8 in any name/message field: **resolved by Phase 0A evidence** — bytes-first fields (`name: bytes`, `message: bytes`; all raw-byte accessors exist in git2 and a non-UTF-8 path survives write+read-back) plus documented lossy conveniences (`name_str`, `message_str`).
    - Signatures/OIDs on the wire: lowercase hex strings, always.
    - Git/COB objects are returned as **immutable pyclass instances with read-only properties** (not bare dicts), so types evolve without breaking typing. History/branch listings are `list`s of these.
-5. **Raw COB op wire representation (API.md):** an op carries a **non-empty tuple of action payloads** (`actions: tuple[bytes, ...]`, upstream `NonEmpty<Vec<u8>>`); each action is decoded independently by `actions_json()`. `id` hex string. `actor` has exactly one representation — **canonical NodeId string** (upstream stores a `PublicKey`; NodeId chosen because that is the native identity of a COB actor; DID derivation is the caller's job). `timestamp` integer (epoch ms — match upstream `Timestamp`). `parents`, `related`, `identity`, `manifest` exposed per the class sketch in §3. `actions_json()` raises `CobError` if any action isn't valid canonical JSON/UTF-8. Known typed actions (issue/patch) are consumed via the typed adapters, not via `actions_json()`.
+5. **Raw COB op wire representation (API.md)** — corrected by Phase 0A: action blobs come from `entry.contents().iter()` (one raw JSON blob per action, non-empty by construction), **not** from `Op<Vec<u8>>::try_from(&entry)` (panics/fails at runtime: serde can't deserialize a JSON object into `Vec<u8>`). Each action is decoded independently by `actions_json()`. `id` hex string. `actor` has exactly one representation — **canonical NodeId string** (upstream stores a `PublicKey`; NodeId chosen because that is the native identity of a COB actor; DID derivation is the caller's job). `timestamp` integer (epoch ms — match upstream `Timestamp`). `parents`, `related`, `identity`, `manifest` exposed per the class sketch in §3. `actions_json()` raises `CobError` if any action isn't valid canonical JSON/UTF-8. Known typed actions (issue/patch) are consumed via the typed adapters, not via `actions_json()`.
 6. **Owned handles, reopen-per-op** (as sibling project). Consequence for iteration: **no lazy iterators holding storage/git handles open**. `history()` is page-based (`limit`, `from_`, returns eager `HistoryPage`); store reads (`issue.all()`) return eager lists. Bounded, predictable handle lifetimes.
 7. **Test fixtures — no new escape hatch.** `Profile::init` takes an explicit `Seed` and does **not** read `RAD_KEYGEN_SEED` itself (`profile::env::seed()` does — the caller must fetch and pass it). Fixtures: `Profile::init(temp_home, alias, None, seed)` with a deterministic seed; unencrypted temp keys avoid ssh-agent and `RAD_PASSPHRASE` entirely. Fixtures pass explicit paths/`Home` everywhere — **no process-global `RAD_HOME` mutation** (parallel-pytest safe). **Public Python init contract:** `Profile.init(...)` generates a secure random seed — implementation note: `Seed::new([u8; 32])` exists but there is **no production `generate()`**, so we fill 32 bytes from the OS RNG (likely `getrandom`, matching radicle-cli's key generation); deterministic seed injection stays private/test-only — not shipped as a documented Python parameter, exercised from the Rust side of the binding's fixtures only.
 8. **Errors**: `ValueError` for our own validator failures (`parse_*` only); domain hierarchy for operational failures — including revspecs, where `GitError` covers both invalid and unresolved (`rev_parse` semantics are git's, not ours). Every mapper function documents which upstream error enum it covers; `GitError`/`DatabaseError` added for low-level crossings.
@@ -230,7 +230,7 @@ radicle-py/
 
 | Phase | Deliverable | Gate / risk |
 |---|---|---|
-| **0A — Feasibility spikes** (throwaway code, in `radicle-py/`) | Build against `=0.25.1` (crates.io source authoritative). Deterministic temp profile: seed constructed explicitly, passed to `Profile::init`. Open a repo, hand-convert one commit + one tree. Load raw COB history for an arbitrary typename as `NonEmpty<Entry>`; validate `entities`/`refs` enumeration against refs. Confirm manylinux wheel build with bundled sqlite/libgit2. Check PyPI `radicle-py`. | Decides §5.4 UTF-8 policy, COB ref layout assumptions, dependency pin, spike-derived API corrections. Exit = updated plan, then implement. |
+| **0A — Feasibility spikes** ✅ **complete** ([findings](./radicle-py/FINDINGS-0A.md)) (throwaway code, in `radicle-py/`) | Build against `=0.25.1` (crates.io source authoritative). Deterministic temp profile: seed constructed explicitly, passed to `Profile::init`. Open a repo, hand-convert one commit + one tree. Load raw COB history for an arbitrary typename as `NonEmpty<Entry>`; validate `entities`/`refs` enumeration against refs. Confirm manylinux wheel build with bundled sqlite/libgit2. Check PyPI `radicle-py`. | Decides §5.4 UTF-8 policy, COB ref layout assumptions, dependency pin, spike-derived API corrections. Exit = updated plan, then implement. |
 | **1** | Identifiers + aliases in stubs, `Home`, `Profile` (`load`/`init` surface), `Signer`, error hierarchy, fixture strategy from §5.6 committed as `conftest.py` | Fixture approach proven in 0A |
 | **2** | `Storage.from_profile`, read-only `Repository`, value classes with API.md schemas (commit/tree/tag/blob/history pages/remotes) | Highest user value; handle-lifetime rules from §5.6 |
 | **3** | `PolicyStore`, `RoutingStore` named after upstream traits, config-carrying primary ctors via `profile.*_store()`; address store if spike-clean | Verify DB open/lock semantics |
@@ -258,10 +258,13 @@ radicle-py/
 
 **Resolved since v3:** dependency pin — `radicle = "=0.25.1"` from crates.io; the published crates.io source is authoritative (heartwood HEAD is ahead of the release with an unchanged package version, so it can't be the target).
 
-**Remaining to settle during Phase 0A:**
-1. Invalid-UTF-8 policy for names/messages (bytes field vs bytes+lossy mirror) — spike, then fix in API.md.
-2. Whether the address store is in Phase 3 scope or parked.
-3. PyPI name availability check for `radicle-py`.
+**Resolved during Phase 0A:**
+1. Invalid-UTF-8 policy — **bytes-first + lossy `*_str` conveniences** (see §5.4; evidence in FINDINGS-0A §S3).
+2. PyPI — `radicle-py` and `radiclepy` both available (404, checked 2026-07-28).
+
+**Still open:**
+1. Whether the address store is in Phase 3 scope or parked.
+2. CI task: manylinux rebuild + auditwheel check (host wheel tagged manylinux_2_34; local docker unusable — must run in CI before 0.1.0).
 
 ---
 

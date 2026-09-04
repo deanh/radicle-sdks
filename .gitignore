@@ -3,3 +3,7 @@ __pycache__/
 *.so
 .direnv
 uv.lock
+
+target/
+dist/
+.venv*/
