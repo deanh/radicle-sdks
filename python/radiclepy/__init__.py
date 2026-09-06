@@ -7,6 +7,7 @@ work without the inner prefix.
 
 from __future__ import annotations
 
+from ._types import Alias, Did, NodeId, ObjectId, Oid, RepoId
 from .radiclepy import (  # type: ignore[attr-defined]
     Aliases,
     CobError,
@@ -30,6 +31,13 @@ from .radiclepy import (  # type: ignore[attr-defined]
 
 __all__ = [
     "Aliases",
+    # identifier type aliases (runtime `str`; precise in _types.pyi)
+    "Alias",
+    "Did",
+    "NodeId",
+    "ObjectId",
+    "Oid",
+    "RepoId",
     "CobError",
     "DatabaseError",
     "Error",

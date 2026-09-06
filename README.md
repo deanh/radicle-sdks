@@ -13,9 +13,13 @@ Python bindings for the [`radicle`](https://crates.io/crates/radicle) crate (`=0
 
 ```sh
 uv sync --dev
-uv run maturin develop --uv
+uv run maturin develop --uv --features test-helpers   # test build (deterministic fixtures)
 uv run pytest -q
 ```
+
+Release wheels build **without** `test-helpers`; the deterministic seed
+helper (`Profile._from_seed`) is absent there by construction — CI's wheel
+smoke step asserts this.
 
 ```python
 import radiclepy as rad

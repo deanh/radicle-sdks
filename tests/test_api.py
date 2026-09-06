@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import inspect
 import re
+import types
 from pathlib import Path
 
 import pytest
@@ -29,11 +30,18 @@ TOP_LEVEL = {
 }
 
 MEMBERS = {
-    "Profile": {"attrs": ["did", "node_id", "home", "aliases"], "methods": ["load", "init", "signer"]},
-    "Home": {"attrs": ["path"], "methods": ["load", "resolve"]},
-    "Aliases": {"methods": ["get", "reverse_lookup"]},
-    "Signer": {"attrs": ["did", "node_id"], "methods": []},
+    "Profile": {
+        "attrs": ["did", "node_id", "home", "aliases"],
+        "methods": ["signer"],
+        "classmethods": ["load", "init"],
+    },
+    "Home": {"attrs": ["path"], "methods": [], "classmethods": ["load", "resolve"]},
+    "Aliases": {"methods": ["get", "reverse_lookup"], "classmethods": []},
+    "Signer": {"attrs": ["did", "node_id"], "methods": [], "classmethods": []},
 }
+
+#: Identifier type aliases — public, runtime `str`, precise in _types.pyi.
+IDENTIFIER_ALIASES = ["RepoId", "Did", "NodeId", "Oid", "ObjectId", "Alias"]
 
 
 def _documented_names() -> set[str]:
@@ -77,12 +85,27 @@ def test_member_kinds(cls_name):
         assert not callable(member), f"{cls_name}.{name} must be an attribute"
         assert hasattr(member, "__get__"), f"{cls_name}.{name} not a descriptor"
     for name in spec.get("methods", []):
-        assert callable(getattr(cls, name)), f"{cls_name}.{name} must be callable"
+        # Instance methods: callable off the class, and NOT disguised as
+        # static/class methods (kind distinctions are binding law).
+        member = inspect.getattr_static(cls, name)
+        assert not isinstance(member, (staticmethod, classmethod, property))
+        assert callable(member), f"{cls_name}.{name}: {type(member)}"
+    for name in spec.get("classmethods", []):
+        member = inspect.getattr_static(cls, name)
+        # pyo3 exposes #[classmethod] as classmethod_descriptor; accept it
+        # alongside pure-Python classmethod. Never staticmethod.
+        kinds = (classmethod, types.ClassMethodDescriptorType)
+        assert isinstance(member, kinds), f"{cls_name}.{name}: {type(member)}"
+
+
+def test_identifier_aliases_are_str():
+    for name in IDENTIFIER_ALIASES:
+        assert getattr(rad, name) is str, name
 
 
 def test_no_undocumented_public_names():
     """Public top-level names not in API.md are a contract violation."""
-    documented = set().union(*TOP_LEVEL.values()) | {"__all__"}
+    documented = set().union(*TOP_LEVEL.values()) | set(IDENTIFIER_ALIASES) | {"__all__"}
     runtime = {
         n for n in vars(rad).keys()
         # `radiclepy` = re-exported native module; `annotations` = __future__.

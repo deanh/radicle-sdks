@@ -93,17 +93,13 @@ class Profile:
     def load(cls) -> Profile:
         """Load from `RAD_HOME` or `~/.radicle`."""
         ...
-    @staticmethod
-    def init(home_path: str, alias: str, passphrase: str | None = None) -> Profile:
-        """Initialize a new profile with a **secure random seed** (OS RNG)."""
-        ...
-    @staticmethod
-    def _from_seed(
-        home_path: str, alias: str, seed: bytes, passphrase: str | None = None
-    ) -> Profile:
-        """TEST-ONLY private constructor with a fixed 32-byte seed.
+    @classmethod
+    def init(cls, home_path: str, alias: str, passphrase: str | None = None) -> Profile:
+        """Initialize a new profile with a **secure random seed** (OS RNG).
 
-        Not part of the public API; unstable; never for production use.
+        Deterministic seeding is not part of the shipped API (PLAN §5.7):
+        `Profile._from_seed` exists only in builds with the `test-helpers`
+        cargo feature and is absent from release wheels.
         """
         ...
     @property

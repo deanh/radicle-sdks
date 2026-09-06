@@ -22,6 +22,11 @@ SEEDS: dict[str, bytes] = {
 
 
 def _profile(tmp_path, alias: str) -> rad.Profile:
+    if not hasattr(rad.Profile, "_from_seed"):
+        pytest.skip(
+            "deterministic fixtures require the test build: "
+            "maturin develop --features test-helpers"
+        )
     home = tmp_path / f"rad-{alias}"
     return rad.Profile._from_seed(str(home), alias, SEEDS[alias])
 

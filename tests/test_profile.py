@@ -16,14 +16,15 @@ def test_profile_identity_shape(profile):
     assert repr(profile) == f"Profile({profile.did})"
 
 
-def test_from_seed_is_deterministic(tmp_path):
+def test_from_seed_is_deterministic(tmp_path, profile):
+    # `profile` fixture guards the test-helpers build feature.
     seed = bytes(range(32))
     p1 = rad.Profile._from_seed(str(tmp_path / "h1"), "alice", seed)
     p2 = rad.Profile._from_seed(str(tmp_path / "h2"), "alice", seed)
-    assert p1.did == p2.did
+    assert p1.did == p2.did == profile.did
 
 
-def test_seed_length_validated(tmp_path):
+def test_seed_length_validated(tmp_path, profile):
     with pytest.raises(ValueError):
         rad.Profile._from_seed(str(tmp_path / "h"), "alice", b"short")
 
@@ -43,9 +44,12 @@ def test_init_creates_home_layout(profile):
     assert (home / "storage").exists()
 
 
-def test_bad_alias_rejected(tmp_path):
+def test_bad_alias_rejected_no_side_effects(tmp_path):
+    target = tmp_path / "h"
     with pytest.raises(ValueError):
-        rad.Profile.init(str(tmp_path / "h"), "bad alias with spaces")
+        rad.Profile.init(str(target), "bad alias with spaces")
+    # Validation must precede filesystem state (review §7).
+    assert not target.exists()
 
 
 # ─── Home ────────────────────────────────────────────────────────────────────
@@ -78,9 +82,10 @@ def test_signer_matches_profile(profile):
 
 def test_aliases_lookup_facade(profile):
     aliases = profile.aliases
-    # Upstream seeds the profile's own alias for its node id; either answer
-    # is acceptable — the contract is "known alias or None", not enumeration.
-    assert aliases.get(profile.node_id) in (None, "alice")
+    # Upstream seeds the profile's own alias for its node id (verified
+    # behaviour — asserted strictly; the facade still cannot enumerate).
+    assert aliases.get(profile.node_id) == "alice"
+    assert aliases.reverse_lookup("alice").get("alice") == [profile.node_id]
     assert aliases.reverse_lookup("nobody") == {}
 
 

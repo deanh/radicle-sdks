@@ -39,6 +39,12 @@ pub(crate) fn io_err(err: std::io::Error) -> PyErr {
     Error::new_err(err.to_string())
 }
 
+/// Operational failures with no more specific class (e.g. OS RNG
+/// unavailability) — NOT `ValueError` (PLAN §5.8).
+pub(crate) fn op_err(message: impl Into<String>) -> PyErr {
+    Error::new_err(message.into())
+}
+
 pub fn register(py: Python<'_>, m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add("Error", py.get_type::<Error>())?;
     m.add("StorageError", py.get_type::<StorageError>())?;

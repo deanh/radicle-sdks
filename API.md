@@ -63,17 +63,20 @@ A local Radicle profile: keys, config, storage.
 Load the local profile from `RAD_HOME` or `~/.radicle`.
 Raises `radiclepy.Error` if absent/unreadable.
 
-##### `Profile.init(home_path: str, alias: str, passphrase: str | None = None) -> Profile` (staticmethod)
+##### `Profile.init(home_path: str, alias: str, passphrase: str | None = None) -> Profile` (classmethod)
 Initialize a new profile at `home_path`. The key seed comes from a
 **secure random fill (OS RNG, 32 bytes)** — there is no public way to
 inject a seed (plan §5.7). `passphrase` encrypts the keystore when given.
+The alias is validated **before** any filesystem state is created.
 Raises `ValueError` for invalid aliases; `radiclepy.Error` for init
-failures.
+failures (including OS RNG unavailability — operational, not input).
 
-##### `Profile._from_seed(home_path: str, alias: str, seed: bytes, passphrase: str | None = None) -> Profile` (staticmethod, **private / test-only**)
-Deterministic init from an exact 32-byte seed. Unstable; used only by the
-test fixtures; **never for production**. Raises `ValueError` if
-`len(seed) != 32` or on bad alias.
+##### Deterministic seeding — NOT part of the shipped API (plan §5.7)
+`Profile._from_seed(home_path, alias, seed, passphrase=None)` exists only
+in builds compiled with the `test-helpers` cargo feature (`maturin
+develop --features test-helpers`) and is **absent from release wheels**.
+Used exclusively by the test fixtures. `test_api.py` treats it as
+non-public; CI's wheel smoke step asserts its absence.
 
 ##### `profile.did -> Did` (attribute)
 Profile DID, `did:key:z…`.
@@ -94,6 +97,14 @@ Raises `SignerError`.
 
 ##### `repr(profile) -> str`
 `Profile(<did>)`.
+
+#### Type aliases (runtime attributes; all are `str`)
+
+Documented and runtime-importable, precise `TypeAlias` declarations in
+`radiclepy._types` (which is also runtime-importable):
+
+`radiclepy.RepoId`, `radiclepy.Did`, `radiclepy.NodeId`, `radiclepy.Oid`,
+`radiclepy.ObjectId`, `radiclepy.Alias`.
 
 #### `Home`
 

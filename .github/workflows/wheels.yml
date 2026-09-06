@@ -38,6 +38,9 @@ jobs:
           p = rad.Profile.init('.smoke-home', 'ci')
           assert rad.parse_did(p.did) == p.did
           assert p.signer().node_id == p.node_id
+          # Deterministic seeding must NOT ship in release wheels (plan §5.7).
+          assert not hasattr(rad.Profile, '_from_seed'), 'test helper leaked into release'
+          assert rad.RepoId is str and rad.Did is str
           print('wheel smoke OK:', p.did)
           "
 

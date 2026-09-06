@@ -45,10 +45,17 @@ pub fn parse_object_id(value: &str) -> PyResult<String> {
 }
 
 pub fn register(_py: Python<'_>, m: &Bound<'_, PyModule>) -> PyResult<()> {
-    m.add_function(wrap_pyfunction!(parse_repo_id, m)?)?;
-    m.add_function(wrap_pyfunction!(parse_did, m)?)?;
-    m.add_function(wrap_pyfunction!(parse_node_id, m)?)?;
-    m.add_function(wrap_pyfunction!(parse_oid, m)?)?;
-    m.add_function(wrap_pyfunction!(parse_object_id, m)?)?;
+    // Report the public package as the defining module, not the compiled
+    // extension submodule (introspection / help() quality).
+    for func in [
+        wrap_pyfunction!(parse_repo_id, m)?,
+        wrap_pyfunction!(parse_did, m)?,
+        wrap_pyfunction!(parse_node_id, m)?,
+        wrap_pyfunction!(parse_oid, m)?,
+        wrap_pyfunction!(parse_object_id, m)?,
+    ] {
+        func.setattr("__module__", "radiclepy")?;
+        m.add_function(func)?;
+    }
     Ok(())
 }
