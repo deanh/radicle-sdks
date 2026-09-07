@@ -41,3 +41,18 @@ def profile(tmp_path) -> rad.Profile:
 def peer_profile(tmp_path) -> rad.Profile:
     """A second deterministic profile to exercise multi-identity cases."""
     return _profile(tmp_path, "bob")
+
+
+@pytest.fixture
+def repo(profile, tmp_path):
+    """A storage repository with one deterministic fixture commit.
+
+    Created via the feature-gated test helpers (Phase 2 has no public write
+    surface; writes are Phase 5).
+    """
+    from radiclepy import _test
+
+    workdir = tmp_path / "workdir"
+    rid = _test.init_project(profile, str(workdir), "fixture", "a fixture repo")
+    storage = rad.Storage.from_profile(profile)
+    return storage.repository(rid)

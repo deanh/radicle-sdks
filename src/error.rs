@@ -45,6 +45,26 @@ pub(crate) fn op_err(message: impl Into<String>) -> PyErr {
     Error::new_err(message.into())
 }
 
+/// `radicle::storage::Error` — storage-level operational failures.
+pub(crate) fn storage_err(err: radicle::storage::Error) -> PyErr {
+    StorageError::new_err(err.to_string())
+}
+
+/// `radicle::storage::RepositoryError` — repository open/operation failures.
+pub(crate) fn repository_err(err: radicle::storage::RepositoryError) -> PyErr {
+    RepositoryError::new_err(err.to_string())
+}
+
+/// Low-level libgit2 failures crossing the boundary (PLAN §5.8).
+pub(crate) fn git_err(err: impl std::fmt::Display) -> PyErr {
+    GitError::new_err(err.to_string())
+}
+
+/// Identity document load/verification failures.
+pub(crate) fn identity_err(err: impl std::fmt::Display) -> PyErr {
+    IdentityError::new_err(err.to_string())
+}
+
 pub fn register(py: Python<'_>, m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add("Error", py.get_type::<Error>())?;
     m.add("StorageError", py.get_type::<StorageError>())?;

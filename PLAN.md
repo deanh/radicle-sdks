@@ -276,9 +276,16 @@ radicle-py/
 1. Invalid-UTF-8 policy — **bytes-first + lossy `*_str` conveniences** (see §5.4; evidence in FINDINGS-0A §S3).
 2. PyPI — `radicle-py` and `radiclepy` both available (404, checked 2026-07-28).
 
+**Resolved during Phase 2** (full evidence: [`FINDINGS-02.md`](./FINDINGS-02.md)):
+1. Tree entry ordering — **libgit2 canonical git order** (directories sort as `<name>/`); the binding never re-sorts (S5).
+2. Tag peeling — `peel` runs **only for tag objects**; lightweight tags have `peeled == target` with the concrete `peeled_kind` (S6; peel on a commit silently yields its tree).
+3. `Repository.history` — pagination is `(limit, offset)` (plan said `from_`); ordering is libgit2 revwalk default because `git::raw::Sort` is `pub(crate)` in the pinned upstream; `limit` clamped to 1000 (S7).
+4. `Storage` construction — `Storage.from_profile` primary (UserInfo from profile), `Storage.open(path, alias, node_id)` low-level.
+5. Test repo fixtures ship as a **`test-helpers`-gated `_test` submodule** (init_project/create_tag), same compilation boundary as `Profile._from_seed`.
+6. CI manylinux gate: `wheels.yml` ran green (build → auditwheel repair manylinux_2_28 → smoke).
+
 **Still open:**
 1. Whether the address store is in Phase 3 scope or parked.
-2. CI task: manylinux rebuild + auditwheel check (host wheel tagged manylinux_2_34; local docker unusable). `wheels.yml` added (maturin default glibc manylinux container — explicitly *no* musl tooling) to close this gate on its first run.
 
 ---
 

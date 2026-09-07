@@ -147,17 +147,175 @@ Node id / public key for this signer.
 
 ---
 
+### Storage & repository (Phase 2)
+
+#### `Storage`
+
+Repository storage for a radicle home (upstream `radicle::Storage`).
+
+##### `Storage.from_profile(profile: Profile) -> Storage` (classmethod)
+Primary constructor; the storage of `profile` (git identity comes from it).
+
+##### `Storage.open(path: str, alias: str, node_id: NodeId) -> Storage` (classmethod)
+Low-level constructor: open/create storage at `path` with an explicit git
+user identity. Raises `ValueError` for invalid `alias`/`node_id`,
+`StorageError` for operational failures.
+
+##### `storage.path -> str` (attribute)
+Filesystem path of this storage.
+
+##### `storage.repository(rid: RepoId) -> Repository` (method)
+Open a repository for **reading**. Raises `RepositoryError` if absent,
+`ValueError` for a malformed `rid`.
+
+##### `storage.contains(rid: RepoId) -> bool` (method)
+Whether the repository exists in this storage.
+
+##### `storage.repositories() -> list[RepoId]` (method)
+All repository ids in this storage (unsorted).
+
+#### `Repository`
+
+A **read-only handle**: reopens the underlying storage per operation, so it
+holds no live git handles and is safe to pass between threads. Mutations
+arrive only via explicit write APIs in later phases.
+
+##### `repository.rid -> RepoId` (attribute)
+Repository id.
+
+##### `repository.head -> HeadInfo` (attribute)
+Head (`refs/heads/...`) and its OID.
+
+##### `repository.identity() -> ProjectDoc` (method)
+Verified canonical identity document. Raises `IdentityError`.
+
+##### `repository.description() -> str | None` (method)
+Project description (from the identity document; `None` when unverifiable).
+
+##### `repository.branches() -> list[str]` (method)
+Branch short names (sorted).
+
+##### `repository.branch_head(name: str) -> Oid | None` (method)
+OID a branch points at, or `None`.
+
+##### `repository.tags() -> list[TagInfo]` (method)
+Tags (sorted by short name) with raw/peeled distinction.
+
+##### `repository.rev_parse(rev: str) -> Oid` (method)
+Resolve a git revision expression. Raises `GitError` for **invalid or
+unresolved** revisions (revspec semantics are git's — `ValueError` is
+reserved for our `parse_*` validators).
+
+##### `repository.commit(oid: Oid) -> Commit` (method)
+Load a commit. Raises `GitError` if absent or not a commit.
+
+##### `repository.tree(oid: Oid) -> Tree` (method)
+Load a tree. Raises `GitError` if absent or not a tree.
+
+##### `repository.blob(oid: Oid) -> bytes` (method)
+Raw blob content. Raises `GitError` if absent or not a blob.
+
+##### `repository.history(rev: str, *, limit: int = 100, offset: int = 0) -> HistoryPage` (method)
+Bounded commit-history page. `limit` clamped to 1000. Ordering: libgit2
+revwalk default order (the pinned upstream exposes no explicit sorting —
+see FINDINGS-02 S7).
+
+##### `repository.remotes() -> list[RemoteInfo]` (method)
+Remotes tracked by this repository (sorted by fetcher).
+
+#### Value classes (immutable)
+
+Bytes-first fields; `*_str` accessors are explicitly lossy (`U+FFFD` may
+appear). OIDs are lowercase 40-char hex strings.
+
+#### `HeadInfo`
+##### `head_info.name -> str` (attribute) — qualified ref, e.g. `refs/heads/master`.
+##### `head_info.oid -> Oid` (attribute)
+
+#### `Commit`
+##### `commit.oid -> Oid` (attribute)
+##### `commit.tree -> Oid` (attribute) — root tree.
+##### `commit.parents -> list[Oid]` (attribute)
+##### `commit.author_name -> bytes` (attribute)
+##### `commit.author_name_str -> str` (attribute) — lossy
+##### `commit.author_email -> bytes` (attribute)
+##### `commit.author_email_str -> str` (attribute) — lossy
+##### `commit.author_time -> int` (attribute) — unix epoch seconds
+##### `commit.author_offset_min -> int` (attribute) — tz offset, minutes
+##### `commit.committer_name -> bytes` (attribute)
+##### `commit.committer_name_str -> str` (attribute) — lossy
+##### `commit.committer_email -> bytes` (attribute)
+##### `commit.committer_email_str -> str` (attribute) — lossy
+##### `commit.committer_time -> int` (attribute)
+##### `commit.committer_offset_min -> int` (attribute)
+##### `commit.message -> bytes` (attribute) — raw message bytes
+##### `commit.message_str -> str` (attribute) — lossy
+##### `commit.encoding -> str | None` (attribute) — message encoding header
+
+#### `Tree` / `TreeEntry`
+Ordering contract: `tree.entries` is in **canonical git tree order**
+(libgit2 walk order; directories sort as `<name>/`). Never re-sorted.
+
+##### `tree.oid -> Oid` (attribute)
+##### `tree.entries -> list[TreeEntry]` (attribute)
+##### `len(tree) -> int`
+##### `entry.name -> bytes` (attribute) — may be invalid UTF-8
+##### `entry.name_str -> str` (attribute) — lossy
+##### `entry.kind -> str | None` (attribute) — `"blob"|"tree"|"link"|"commit"`
+##### `entry.mode -> int` (attribute) — raw unix filemode (e.g. `0o100644`)
+##### `entry.oid -> Oid` (attribute)
+
+#### `TagInfo`
+Peeling is performed **only on tag objects**; for lightweight tags the
+target *is* the peeled object (`peeled == target`). "Peeled" = fully
+resolved through any tag chain, not commit-specific.
+
+##### `tag.name -> str` (attribute) — short name
+##### `tag.target -> Oid` (attribute) — ref target (tag object if annotated)
+##### `tag.kind -> str` (attribute) — `"annotated" | "lightweight"`
+##### `tag.peeled -> Oid` (attribute)
+##### `tag.peeled_kind -> str` (attribute) — `"commit"|"tree"|"blob"|"tag"`
+
+#### `RemoteInfo`
+##### `remote.fetcher -> NodeId` (attribute)
+##### `remote.heads -> list[str]` (attribute) — signed ref names
+
+#### `ProjectDoc`
+Canonical project identity document (verified at load).
+
+##### `doc.name -> str` (attribute)
+##### `doc.description -> str` (attribute)
+##### `doc.default_branch -> str` (attribute) — short name from payload
+##### `doc.version -> int` (attribute) — identity document version
+##### `doc.delegates -> list[Did]` (attribute)
+##### `doc.threshold -> int` (attribute)
+##### `doc.visibility -> str` (attribute) — `"public" | "private"`
+##### `doc.commit -> Oid` (attribute) — identity commit
+##### `doc.blob -> Oid` (attribute) — identity document blob
+
+#### `HistoryPage`
+##### `page.name -> str` (attribute) — revision the walk started from
+##### `page.head -> Oid` (attribute) — resolved walk root
+##### `page.oids -> list[Oid]` (attribute) — this page (walk order)
+##### `page.offset -> int` (attribute) — entries skipped before this page
+##### `page.has_more -> bool` (attribute)
+
+---
+
 ## Quick start
 
 ```python
 import radiclepy as rad
 
 profile = rad.Profile.init("/tmp/rad-demo", "alice")   # secure random key
-signer = profile.signer()
-print(profile.did, profile.node_id, signer.node_id)
+storage = rad.Storage.from_profile(profile)
+repo = storage.repository("rad:z…")                     # read-only handle
+head = repo.head
+commit = repo.commit(head.oid)
+print(head.name, commit.oid, commit.message_str)
 
-rad.parse_did(profile.did)     # -> canonical Did (str)
-rad.parse_oid("0" * 40)        # -> canonical Oid (str)
+for entry in repo.tree(commit.tree).entries:            # canonical git order
+    print(entry.name_str, entry.kind, oct(entry.mode))
 ```
 
 ## Layout notes

@@ -2,11 +2,12 @@
 
 Python bindings for the [`radicle`](https://crates.io/crates/radicle) crate (`=0.25.1`, crates.io authoritative).
 
-**Status: Phase 1 complete (33 tests) → Phase 2 (storage & read-only repository) next.** The `wheels.yml` manylinux gate closes on first CI run.
+**Status: Phase 2 complete (72 tests on the test build; 37 release-build) → Phase 3 (policy & routing stores) next.**
 
 - [`PLAN.md`](./PLAN.md) — the design (v3.2), reviewed three times. Canonical; `../radicle-py-plan.md` is a symlink here.
-- [`API.md`](./API.md) — the public API contract (Phase 1 surface).
+- [`API.md`](./API.md) — the public API contract (Phases 1–2 surface).
 - [`FINDINGS-0A.md`](./FINDINGS-0A.md) — feasibility evidence from Phase 0A spikes.
+- [`FINDINGS-02.md`](./FINDINGS-02.md) — Phase 2 spikes: tree ordering, the tag-peel trap, history constraints.
 - `spike/`, `wheel-probe/` — throwaway Phase 0A probes. NOT the binding.
 
 ## Try it
@@ -27,6 +28,10 @@ import radiclepy as rad
 profile = rad.Profile.init("/tmp/rad-demo", "alice")  # secure random key
 print(profile.did, profile.node_id)
 profile.signer().node_id  # matches profile.node_id
+
+storage = rad.Storage.from_profile(profile)           # Phase 2 (read-only)
+repo = storage.repository("rad:z…")
+print(repo.head.name, repo.commit(repo.head.oid).message_str)
 ```
 
 Phase 0A verdict: green, with the manylinux leg gated on the first CI run — deterministic

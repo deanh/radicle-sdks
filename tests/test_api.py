@@ -2,8 +2,8 @@
 documented kind (method vs attribute vs class vs function).
 
 Extracts dotted names from API.md headings/code spans and checks them
-against the live module. Phase 1 scope: top-level names + member names of
-the four classes.
+against the live module. Covers top-level names and the member kinds of
+every class (Phase 1 + Phase 2 surfaces).
 """
 
 from __future__ import annotations
@@ -26,7 +26,22 @@ TOP_LEVEL = {
         "Error", "StorageError", "RepositoryError", "GitError",
         "DatabaseError", "IdentityError", "SignerError", "PolicyError", "CobError",
     ],
-    "classes": ["Profile", "Home", "Aliases", "Signer"],
+    "classes": [
+        "Profile",
+        "Home",
+        "Aliases",
+        "Signer",
+        "Storage",
+        "Repository",
+        "HeadInfo",
+        "Commit",
+        "Tree",
+        "TreeEntry",
+        "TagInfo",
+        "RemoteInfo",
+        "ProjectDoc",
+        "HistoryPage",
+    ],
 }
 
 MEMBERS = {
@@ -38,6 +53,85 @@ MEMBERS = {
     "Home": {"attrs": ["path"], "methods": [], "classmethods": ["load", "resolve"]},
     "Aliases": {"methods": ["get", "reverse_lookup"], "classmethods": []},
     "Signer": {"attrs": ["did", "node_id"], "methods": [], "classmethods": []},
+    "Storage": {
+        "attrs": ["path"],
+        "methods": ["repository", "contains", "repositories"],
+        "classmethods": ["from_profile", "open"],
+    },
+    "Repository": {
+        "attrs": ["rid", "head"],
+        "methods": [
+            "identity",
+            "description",
+            "branches",
+            "branch_head",
+            "tags",
+            "rev_parse",
+            "commit",
+            "tree",
+            "blob",
+            "history",
+            "remotes",
+        ],
+        "classmethods": [],
+    },
+    "HeadInfo": {"attrs": ["name", "oid"], "methods": [], "classmethods": []},
+    "Commit": {
+        "attrs": [
+            "oid",
+            "tree",
+            "parents",
+            "author_name",
+            "author_name_str",
+            "author_email",
+            "author_email_str",
+            "author_time",
+            "author_offset_min",
+            "committer_name",
+            "committer_name_str",
+            "committer_email",
+            "committer_email_str",
+            "committer_time",
+            "committer_offset_min",
+            "message",
+            "message_str",
+            "encoding",
+        ],
+        "methods": [],
+        "classmethods": [],
+    },
+    "Tree": {"attrs": ["oid", "entries"], "methods": [], "classmethods": []},
+    "TreeEntry": {
+        "attrs": ["name", "name_str", "kind", "mode", "oid"],
+        "methods": [],
+        "classmethods": [],
+    },
+    "TagInfo": {
+        "attrs": ["name", "target", "kind", "peeled", "peeled_kind"],
+        "methods": [],
+        "classmethods": [],
+    },
+    "RemoteInfo": {"attrs": ["fetcher", "heads"], "methods": [], "classmethods": []},
+    "ProjectDoc": {
+        "attrs": [
+            "name",
+            "description",
+            "default_branch",
+            "version",
+            "delegates",
+            "threshold",
+            "visibility",
+            "commit",
+            "blob",
+        ],
+        "methods": [],
+        "classmethods": [],
+    },
+    "HistoryPage": {
+        "attrs": ["name", "head", "oids", "offset", "has_more"],
+        "methods": [],
+        "classmethods": [],
+    },
 }
 
 #: Identifier type aliases — public, runtime `str`, precise in _types.pyi.
@@ -113,3 +207,33 @@ def test_no_undocumented_public_names():
     }
     undocumented = runtime - documented
     assert not undocumented, f"undocumented public names: {sorted(undocumented)}"
+
+
+def test_stub_runtime_all_parity():
+    """`__init__.pyi.__all__` must exactly match the runtime `__all__`."""
+    import ast
+
+    stub = API_MD.parent / "python" / "radiclepy" / "__init__.pyi"
+    tree = ast.parse(stub.read_text())
+    stub_all = None
+    for node in tree.body:
+        if isinstance(node, ast.Assign) and any(
+            isinstance(t, ast.Name) and t.id == "__all__" for t in node.targets
+        ):
+            stub_all = {
+                elt.value for elt in node.value.elts  # type: ignore[union-attr]
+            }
+    assert stub_all is not None, "no __all__ found in __init__.pyi"
+    assert stub_all == set(rad.__all__)
+
+
+def test_stub_classes_exist():
+    """Every class declared in the stub exists at runtime (kind: class)."""
+    import ast
+
+    stub = API_MD.parent / "python" / "radiclepy" / "__init__.pyi"
+    tree = ast.parse(stub.read_text())
+    for node in tree.body:
+        if isinstance(node, ast.ClassDef):
+            assert hasattr(rad, node.name), f"stub class missing at runtime: {node.name}"
+            assert inspect.isclass(getattr(rad, node.name))
