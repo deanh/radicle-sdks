@@ -12,7 +12,41 @@ on:
   workflow_dispatch:
 
 jobs:
+  test:
+    name: test / rust ${{ matrix.rust }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        # 1.88 = declared MSRV (radicle 0.25.1); stable guards drift.
+        rust: ["1.88", "stable"]
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: ${{ matrix.rust }}
+          components: clippy
+
+      - uses: astral-sh/setup-uv@v3
+
+      - name: Install Python deps
+        run: uv sync --dev --locked
+
+      - name: Build extension (test-helpers for deterministic fixtures)
+        run: uv run maturin develop --uv --features test-helpers
+
+      - name: Run tests
+        run: uv run pytest -q
+
+      - name: Clippy (feature state used by tests)
+        run: cargo clippy --all-targets --locked --features test-helpers -- -D warnings
+
+      - name: Clippy (release surface)
+        run: cargo clippy --all-targets --locked -- -D warnings
+
   manylinux:
+    needs: test
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
