@@ -88,6 +88,27 @@ class TestFollow:
         with pytest.raises(ValueError):
             policy.seed("rad:" + "z" + "q" * 50, scope="sometimes")
 
+    def test_unfollow_removes_block_rows_too(self, policy, profile):
+        # Upstream unfollow is an unconditional DELETE: it removes block
+        # rows as well as allow rows (review correction).
+        from radiclepy import _test
+
+        nid = _test.local_remote_id(profile)
+        policy.set_follow_policy(nid, "block")
+        assert policy.unfollow(nid) is True
+        assert policy.is_blocked(nid) is False
+        assert policy.follow_policy(nid) is None
+
+    def test_unblock_nid_only_touches_block_rows(self, policy, profile):
+        from radiclepy import _test
+
+        nid = _test.local_remote_id(profile)
+        policy.follow(nid)  # allow row
+        assert policy.unblock_nid(nid) is False   # not a block row
+        assert policy.is_following(nid) is True   # untouched
+        policy.set_follow_policy(nid, "block")
+        assert policy.unblock_nid(nid) is True
+
     def test_block_and_unblock(self, policy, profile):
         from radiclepy import _test
 
@@ -146,6 +167,19 @@ class TestSeed:
         assert sp.policy == "block"
         assert sp.scope is None
         assert policy.is_seeding(rid) is False
+        assert policy.unblock_rid(rid) is True
+
+    def test_unseed_removes_block_rows_too(self, policy, rid):
+        # Upstream unseed is an unconditional DELETE (review correction).
+        policy.set_seed_policy(rid, "block")
+        assert policy.unseed(rid) is True
+        assert policy.seed_policy(rid) is None
+
+    def test_unblock_rid_only_touches_block_rows(self, policy, rid):
+        policy.seed(rid)  # allow row
+        assert policy.unblock_rid(rid) is False
+        assert policy.is_seeding(rid) is True
+        policy.set_seed_policy(rid, "block")
         assert policy.unblock_rid(rid) is True
 
     def test_seed_policies_list(self, policy, rid):

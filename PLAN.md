@@ -286,7 +286,7 @@ radicle-py/
 
 **Resolved during Phase 3** (full evidence: [`FINDINGS-03.md`](./FINDINGS-03.md)):
 1. Store topology — policy store is its own sqlite file (`<home>/node/policies.db`, no `Profile` accessor; binding mirrors the raw `Store` surface); routing store *is* the node database (`Home::routing(config)` = `database(config)`); `RoutingStore` holds the named `node::Database` read-only.
-2. DB open/lock semantics (Phase 3 exit criterion) — reader = read-only sqlite connection (concurrent readers, busy timeouts); a missing node.db **opens empty** (schema init), not an error; writes serialize via sqlite single-writer + busy timeout.
+2. DB open/lock semantics (Phase 3 exit criterion) — reader = read-only sqlite connection (concurrent readers, busy timeouts); a missing node.db raises `DatabaseError` (read-only open creates nothing; `Profile::init` homes already carry a migrated db — corrected after review, see FINDINGS-03); writes serialize via sqlite single-writer + busy timeout.
 3. Address store — **parked** to a later phase (trait is write/bookkeeping-shaped; reads + Phase 5 writes should ship together). Not dropped.
 4. `node::Timestamp` — epoch **milliseconds** u64 newtype; surfaced as raw millis ints.
 5. `nodes_by_alias` is a fuzzy substring match upstream (`LIKE %alias%`) — preserved and documented; `is_blocked` is an explicit state distinct from unfollowed.

@@ -4,6 +4,8 @@ RoutingStore is read-only; entries are seeded via the feature-gated
 `_test.add_routing_entry` helper (mutable database writes are Phase 5).
 """
 
+import pathlib
+
 import pytest
 
 import radiclepy as rad
@@ -12,13 +14,21 @@ MS = 1_700_000_000_000  # fixed fixture timestamp (epoch millis)
 
 
 class TestOpen:
-    def test_fresh_home_opens_empty(self, profile):
-        # Upstream Database::reader initializes the schema if the node db
-        # does not exist yet — opening succeeds with an empty table
-        # (FINDINGS-03).
+    def test_initialized_home_opens_empty(self, profile):
+        # Profile::init creates AND migrates node.db, so a freshly
+        # initialized profile opens with an empty routing table.
         store = rad.RoutingStore.from_profile(profile)
         assert store.total() == 0
         assert store.is_empty() is True
+
+    def test_missing_db_raises(self, profile):
+        # Regression (review): Database::reader opens READ-ONLY and creates
+        # nothing — with node.db removed, opening is a DatabaseError.
+        db = pathlib.Path(profile.home.path) / "node" / "node.db"
+        assert db.exists()  # created by Profile::init
+        db.unlink()
+        with pytest.raises(rad.DatabaseError):
+            rad.RoutingStore.from_profile(profile)
 
     def test_invalid_ids(self, profile, tmp_path):
         from radiclepy import _test

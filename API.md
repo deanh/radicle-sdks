@@ -351,10 +351,11 @@ Low-level read-write constructor at an explicit path.
 #### `RoutingStore`
 
 Read-only routing table (upstream `node::routing::Store`, physically the
-node database). A missing node db opens **empty** (upstream schema init);
-other failures raise `DatabaseError`. Timestamps are **unix epoch
-milliseconds** (upstream `node::Timestamp` is a millis `u64` newtype).
-Inventory mutations are writes — Phase 5.
+node database). Raises `DatabaseError` if the node database does **not
+exist** (the read-only open creates nothing; freshly-initialized profiles do
+have a migrated `node.db`, so they open with an empty table). Timestamps are
+**unix epoch milliseconds** (upstream `node::Timestamp` is a millis `u64`
+newtype). Inventory mutations are writes — Phase 5.
 
 ##### `RoutingStore.from_profile(profile: Profile) -> RoutingStore` (classmethod)
 Also `profile.routing_store()`.

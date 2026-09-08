@@ -564,7 +564,7 @@ impl RoutingEntry {
     fn node_id(&self) -> &str {
         &self.node_id
     }
-    /// Last-seen time (unix epoch seconds).
+    /// Last-seen time (unix epoch **milliseconds**).
     #[getter]
     fn timestamp(&self) -> Option<u64> {
         self.timestamp

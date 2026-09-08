@@ -39,10 +39,14 @@ All facts verified against the crates.io `radicle = "=0.25.1"` source.
   writes; writers serialize (single-writer sqlite). The node process holds
   the same file; our read-write opens coexist via sqlite locking — no
   advisory lock is taken upstream, so **don't hold write transactions open**.
-- `node::Database::reader(path, config)` **creates the file and schema if
-  absent** (observed: opening a fresh home succeeds and `total() == 0`;
-  `node.db` exists afterwards). So "store missing" is NOT an error state for
-  routing — documented; `DatabaseError` reserved for real open failures.
+- `node::Database::reader(path, config)` opens with **read-only flags and
+  runs no migrations** (`open_thread_safe_with_flags(..., with_read_only())`).
+  A **missing** `node.db` therefore raises `DatabaseError` (sqlite code 14,
+  "unable to open database file"). Note: `Profile::init` creates and
+  migrates `node.db`, so a freshly-initialized profile opens fine with an
+  **empty** routing table — those two facts were initially conflated here
+  and corrected after review (regression test: delete `node.db` →
+  `DatabaseError`).
 - Two `PolicyStore` handles on one file in one process behave as two sqlite
   connections (tested: reader sees committed writer state — statement-level
   autocommit upstream).
@@ -62,9 +66,12 @@ All facts verified against the crates.io `radicle = "=0.25.1"` source.
 - `nodes_by_alias` is upstream a **fuzzy case-insensitive substring**
   (`LIKE %alias%`) lookup returning `(NodeId, Alias)` pairs — preserved and
   documented (surprising for anyone expecting exact match).
-- `is_blocked(nid)` is distinct from `not is_following` (block rows are
-  explicit); `unfollow` removes follow but block rows persist until
-  `unblock_nid`/`unblock_rid`.
+- `is_blocked(nid)` is an explicit state distinct from "not followed".
+  **Deletion semantics (upstream SQL, corrected post-review):**
+  `unfollow`/`unseed` are *unconditional* `DELETE ... WHERE id = ?` — they
+  remove **any** policy row, allow or block; `unblock_nid`/`unblock_rid` are
+  `DELETE ... WHERE id = ? AND policy = 'block'` — they remove **only**
+  block rows (and return `false` when the row is an allow row).
 
 ## Binding-level validations (ValueError before any sqlite call)
 

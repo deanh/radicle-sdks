@@ -396,8 +396,8 @@ class RoutingStore:
 
     @classmethod
     def from_profile(cls, profile: Profile) -> RoutingStore:
-        """A missing node db opens empty (schema init); other failures are
-        `DatabaseError`."""
+        """Raises `DatabaseError` if the node database does not exist
+        (read-only open creates nothing)."""
         ...
     def get(self, rid: RepoId) -> list[NodeId]: ...
     def get_inventory(self, node_id: NodeId) -> list[RepoId]: ...

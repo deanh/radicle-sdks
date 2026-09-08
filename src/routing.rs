@@ -6,7 +6,9 @@
 //!   routing table lives in the node database (`<home>/node/node.db`), and
 //!   `node::Database` implements `routing::Store`. We therefore hold the
 //!   named `node::Database` type, opened read-only via `Profile::database()`
-//!   (multiple concurrent readers; upstream busy timeout).
+//!   (multiple concurrent readers; upstream busy timeout). Read-only open
+//!   does **not** create the file: a missing `node.db` raises
+//!   `DatabaseError` (upstream reader runs no migrations).
 //! * `node::Timestamp` is a newtype over **unix epoch milliseconds**
 //!   (`Deref<Target = u64>`); the binding surfaces the raw millis int.
 //! * The trait's `entries()` yields only `(RepoId, NodeId)` pairs; the
@@ -61,9 +63,11 @@ impl PyRoutingStore {
 impl PyRoutingStore {
     /// Primary constructor: read-only node database of `profile`'s home
     /// (SQLite config comes from the profile, matching `Profile::routing()`).
-    /// A not-yet-existing node database opens successfully with an empty
-    /// routing table (upstream `Database::reader` initializes the schema —
-    /// FINDINGS-03).
+    /// Raises `DatabaseError` if the node database does not exist —
+    /// upstream `Database::reader` opens with read-only flags and performs
+    /// no schema creation (a fresh `Profile.init`/`load` home does have a
+    /// migrated `node.db`, hence freshly-initialized profiles open fine with
+    /// an empty routing table; FINDINGS-03).
     #[classmethod]
     fn from_profile(_cls: &Bound<'_, PyType>, profile: PyRef<'_, PyProfile>) -> PyResult<Self> {
         Self::from_profile_ref(&profile.inner)
