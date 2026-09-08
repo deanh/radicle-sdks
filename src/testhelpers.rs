@@ -13,7 +13,7 @@ use std::str::FromStr;
 use pyo3::prelude::*;
 use radicle::git;
 use radicle::identity::RepoId;
-use radicle::node::Alias;
+use radicle::node::{self, Alias};
 use radicle::storage::{ReadStorage, RemoteId};
 
 use crate::error;
@@ -189,6 +189,37 @@ pub fn create_tag(
     Ok(tag_ref)
 }
 
+/// TEST-ONLY: create/insert a routing entry into the profile's node
+/// database (writes are otherwise Phase 5; RoutingStore is read-only).
+#[pyfunction]
+#[pyo3(signature = (profile, rid, node_id, timestamp_ms = 1_700_000_000_000))]
+pub fn add_routing_entry(
+    profile: PyRef<'_, PyProfile>,
+    rid: &str,
+    node_id: &str,
+    timestamp_ms: u64,
+) -> PyResult<bool> {
+    use radicle::node::routing::Store as _;
+
+    let rid_t = RepoId::from_str(rid)
+        .map_err(|e| error::value_err(format!("invalid RepoId: {e}")))?;
+    let nid = node::NodeId::from_str(node_id)
+        .map_err(|e| error::value_err(format!("invalid NodeId: {e}")))?;
+    let mut db = profile
+        .inner
+        .database_mut()
+        .map_err(error::database_err)?;
+    let updated = db
+        .add_inventory(
+            [&rid_t],
+            nid,
+            node::Timestamp::try_from(timestamp_ms)
+                .map_err(|e| error::value_err(format!("invalid timestamp: {e}")))?,
+        )
+        .map_err(error::database_err)?;
+    Ok(!updated.is_empty())
+}
+
 /// TEST-ONLY: fetcher node id of the profile (for remote assertions).
 #[pyfunction]
 pub fn local_remote_id(profile: PyRef<'_, PyProfile>) -> String {
@@ -209,6 +240,7 @@ pub fn register(py: Python<'_>, m: &Bound<'_, PyModule>) -> PyResult<()> {
     let test_mod = PyModule::new(py, "_test")?;
     test_mod.add_function(wrap_pyfunction!(init_project, &test_mod)?)?;
     test_mod.add_function(wrap_pyfunction!(create_tag, &test_mod)?)?;
+    test_mod.add_function(wrap_pyfunction!(add_routing_entry, &test_mod)?)?;
     test_mod.add_function(wrap_pyfunction!(local_remote_id, &test_mod)?)?;
     test_mod.add_function(wrap_pyfunction!(parse_alias, &test_mod)?)?;
     m.add_submodule(&test_mod)?;

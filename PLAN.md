@@ -284,8 +284,15 @@ radicle-py/
 5. Test repo fixtures ship as a **`test-helpers`-gated `_test` submodule** (init_project/create_tag), same compilation boundary as `Profile._from_seed`.
 6. CI manylinux gate: `wheels.yml` ran green (build → auditwheel repair manylinux_2_28 → smoke).
 
+**Resolved during Phase 3** (full evidence: [`FINDINGS-03.md`](./FINDINGS-03.md)):
+1. Store topology — policy store is its own sqlite file (`<home>/node/policies.db`, no `Profile` accessor; binding mirrors the raw `Store` surface); routing store *is* the node database (`Home::routing(config)` = `database(config)`); `RoutingStore` holds the named `node::Database` read-only.
+2. DB open/lock semantics (Phase 3 exit criterion) — reader = read-only sqlite connection (concurrent readers, busy timeouts); a missing node.db **opens empty** (schema init), not an error; writes serialize via sqlite single-writer + busy timeout.
+3. Address store — **parked** to a later phase (trait is write/bookkeeping-shaped; reads + Phase 5 writes should ship together). Not dropped.
+4. `node::Timestamp` — epoch **milliseconds** u64 newtype; surfaced as raw millis ints.
+5. `nodes_by_alias` is a fuzzy substring match upstream (`LIKE %alias%`) — preserved and documented; `is_blocked` is an explicit state distinct from unfollowed.
+
 **Still open:**
-1. Whether the address store is in Phase 3 scope or parked.
+1. (none tracked — next: Phase 4 typed + raw COB readers)
 
 ---
 

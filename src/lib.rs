@@ -2,7 +2,9 @@ use pyo3::prelude::*;
 
 mod error;
 mod identity;
+mod policy;
 mod profile;
+mod routing;
 mod storage;
 #[cfg(feature = "test-helpers")]
 mod testhelpers;
@@ -16,6 +18,11 @@ fn radiclepy(py: Python<'_>, m: &Bound<'_, PyModule>) -> PyResult<()> {
     profile::register(py, m)?;
     storage::register(py, m)?;
     storage::register_values(py, m)?;
+    policy::register(py, m)?;
+    routing::register(py, m)?;
+    m.add_class::<values::FollowPolicyInfo>()?;
+    m.add_class::<values::SeedPolicyInfo>()?;
+    m.add_class::<values::RoutingEntry>()?;
     #[cfg(feature = "test-helpers")]
     testhelpers::register(py, m)?;
     Ok(())

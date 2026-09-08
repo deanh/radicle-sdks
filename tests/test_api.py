@@ -41,13 +41,18 @@ TOP_LEVEL = {
         "RemoteInfo",
         "ProjectDoc",
         "HistoryPage",
+        "PolicyStore",
+        "RoutingStore",
+        "FollowPolicyInfo",
+        "SeedPolicyInfo",
+        "RoutingEntry",
     ],
 }
 
 MEMBERS = {
     "Profile": {
         "attrs": ["did", "node_id", "home", "aliases"],
-        "methods": ["signer"],
+        "methods": ["signer", "policy_store", "routing_store"],
         "classmethods": ["load", "init"],
     },
     "Home": {"attrs": ["path"], "methods": [], "classmethods": ["load", "resolve"]},
@@ -129,6 +134,47 @@ MEMBERS = {
     },
     "HistoryPage": {
         "attrs": ["name", "head", "oids", "offset", "has_more"],
+        "methods": [],
+        "classmethods": [],
+    },
+    "PolicyStore": {
+        "attrs": ["path"],
+        "methods": [
+            "follow",
+            "unfollow",
+            "seed",
+            "unseed",
+            "set_follow_policy",
+            "set_seed_policy",
+            "unblock_rid",
+            "unblock_nid",
+            "is_following",
+            "is_seeding",
+            "is_blocked",
+            "follow_policy",
+            "seed_policy",
+            "follow_policies",
+            "seed_policies",
+            "nodes_by_alias",
+        ],
+        "classmethods": ["from_profile", "reader", "open"],
+    },
+    "RoutingStore": {
+        "methods": ["get", "get_inventory", "entry", "entries", "count", "total", "is_empty"],
+        "classmethods": ["from_profile"],
+    },
+    "FollowPolicyInfo": {
+        "attrs": ["node_id", "alias", "policy"],
+        "methods": [],
+        "classmethods": [],
+    },
+    "SeedPolicyInfo": {
+        "attrs": ["rid", "policy", "scope"],
+        "methods": [],
+        "classmethods": [],
+    },
+    "RoutingEntry": {
+        "attrs": ["rid", "node_id", "timestamp"],
         "methods": [],
         "classmethods": [],
     },

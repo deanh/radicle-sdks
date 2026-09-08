@@ -65,6 +65,22 @@ pub(crate) fn identity_err(err: impl std::fmt::Display) -> PyErr {
     IdentityError::new_err(err.to_string())
 }
 
+/// `node::policy::store::Error` — policy store failures (Phase 3).
+pub(crate) fn policy_err(err: impl std::fmt::Display) -> PyErr {
+    PolicyError::new_err(err.to_string())
+}
+
+/// SQLite / node-database failures crossing the boundary (Phase 3).
+pub(crate) fn database_err(err: impl std::fmt::Display) -> PyErr {
+    DatabaseError::new_err(err.to_string())
+}
+
+/// `StorageError` from a plain message (e.g. operating on a read-only
+/// handle) — distinct from upstream-error mapping.
+pub(crate) fn storage_err_msg(message: impl Into<String>) -> PyErr {
+    StorageError::new_err(message.into())
+}
+
 pub fn register(py: Python<'_>, m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add("Error", py.get_type::<Error>())?;
     m.add("StorageError", py.get_type::<StorageError>())?;

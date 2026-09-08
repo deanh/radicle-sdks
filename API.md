@@ -308,6 +308,84 @@ Canonical project identity document (verified at load).
 
 ---
 
+### Policy & routing (Phase 3)
+
+#### `PolicyStore`
+
+Follow/seed policy store (upstream `node::policy::Store`). Own sqlite file
+(`<home>/node/policies.db`). The binding mirrors the **raw upstream store
+surface** — no implicit file-config fallbacks (see FINDINGS-03).
+Identifier/policy/scope validation happens binding-side (`ValueError`)
+before any database call. All write methods return `bool`: `true` when the
+store actually changed.
+
+##### `PolicyStore.from_profile(profile: Profile) -> PolicyStore` (classmethod)
+Primary constructor (read-write). Also available as `profile.policy_store()`.
+
+##### `PolicyStore.reader(profile: Profile) -> PolicyStore` (classmethod)
+Read-only handle (upstream `Store::reader`: concurrent readers, no locking).
+Write methods raise `StorageError`.
+
+##### `PolicyStore.open(path: str) -> PolicyStore` (classmethod)
+Low-level read-write constructor at an explicit path.
+
+##### `policy.path -> str` (attribute)
+##### `policy.follow(node_id: NodeId, *, alias: str | None = None) -> bool` (method)
+##### `policy.unfollow(node_id: NodeId) -> bool` (method)
+##### `policy.seed(rid: RepoId, *, scope: str = "all") -> bool` (method) — scope: `"all" | "followed"`
+##### `policy.unseed(rid: RepoId) -> bool` (method)
+##### `policy.set_follow_policy(node_id: NodeId, policy: str) -> bool` (method) — `"allow" | "block"`
+##### `policy.set_seed_policy(rid: RepoId, policy: str) -> bool` (method)
+##### `policy.unblock_rid(rid: RepoId) -> bool` (method)
+##### `policy.unblock_nid(node_id: NodeId) -> bool` (method)
+##### `policy.is_following(node_id: NodeId) -> bool` (method)
+##### `policy.is_seeding(rid: RepoId) -> bool` (method)
+##### `policy.is_blocked(node_id: NodeId) -> bool` (method) — explicit block, distinct from unfollowed
+##### `policy.follow_policy(node_id: NodeId) -> FollowPolicyInfo | None` (method)
+##### `policy.seed_policy(rid: RepoId) -> SeedPolicyInfo | None` (method)
+##### `policy.follow_policies() -> list[FollowPolicyInfo]` (method) — eager
+##### `policy.seed_policies() -> list[SeedPolicyInfo]` (method) — eager
+##### `policy.nodes_by_alias(alias: str) -> list[tuple[NodeId, str]]` (method)
+**Fuzzy** (substring, case-insensitive) match — upstream `LIKE`; not exact.
+
+#### `RoutingStore`
+
+Read-only routing table (upstream `node::routing::Store`, physically the
+node database). A missing node db opens **empty** (upstream schema init);
+other failures raise `DatabaseError`. Timestamps are **unix epoch
+milliseconds** (upstream `node::Timestamp` is a millis `u64` newtype).
+Inventory mutations are writes — Phase 5.
+
+##### `RoutingStore.from_profile(profile: Profile) -> RoutingStore` (classmethod)
+Also `profile.routing_store()`.
+
+##### `routing.get(rid: RepoId) -> list[NodeId]` (method) — sorted
+##### `routing.get_inventory(node_id: NodeId) -> list[RepoId]` (method) — sorted
+##### `routing.entry(rid: RepoId, node_id: NodeId) -> int | None` (method) — last-seen millis
+##### `routing.entries() -> list[RoutingEntry]` (method) — eager; per-entry timestamp lookup (N+1)
+##### `routing.count(rid: RepoId) -> int` (method)
+##### `routing.total() -> int` (method)
+##### `routing.is_empty() -> bool` (method)
+
+#### Value classes (Phase 3)
+
+#### `FollowPolicyInfo`
+##### `follow_policy_info.node_id -> NodeId` (attribute)
+##### `follow_policy_info.alias -> str | None` (attribute)
+##### `follow_policy_info.policy -> str` (attribute) — `"allow" | "block"`
+
+#### `SeedPolicyInfo`
+##### `seed_policy_info.rid -> RepoId` (attribute)
+##### `seed_policy_info.policy -> str` (attribute) — `"allow" | "block"`
+##### `seed_policy_info.scope -> str | None` (attribute) — `"all" | "followed"`; `None` iff blocked
+
+#### `RoutingEntry`
+##### `routing_entry.rid -> RepoId` (attribute)
+##### `routing_entry.node_id -> NodeId` (attribute)
+##### `routing_entry.timestamp -> int | None` (attribute) — epoch milliseconds
+
+---
+
 ## Quick start
 
 ```python
@@ -322,6 +400,10 @@ print(head.name, commit.oid, commit.message_str)
 
 for entry in repo.tree(commit.tree).entries:            # canonical git order
     print(entry.name_str, entry.kind, oct(entry.mode))
+
+policy = profile.policy_store()                         # Phase 3
+policy.follow(profile.node_id, alias="self")
+print(policy.follow_policies())
 ```
 
 ## Layout notes

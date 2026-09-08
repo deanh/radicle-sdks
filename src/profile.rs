@@ -245,6 +245,16 @@ impl PyProfile {
         Ok(PySigner { inner: signer })
     }
 
+    /// Read-write policy store of this profile's home (Phase 3).
+    fn policy_store(&self) -> PyResult<crate::policy::PyPolicyStore> {
+        crate::policy::PyPolicyStore::from_profile_ref(&self.inner)
+    }
+
+    /// Read-only routing store of this profile's home (Phase 3).
+    fn routing_store(&self) -> PyResult<crate::routing::PyRoutingStore> {
+        crate::routing::PyRoutingStore::from_profile_ref(&self.inner)
+    }
+
     fn __repr__(&self) -> String {
         format!("Profile({})", self.inner.did())
     }
