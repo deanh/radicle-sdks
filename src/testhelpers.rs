@@ -189,6 +189,95 @@ pub fn create_tag(
     Ok(tag_ref)
 }
 
+
+/// TEST-ONLY: create an issue in the storage repository via the typed store
+/// (COB writes are otherwise Phase 5; Phase 4 is read-only). Returns the new
+/// issue id.
+#[pyfunction]
+#[pyo3(signature = (profile, rid, title, description, labels = None, comments = None))]
+pub fn create_issue(
+    profile: PyRef<'_, PyProfile>,
+    rid: &str,
+    title: &str,
+    description: &str,
+    labels: Option<Vec<String>>,
+    comments: Option<Vec<String>>,
+) -> PyResult<String> {
+    use radicle::cob::issue::Issues;
+    use radicle::cob::store::access::WriteAs;
+    use radicle::cob::{cache::NoCache, Label, Title};
+
+    let rid_t = RepoId::from_str(rid)
+        .map_err(|e| error::value_err(format!("invalid RepoId: {e}")))?;
+    let title = Title::new(title).map_err(|e| error::value_err(format!("invalid title: {e}")))?;
+    let labels: Vec<Label> = labels
+        .unwrap_or_default()
+        .iter()
+        .map(|l| Label::new(l.as_str()).map_err(|e| error::value_err(format!("invalid label: {e}",))))
+        .collect::<PyResult<_>>()?;
+
+    let storage = &profile.inner.storage;
+    let repo = storage.repository(rid_t).map_err(error::repository_err)?;
+    let signer = profile.inner.signer().map_err(error::signer_err)?;
+    let mut issues = Issues::open(&repo, WriteAs::new(&signer)).map_err(error::cob_err)?;
+    let mut nocache = NoCache;
+    let mut created = issues
+        .create(title, description, &labels, &[], [], &mut nocache)
+        .map_err(error::cob_err)?;
+    // Optional follow-up comments → each is a separate COB operation, letting
+    // tests exercise multi-op raw history and topological ordering.
+    let root_comment = created
+        .comments()
+        .next()
+        .map(|(id, _)| *id)
+        .ok_or_else(|| error::op_err("issue has no root comment"))?;
+    for body in comments.unwrap_or_default() {
+        created
+            .comment(body, root_comment, [])
+            .map_err(error::cob_err)?;
+    }
+    Ok(created.id().to_string())
+}
+
+/// TEST-ONLY: create a patch in the storage repository (trivial patch whose
+/// base and head are the current canonical head commit). Returns the patch id.
+#[pyfunction]
+#[pyo3(signature = (profile, rid, title, description))]
+pub fn create_patch(
+    profile: PyRef<'_, PyProfile>,
+    rid: &str,
+    title: &str,
+    description: &str,
+) -> PyResult<String> {
+    use radicle::cob::patch::{MergeTarget, Patches};
+    use radicle::cob::store::access::WriteAs;
+    use radicle::cob::{cache::NoCache, Title};
+    use radicle::storage::ReadRepository;
+
+    let rid_t = RepoId::from_str(rid)
+        .map_err(|e| error::value_err(format!("invalid RepoId: {e}")))?;
+    let title = Title::new(title).map_err(|e| error::value_err(format!("invalid title: {e}")))?;
+
+    let storage = &profile.inner.storage;
+    let repo = storage.repository(rid_t).map_err(error::repository_err)?;
+    let (_head_name, head) = ReadRepository::head(&repo).map_err(error::repository_err)?;
+    let signer = profile.inner.signer().map_err(error::signer_err)?;
+    let mut patches = Patches::open(&repo, WriteAs::new(&signer)).map_err(error::cob_err)?;
+    let mut nocache = NoCache;
+    let created = patches
+        .create(
+            title,
+            description,
+            MergeTarget::Delegates,
+            head,
+            head,
+            &[],
+            &mut nocache,
+        )
+        .map_err(error::cob_err)?;
+    Ok(created.id().to_string())
+}
+
 /// TEST-ONLY: create/insert a routing entry into the profile's node
 /// database (writes are otherwise Phase 5; RoutingStore is read-only).
 #[pyfunction]
@@ -240,6 +329,8 @@ pub fn register(py: Python<'_>, m: &Bound<'_, PyModule>) -> PyResult<()> {
     let test_mod = PyModule::new(py, "_test")?;
     test_mod.add_function(wrap_pyfunction!(init_project, &test_mod)?)?;
     test_mod.add_function(wrap_pyfunction!(create_tag, &test_mod)?)?;
+    test_mod.add_function(wrap_pyfunction!(create_issue, &test_mod)?)?;
+    test_mod.add_function(wrap_pyfunction!(create_patch, &test_mod)?)?;
     test_mod.add_function(wrap_pyfunction!(add_routing_entry, &test_mod)?)?;
     test_mod.add_function(wrap_pyfunction!(local_remote_id, &test_mod)?)?;
     test_mod.add_function(wrap_pyfunction!(parse_alias, &test_mod)?)?;

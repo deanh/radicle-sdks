@@ -405,6 +405,11 @@ for entry in repo.tree(commit.tree).entries:            # canonical git order
 policy = profile.policy_store()                         # Phase 3
 policy.follow(profile.node_id, alias="self")
 print(policy.follow_policies())
+
+for issue in rad.Issues.open(repo).all():               # Phase 4
+    print(issue.title, issue.state, issue.labels)
+ops = rad.Raw.open(repo).history("xyz.radicle.issue", issue.id)
+print(len(ops), "causal ops,", sum(len(o.actions) for o in ops), "actions")
 ```
 
 ## Layout notes

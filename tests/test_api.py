@@ -46,6 +46,13 @@ TOP_LEVEL = {
         "FollowPolicyInfo",
         "SeedPolicyInfo",
         "RoutingEntry",
+        "Issues",
+        "Issue",
+        "Patches",
+        "Patch",
+        "Raw",
+        "RawOp",
+        "CobRef",
     ],
 }
 
@@ -178,6 +185,46 @@ MEMBERS = {
         "methods": [],
         "classmethods": [],
     },
+    "Issues": {
+        "attrs": ["rid"],
+        "methods": ["all", "get", "count", "is_empty"],
+        "classmethods": ["open"],
+    },
+    "Patches": {
+        "attrs": ["rid"],
+        "methods": ["all", "get", "count", "is_empty"],
+        "classmethods": ["open"],
+    },
+    "Raw": {
+        "attrs": ["rid"],
+        "methods": ["typenames", "entities", "refs", "history"],
+        "classmethods": ["open"],
+    },
+    "Issue": {
+        "attrs": [
+            "id", "title", "description", "author", "state", "close_reason",
+            "assignees", "labels", "comment_count", "comment_ids",
+        ],
+        "methods": [],
+        "classmethods": [],
+    },
+    "Patch": {
+        "attrs": [
+            "id", "title", "description", "author", "state", "target",
+            "base", "head", "version", "labels", "revision_count",
+        ],
+        "methods": [],
+        "classmethods": [],
+    },
+    "RawOp": {
+        "attrs": [
+            "id", "actor", "timestamp", "actions", "parents", "related",
+            "identity", "type_name", "version",
+        ],
+        "methods": ["action_json_types"],
+        "classmethods": [],
+    },
+    "CobRef": {"attrs": ["name", "target"], "methods": [], "classmethods": []},
 }
 
 #: Identifier type aliases — public, runtime `str`, precise in _types.pyi.

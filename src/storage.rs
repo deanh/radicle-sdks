@@ -153,7 +153,13 @@ pub struct PyRepository {
 }
 
 impl PyRepository {
-    fn open(&self) -> PyResult<radicle::storage::git::Repository> {
+    /// Repository id (crate-internal; the `#[pyo3(get)]`-style getter above
+    /// is the Python surface).
+    pub(crate) fn rid_str(&self) -> String {
+        self.rid.to_string()
+    }
+
+    pub(crate) fn open(&self) -> PyResult<radicle::storage::git::Repository> {
         self.storage
             .inner
             .raw

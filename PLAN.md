@@ -291,8 +291,13 @@ radicle-py/
 4. `node::Timestamp` — epoch **milliseconds** u64 newtype; surfaced as raw millis ints.
 5. `nodes_by_alias` is a fuzzy substring match upstream (`LIKE %alias%`) — preserved and documented; `is_blocked` is an explicit state distinct from unfollowed.
 
+**Resolved during Phase 4** (full evidence: [`FINDINGS-04.md`](./FINDINGS-04.md)):
+1. Typed readers via `Store::open(repo, ReadOnly)` (Issues/Patches `Deref` to `Store`); eager materialization; COB `String` fields are plain `str` (UTF-8 by construction — bytes-first policy is for byte-typed sources).
+2. Raw walk contract shipped: `entry.parents`-only traversal, global per-entity dedup, Kahn topological output (insertion-ordered Vec — a `BTreeMap` collect silently re-sorts; regression test added), identity/related exposed as links, never traversed.
+3. COB refs carry the full namespaced form (`refs/namespaces/<nid>/refs/cobs/…`); `Entry.timestamp` is millis `u64`; `RawOp.actor` is the canonical NodeId; `Version` converts via `usize::from`.
+
 **Still open:**
-1. (none tracked — next: Phase 4 typed + raw COB readers)
+1. (none tracked — next: Phase 5 writes)
 
 ---
 

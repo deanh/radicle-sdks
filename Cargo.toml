@@ -18,6 +18,9 @@ pyo3 = { version = "0.23", features = ["extension-module", "abi3-py39"] }
 radicle = "=0.25.1"
 # OS RNG for Profile.init()'s secure seed (PLAN §5.7; no upstream Seed::generate()).
 getrandom = "0.3"
+# Raw COB actions are JSON bytes; we validate/inspect them without a private
+# Python type mapping (PLAN §5.5 — actions stay `bytes`; only a type-name probe).
+serde_json = "1"
 
 [features]
 # Deterministic test helpers (Profile._from_seed). NEVER enabled in release

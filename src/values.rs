@@ -1,8 +1,10 @@
 //! Value classes returned by the repository reads.
 //!
 //! Conversion schemas live in API.md (§5.4): bytes-first fields with
-//! explicitly-lossy `*_str` conveniences; OIDs are lowercase hex strings;
-//! timestamps are unix epoch seconds with offset minutes.
+//! explicitly-lossy `*_str` conveniences; OIDs are lowercase hex strings.
+//! Timestamp units are documented per class: commit author/committer times
+//! are unix epoch **seconds** (plus offset minutes), while
+//! `RoutingEntry.timestamp` is unix epoch **milliseconds**.
 
 use pyo3::prelude::*;
 

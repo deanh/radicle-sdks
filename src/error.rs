@@ -55,6 +55,11 @@ pub(crate) fn repository_err(err: radicle::storage::RepositoryError) -> PyErr {
     RepositoryError::new_err(err.to_string())
 }
 
+/// COB store / raw-COB failures (Phase 4).
+pub(crate) fn cob_err(err: impl std::fmt::Display) -> PyErr {
+    CobError::new_err(err.to_string())
+}
+
 /// Low-level libgit2 failures crossing the boundary (PLAN §5.8).
 pub(crate) fn git_err(err: impl std::fmt::Display) -> PyErr {
     GitError::new_err(err.to_string())
