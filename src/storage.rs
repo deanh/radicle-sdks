@@ -125,12 +125,17 @@ impl PyStorage {
     }
 
     /// Repository ids present in this storage (unsorted; storage order).
-    fn repositories(&self) -> Vec<String> {
-        self.inner
+    /// Raises `StorageError` on storage-level failures (NOT an empty list —
+    /// real failures must not masquerade as an empty store).
+    fn repositories(&self) -> PyResult<Vec<String>> {
+        Ok(self
+            .inner
             .raw
             .repositories()
-            .map(|infos| infos.into_iter().map(|i| i.rid.to_string()).collect())
-            .unwrap_or_default()
+            .map_err(error::storage_err)?
+            .into_iter()
+            .map(|i| i.rid.to_string())
+            .collect())
     }
 
     fn __repr__(&self) -> String {
@@ -201,11 +206,12 @@ impl PyRepository {
     }
 
     /// The project description (from the identity document).
-    fn description(&self) -> PyResult<Option<String>> {
-        match self.identity() {
-            Ok(doc) => Ok(Some(doc.description.clone())),
-            Err(_) => Ok(None),
-        }
+    ///
+    /// The project payload requires a description, so there is no legitimate
+    /// "missing" value: identity failures (corruption, verification, I/O)
+    /// propagate as `IdentityError` instead of masquerading as `None`.
+    fn description(&self) -> PyResult<String> {
+        Ok(self.identity()?.description.clone())
     }
 
     /// Branch (head ref) short names.
@@ -227,12 +233,20 @@ impl PyRepository {
         Ok(names)
     }
 
-    /// The OID a branch points at, or None.
+    /// The OID a branch points at, or `None` if the branch does not exist.
+    ///
+    /// Raises `ValueError` for binding-invalid branch names and `GitError`
+    /// for any other libgit2 failure — only `NotFound` maps to `None`.
     fn branch_head(&self, name: &str) -> PyResult<Option<String>> {
+        let full = format!("refs/heads/{name}");
+        if name.is_empty() || !git::raw::Reference::is_valid_name(&full) {
+            return Err(error::value_err(format!("invalid branch name: {name:?}")));
+        }
         let repo = self.open()?;
-        match repo.backend.refname_to_id(&format!("refs/heads/{name}")) {
+        match repo.backend.refname_to_id(&full) {
             Ok(oid) => Ok(Some(oid.to_string())),
-            Err(_) => Ok(None),
+            Err(err) if err.code() == git::raw::ErrorCode::NotFound => Ok(None),
+            Err(err) => Err(error::git_err(err)),
         }
     }
 
@@ -370,10 +384,18 @@ impl PyRepository {
     /// Bounded commit history page starting at `rev`.
     ///
     /// Ordering: libgit2 revwalk default order (no explicit sort is exposed by
-    /// the pinned upstream — see FINDINGS-02 S7). `limit` is clamped to 1000.
+    /// the pinned upstream — see FINDINGS-02 S7).
+    ///
+    /// Pagination contract: `limit` must satisfy `1 <= limit <= 1000`
+    /// (a larger limit is clamped to 1000; `limit == 0` raises `ValueError`
+    /// rather than silently becoming 1). Negative limits fail argument
+    /// conversion (TypeError) before reaching this method.
     #[pyo3(signature = (rev, *, limit = DEFAULT_HISTORY_LIMIT, offset = 0))]
     fn history(&self, rev: &str, limit: usize, offset: usize) -> PyResult<HistoryPage> {
-        let limit = limit.clamp(1, MAX_HISTORY_LIMIT);
+        if limit == 0 {
+            return Err(error::value_err("limit must be >= 1"));
+        }
+        let limit = limit.min(MAX_HISTORY_LIMIT);
         let repo = self.open()?;
         let obj = repo
             .backend

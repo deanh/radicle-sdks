@@ -15,7 +15,8 @@ settles the read-only surface against the published `radicle = "=0.25.1"`.
   puts the shorter prefix `"foo"` first → `["foo", "foo!"]` (observed, differ).
 - **Binding contract:** `Tree.entries` preserves libgit2 walk order verbatim.
   The binding does NOT re-sort; canonical order is exactly what libgit2 returns.
-  `TreeEntry` exposes `name: bytes`, `kind` ("blob"|"tree"|"link"|"commit"|None),
+  `TreeEntry` exposes `name: bytes`, `kind` ("blob"|"tree"|"commit"|None —
+  symlinks report as "blob", distinguished by mode 0o120000),
   `mode: int` (octerms like 0o100644), `oid: Oid`.
 
 ## S6 — Tags: raw vs peeled vs kind — RESOLVED (with a trap)
@@ -31,11 +32,11 @@ settles the read-only surface against the published `radicle = "=0.25.1"`.
 - **Binding contract (`TagInfo`):**
   - `name: str`, `target: Oid` (the ref target, always present),
   - `kind: "annotated" | "lightweight"` (from raw object kind == Tag or not),
-  - `peeled: Oid | None` and `peeled_kind: str | None` — **present only when
-    kind == "annotated"** (peel the tag object); for lightweight tags the target
-    IS the peeled object, so peeled == target and we still report the concrete
-    `peeled_kind` (commit/tree/blob/tag). "Peeled" means fully resolved through
-    any tag chain ( ObjectType::Any ), NOT specifically to a commit.
+  - `peeled: Oid` and `peeled_kind` ("commit"|"tree"|"blob" — a fully-peeled
+    target is never a tag object) — **always present**. For annotated tags the
+    tag object is peeled ( ObjectType::Any , fully resolved through any tag
+    chain, NOT specifically to a commit); for lightweight tags the target IS
+    the peeled object (`peeled == target`), so no peel call is made.
 
 ## S7 — History pages — RESOLVED (constraint noted)
 
@@ -58,8 +59,9 @@ settles the read-only surface against the published `radicle = "=0.25.1"`.
   `Remotes` container); each `Remote.refs` is a `SignedRefs` (use `.count()` on
   its `refs`, which is a `Refs`).
 - `references_of(remote)` → `Refs` with `.len()` and iteration `(RefStr, Oid)`.
-- **Binding contract (`RemoteInfo`):** `fetcher: NodeId`, `refs_head: list[str]`
-  (names from the remote's signed refs), plus `references_of()` detail. After
+- **Binding contract (`RemoteInfo`):** `fetcher: NodeId`, `heads: list[str]`
+  (names from the remote's signed refs; the (RefStr, Oid) detail of
+  `references_of()` is NOT exposed in Phase 2). After
   `rad::init`, a repo has exactly one remote (itself) with the canonical refs:
   `refs/rad/id`, `refs/rad/root`, `refs/rad/sigrefs`, `refs/heads/<branch>`,
   and COB refs under `refs/cobs/…`.
@@ -73,7 +75,8 @@ settles the read-only surface against the published `radicle = "=0.25.1"`.
 - **Binding contract (`ProjectDoc`):** `name`, `description`, `default_branch`
   (the short branch name from the project payload), `version: int`,
   `delegates: list[Did]`, `threshold: int`, `visibility: str`, and the raw
-  `commit`/`blob` OIDs. Verification (`Doc::verify`) is exposed as a method.
+  `commit`/`blob` OIDs. No separate `verify()` method: `canonical_identity_doc()`
+  returns an already-verified document, so re-verification would be redundant.
 
 ## Storage / Repository construction
 

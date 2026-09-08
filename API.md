@@ -189,14 +189,18 @@ Head (`refs/heads/...`) and its OID.
 ##### `repository.identity() -> ProjectDoc` (method)
 Verified canonical identity document. Raises `IdentityError`.
 
-##### `repository.description() -> str | None` (method)
-Project description (from the identity document; `None` when unverifiable).
+##### `repository.description() -> str` (method)
+Project description (from the identity document). The payload requires a
+description, so failures (corruption, verification, I/O) propagate as
+`IdentityError` — there is no `None` sentinel.
 
 ##### `repository.branches() -> list[str]` (method)
 Branch short names (sorted).
 
 ##### `repository.branch_head(name: str) -> Oid | None` (method)
-OID a branch points at, or `None`.
+OID a branch points at, or `None` **only when the branch does not exist**
+(`NotFound`). Raises `ValueError` for binding-invalid names, `GitError` for
+any other libgit2 failure.
 
 ##### `repository.tags() -> list[TagInfo]` (method)
 Tags (sorted by short name) with raw/peeled distinction.
@@ -261,7 +265,7 @@ Ordering contract: `tree.entries` is in **canonical git tree order**
 ##### `len(tree) -> int`
 ##### `entry.name -> bytes` (attribute) — may be invalid UTF-8
 ##### `entry.name_str -> str` (attribute) — lossy
-##### `entry.kind -> str | None` (attribute) — `"blob"|"tree"|"link"|"commit"`
+##### `entry.kind -> str | None` (attribute) — `"blob"|"tree"|"commit"` (symlinks are `"blob"` with mode `0o120000`)
 ##### `entry.mode -> int` (attribute) — raw unix filemode (e.g. `0o100644`)
 ##### `entry.oid -> Oid` (attribute)
 
@@ -274,7 +278,7 @@ resolved through any tag chain, not commit-specific.
 ##### `tag.target -> Oid` (attribute) — ref target (tag object if annotated)
 ##### `tag.kind -> str` (attribute) — `"annotated" | "lightweight"`
 ##### `tag.peeled -> Oid` (attribute)
-##### `tag.peeled_kind -> str` (attribute) — `"commit"|"tree"|"blob"|"tag"`
+##### `tag.peeled_kind -> str` (attribute) — `"commit"|"tree"|"blob"` (a fully-peeled target is never a tag object)
 
 #### `RemoteInfo`
 ##### `remote.fetcher -> NodeId` (attribute)
@@ -294,7 +298,7 @@ Canonical project identity document (verified at load).
 ##### `doc.blob -> Oid` (attribute) — identity document blob
 
 #### `HistoryPage`
-##### `page.name -> str` (attribute) — revision the walk started from
+##### `page.name -> str` (attribute) — revision expression as passed to `history()` (not normalized)
 ##### `page.head -> Oid` (attribute) — resolved walk root
 ##### `page.oids -> list[Oid]` (attribute) — this page (walk order)
 ##### `page.offset -> int` (attribute) — entries skipped before this page

@@ -163,7 +163,9 @@ impl Commit {
 /// One entry of a git tree.
 ///
 /// `mode` is the raw unix filemode (0o100644 blob, 0o100755 executable,
-/// 0o120000 symlink, 0o040000 tree, 0o160000 gitlink).
+/// 0o120000 symlink, 0o040000 tree, 0o160000 gitlink). NB: libgit2 reports
+/// symlinks with kind `"blob"` (they are blob objects); use the mode to
+/// distinguish them.
 ///
 /// Ordering contract (PLAN §5.4 / FINDINGS-02 S5): lists of entries preserve
 /// libgit2's canonical git tree order (directories sort as `<name>/`). The
@@ -189,7 +191,8 @@ impl TreeEntry {
     fn name_str(&self) -> String {
         lossy(&self.name)
     }
-    /// `"blob" | "tree" | "link" | "commit" | None`.
+    /// `"blob" | "tree" | "commit" | None` (symlinks are `"blob"` with mode
+    /// 0o120000; `None` only for exotic/unknown object types).
     #[getter]
     fn kind(&self) -> Option<&str> {
         self.kind.as_deref()
@@ -278,13 +281,14 @@ impl TagInfo {
         if self.annotated { "annotated" } else { "lightweight" }
     }
     /// Fully-peeled target OID ("peeled" = resolved through any tag chain to
-    /// the final object — commit, tree, blob, or another tag type; NOT
-    /// commit-specific). For lightweight tags this equals `target`.
+    /// the final object — commit, tree, or blob; NOT commit-specific). For
+    /// lightweight tags this equals `target`.
     #[getter]
     fn peeled(&self) -> &str {
         &self.peeled
     }
-    /// Concrete object kind of `peeled`: `"commit" | "tree" | "blob" | "tag"`.
+    /// Concrete object kind of `peeled`: `"commit" | "tree" | "blob"` (a
+    /// fully-peeled target is by construction not a tag object).
     #[getter]
     fn peeled_kind(&self) -> &str {
         &self.peeled_kind
@@ -419,7 +423,8 @@ pub struct HistoryPage {
 
 #[pymethods]
 impl HistoryPage {
-    /// Qualified ref the walk started from.
+    /// The revision expression as passed by the caller (e.g. `"master"`,
+    /// `"HEAD~3"`); not normalized to a qualified ref.
     #[getter]
     fn name(&self) -> &str {
         &self.name

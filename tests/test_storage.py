@@ -83,6 +83,14 @@ class TestRepositoryReads:
         assert repo.branch_head("master") == repo.head.oid
         assert repo.branch_head("nope") is None
 
+    def test_branch_head_invalid_name(self, repo):
+        # Binding-invalid names → ValueError (our validation), NOT None and
+        # NOT GitError (review §2.3: only NotFound maps to None).
+        with pytest.raises(ValueError):
+            repo.branch_head("bad name")
+        with pytest.raises(ValueError):
+            repo.branch_head("")
+
     def test_rev_parse(self, repo):
         head = repo.head
         assert repo.rev_parse("master") == head.oid
@@ -147,6 +155,14 @@ class TestRepositoryReads:
     def test_history_invalid_rev(self, repo):
         with pytest.raises(radiclepy.GitError):
             repo.history("nope", limit=5)
+
+    def test_history_limit_validation(self, repo):
+        # limit == 0 raises instead of silently becoming 1 (review).
+        with pytest.raises(ValueError):
+            repo.history("master", limit=0)
+        # Oversized limits are clamped, not rejected.
+        page = repo.history("master", limit=10**6)
+        assert len(page.oids) == 1
 
     def test_remotes(self, repo, profile):
         from radiclepy import _test
