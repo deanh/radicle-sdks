@@ -20,8 +20,8 @@ use crate::profile::PyProfile;
 use crate::values::{Commit, HeadInfo, HistoryPage, ProjectDoc, RemoteInfo, TagInfo, Tree, TreeEntry};
 
 /// Default/maximum page sizes — history walks are always bounded (FINDINGS-02 S7).
-const DEFAULT_HISTORY_LIMIT: usize = 100;
-const MAX_HISTORY_LIMIT: usize = 1000;
+const DEFAULT_HISTORY_LIMIT: i64 = 100;
+const MAX_HISTORY_LIMIT: i64 = 1000;
 
 fn to_raw(oid: Oid) -> PyResult<git::raw::Oid> {
     git::raw::Oid::from_str(&oid.to_string())
@@ -386,16 +386,25 @@ impl PyRepository {
     /// Ordering: libgit2 revwalk default order (no explicit sort is exposed by
     /// the pinned upstream — see FINDINGS-02 S7).
     ///
-    /// Pagination contract: `limit` must satisfy `1 <= limit <= 1000`
-    /// (a larger limit is clamped to 1000; `limit == 0` raises `ValueError`
-    /// rather than silently becoming 1). Negative limits fail argument
-    /// conversion (TypeError) before reaching this method.
+    /// Pagination contract (binding-validated, `ValueError`):
+    /// `1 <= limit <= 1000` (larger limits are clamped to 1000 — only values
+    /// below 1 raise, never silently bumped to 1); `offset >= 0`. Signed
+    /// parameters are validated explicitly, so negatives raise `ValueError`
+    /// — not a conversion `OverflowError`.
     #[pyo3(signature = (rev, *, limit = DEFAULT_HISTORY_LIMIT, offset = 0))]
-    fn history(&self, rev: &str, limit: usize, offset: usize) -> PyResult<HistoryPage> {
-        if limit == 0 {
-            return Err(error::value_err("limit must be >= 1"));
+    fn history(&self, rev: &str, limit: i64, offset: i64) -> PyResult<HistoryPage> {
+        if limit < 1 {
+            return Err(error::value_err(format!(
+                "limit must be >= 1, got {limit}"
+            )));
         }
-        let limit = limit.min(MAX_HISTORY_LIMIT);
+        if offset < 0 {
+            return Err(error::value_err(format!(
+                "offset must be >= 0, got {offset}"
+            )));
+        }
+        let limit = limit.min(MAX_HISTORY_LIMIT) as usize;
+        let offset = offset as usize;
         let repo = self.open()?;
         let obj = repo
             .backend

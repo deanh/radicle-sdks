@@ -220,9 +220,11 @@ Load a tree. Raises `GitError` if absent or not a tree.
 Raw blob content. Raises `GitError` if absent or not a blob.
 
 ##### `repository.history(rev: str, *, limit: int = 100, offset: int = 0) -> HistoryPage` (method)
-Bounded commit-history page. `limit` clamped to 1000. Ordering: libgit2
-revwalk default order (the pinned upstream exposes no explicit sorting —
-see FINDINGS-02 S7).
+Bounded commit-history page. Binding-validated pagination (`ValueError`):
+`1 <= limit <= 1000` (larger limits clamped to 1000; `limit < 1` raises,
+including negatives — never silently adjusted) and `offset >= 0`.
+Ordering: libgit2 revwalk default order (the pinned upstream exposes no
+explicit sorting — see FINDINGS-02 S7).
 
 ##### `repository.remotes() -> list[RemoteInfo]` (method)
 Remotes tracked by this repository (sorted by fetcher).

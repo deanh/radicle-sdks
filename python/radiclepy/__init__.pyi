@@ -183,8 +183,9 @@ class Repository:
     def history(self, rev: str, *, limit: int = 100, offset: int = 0) -> HistoryPage:
         """Bounded history page (libgit2 default walk order; see FINDINGS-02 S7).
 
-        `1 <= limit <= 1000` (larger limits are clamped to 1000; `limit == 0`
-        raises `ValueError`).
+        Binding-validated (`ValueError`): `1 <= limit <= 1000` (larger limits
+        clamped to 1000; `limit < 1` raises, negatives included) and
+        `offset >= 0`.
         """
         ...
     def remotes(self) -> list[RemoteInfo]: ...

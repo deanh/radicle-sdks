@@ -164,6 +164,14 @@ class TestRepositoryReads:
         page = repo.history("master", limit=10**6)
         assert len(page.oids) == 1
 
+    def test_history_negative_pagination_raises_value_error(self, repo):
+        # Signed parameters + explicit validation: negatives are ValueError,
+        # never an OverflowError from usize conversion (review round 2).
+        with pytest.raises(ValueError):
+            repo.history("master", limit=-1)
+        with pytest.raises(ValueError):
+            repo.history("master", offset=-1)
+
     def test_remotes(self, repo, profile):
         from radiclepy import _test
 
