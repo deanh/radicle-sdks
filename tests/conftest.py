@@ -56,3 +56,11 @@ def repo(profile, tmp_path):
     rid = _test.init_project(profile, str(workdir), "fixture", "a fixture repo")
     storage = rad.Storage.from_profile(profile)
     return storage.repository(rid)
+
+
+@pytest.fixture
+def now():
+    """Wall-clock seconds at fixture creation (for timestamp-unit checks)."""
+    import time
+
+    return int(time.time())

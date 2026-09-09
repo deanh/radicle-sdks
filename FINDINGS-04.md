@@ -36,9 +36,15 @@ Verified against crates.io `radicle = "=0.25.1"` + `radicle-cob = 0.21.1`.
   verbatim as `CobRef.name`).
 - Raw actions from `entry.contents().iter()` (one raw JSON blob per action) —
   `Op<Vec<u8>>::try_from` fails at runtime (confirmed in 0A; still true).
-- `Entry.timestamp` (radicle-cob) is a plain `u64` **milliseconds**; the
-  binding surfaces it verbatim. `RawOp.actor` = `entry.author()` — a
-  `crypto::PublicKey` (canonical NodeId), matching PLAN §3.
+- `Entry.timestamp` (radicle-cob) is a plain `u64` **epoch seconds**
+  (`radicle-cob change::store::Timestamp` — "Local time in seconds since
+  epoch"; the node layer converts with `Timestamp::from_secs`). Do NOT
+  confuse with `node::Timestamp` (millis) — Phase 3's routing timestamps
+  really are millis. The binding surfaces the COB value verbatim (seconds)
+  and says so on the field. Regression: timestamp-unit test asserts the
+  value sits in a wall-clock **seconds** window. `RawOp.actor` =
+  `entry.author()` — a `crypto::PublicKey` (canonical NodeId), matching
+  PLAN §3.
 - `RawOp.identity` = `entry.resource()` — the identity-COB **link**; exposed
   but never traversed (same rule as `related`). A fresh issue's first op
   carries **3** actions when created with labels (comment + edit + label);
@@ -53,9 +59,36 @@ Verified against crates.io `radicle = "=0.25.1"` + `radicle-cob = 0.21.1`.
   loaded parents), lexicographic tie-break by op id. Must return an
   **insertion-ordered Vec** — an early draft collected into a `BTreeMap` and
   silently re-sorted lexicographically (test with 4-op chain catches this).
-- Cyclic/dangling remainders are appended in id order — never dropped.
+- Cycles are a **corruption error**, not a degraded ordering: content-
+  addressed causal history is acyclic by construction, so if Kahn's
+  algorithm cannot emit every op the binding raises `CobError`
+  ("corrupt COB history: causal cycle…") instead of silently returning a
+  non-topological tail (an earlier draft appended the remainder — dropped
+  after review: a broken ordering contract is worse than a loud failure).
 - The identity COB entry is reachable via the issue op's `identity` link but
   **not** in its history (regression test `test_history_does_not_traverse_identity`).
+
+## COB ref acceptance is strict (Phase 4 review)
+
+- `cob::object::parse_refstr` accepts **any** `refs/<category>/<typename>/<oid>/…`
+  shape — it checks the *shape*, not that the category is `cobs`. A tag ref
+  like `refs/tags/xyz.fake.type/<oid>` false-matches (test-proven).
+- `Raw.typenames()`/`Raw.entities()` therefore parse via
+  `cob::TypedId::from_namespaced`/`from_qualified`, which require
+  `refs/cobs/<typename>/<id>` after namespace stripping. Non-COB refs of
+  COB shape never appear (regression: `_test.create_ref` plants fake
+  tag-/branch-shaped lookalikes). Note upstream `repo.types()` still uses
+  the loose parse; the binding's `entities()` does not call it.
+
+## Contract drift round-trip (Phase 4 review)
+
+The first RawOp cut drifted from the PLAN §3 wire sketch (`list` vs
+`tuple`, loose `type_name`/`version` fields vs `manifest`,
+`action_json_types()` probe vs `actions_json()`). The PLAN contract won:
+`actions`/`parents`/`related` are **tuples**, `manifest: CobManifest`
+(typename + version), and `actions_json() -> tuple[object, ...]` decodes
+each action to plain Python objects (`CobError` on invalid JSON). The
+half-measure `action_json_types()` is gone.
 
 ## Phase 5 preview (verified available, NOT exposed)
 

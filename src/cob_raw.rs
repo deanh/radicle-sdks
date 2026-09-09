@@ -14,7 +14,8 @@ use std::collections::{BTreeMap, BTreeSet};
 use std::str::FromStr;
 
 use pyo3::prelude::*;
-use pyo3::types::PyType;
+
+use pyo3::types::{PyBytes, PyDict, PyList, PyType, PyTuple};
 use radicle::cob::change::store::Storage as _; // load
 use radicle::cob::object::Storage as _; // types / objects
 use radicle::cob::{self, TypeName};
@@ -72,7 +73,7 @@ impl CobRef {
 }
 
 /// A single raw COB operation (change entry). One op carries a **non-empty**
-/// list of action payloads.
+/// tuple of action payloads.
 #[pyclass(name = "RawOp", module = "radiclepy")]
 #[derive(Clone)]
 pub struct RawOp {
@@ -83,8 +84,33 @@ pub struct RawOp {
     pub(crate) parents: Vec<String>,
     pub(crate) related: Vec<String>,
     pub(crate) identity: Option<String>,
+    pub(crate) manifest: CobManifest,
+}
+
+/// The manifest of a change entry: what kind of COB it is, and which COB
+/// schema version produced it (upstream `change::Manifest`).
+#[pyclass(name = "CobManifest", module = "radiclepy")]
+#[derive(Clone)]
+pub struct CobManifest {
     pub(crate) type_name: String,
     pub(crate) version: usize,
+}
+
+#[pymethods]
+impl CobManifest {
+    /// COB typename, e.g. `xyz.radicle.issue`.
+    #[getter]
+    fn type_name(&self) -> &str {
+        &self.type_name
+    }
+    /// COB schema version.
+    #[getter]
+    fn version(&self) -> usize {
+        self.version
+    }
+    fn __repr__(&self) -> String {
+        format!("CobManifest({}, v{})", self.type_name, self.version)
+    }
 }
 
 #[pymethods]
@@ -99,78 +125,130 @@ impl RawOp {
     fn actor(&self) -> &str {
         &self.actor
     }
-    /// Timestamp, unix epoch **milliseconds**.
+    /// Timestamp in **unix epoch seconds** (upstream `cob::change::Timestamp`
+    /// is seconds since epoch; the binding exposes the value unchanged).
     #[getter]
     fn timestamp(&self) -> u64 {
         self.timestamp
     }
-    /// Raw action payloads (JSON bytes), decoded independently per action.
+    /// Raw action payloads (JSON bytes), one per action; decode independently.
     #[getter]
-    fn actions(&self) -> Vec<Vec<u8>> {
-        self.actions.clone()
+    fn actions<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyTuple>> {
+        PyTuple::new(
+            py,
+            self.actions
+                .iter()
+                .map(|b| PyBytes::new(py, b).into_any()),
+        )
     }
     /// Causal parents (the ONLY traversal edge).
     #[getter]
-    fn parents(&self) -> Vec<String> {
-        self.parents.clone()
+    fn parents<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyTuple>> {
+        PyTuple::new(py, self.parents.iter())
     }
     /// Related object links (NOT traversed as history).
     #[getter]
-    fn related(&self) -> Vec<String> {
-        self.related.clone()
+    fn related<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyTuple>> {
+        PyTuple::new(py, self.related.iter())
     }
     /// Identity resource link (NOT traversed as history).
     #[getter]
     fn identity(&self) -> Option<&str> {
         self.identity.as_deref()
     }
-    /// COB typename from the entry's manifest.
+    /// The change entry's manifest (typename + COB version).
     #[getter]
-    fn type_name(&self) -> &str {
-        &self.type_name
-    }
-    /// COB version from the entry's manifest.
-    #[getter]
-    fn version(&self) -> usize {
-        self.version
+    fn manifest(&self) -> CobManifest {
+        self.manifest.clone()
     }
 
-    /// Each action parsed as JSON (via the `json` stdlib). Raises `CobError`
-    /// if any action is not valid JSON. Returns raw `bytes` to Python and
-    /// defers parsing to the caller's `json.loads` — the binding keeps no
-    /// private JSON↔Python type mapping (PLAN §5.5).
-    fn action_json_types(&self) -> PyResult<Vec<String>> {
-        self.actions
+    /// Each action parsed from JSON into plain Python objects
+    /// (`None|bool|int|float|str|list|dict`; dict keys are `str`). Raises
+    /// `CobError` if any action is not valid JSON.
+    fn actions_json<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyTuple>> {
+        let items = self
+            .actions
             .iter()
             .enumerate()
             .map(|(i, blob)| {
-                let value: serde_json::Value = serde_json::from_slice(blob).map_err(|err| {
-                    error::cob_err(format!("action #{i} of entry {} is not valid JSON: {err}", self.id))
-                })?;
-                Ok(json_type_name(&value).to_owned())
+                let value: serde_json::Value =
+                    serde_json::from_slice(blob).map_err(|err| {
+                        error::cob_err(format!(
+                            "action #{i} of entry {} is not valid JSON: {err}",
+                            self.id
+                        ))
+                    })?;
+                json_to_py(py, value)
             })
-            .collect()
+            .collect::<PyResult<Vec<_>>>()?;
+        PyTuple::new(py, items)
     }
 
     fn __repr__(&self) -> String {
         format!(
-            "RawOp({}, actor={}{}…)",
+            "RawOp({}, actor={}, {} action(s))",
             self.id,
             self.actor,
-            if self.actions.len() == 1 { "" } else { "s" }
+            self.actions.len()
         )
     }
 }
 
-fn json_type_name(value: &serde_json::Value) -> &'static str {
-    match value {
-        serde_json::Value::Null => "null",
-        serde_json::Value::Bool(_) => "bool",
-        serde_json::Value::Number(_) => "number",
-        serde_json::Value::String(_) => "str",
-        serde_json::Value::Array(_) => "list",
-        serde_json::Value::Object(_) => "dict",
+/// `serde_json::Value` → plain Python objects. Integers prefer i64, then
+/// u64; everything else numeric is f64.
+fn json_to_py<'py>(py: Python<'py>, value: serde_json::Value) -> PyResult<Bound<'py, PyAny>> {
+    use serde_json::Value;
+    Ok(match value {
+        Value::Null => py.None().into_bound(py),
+        Value::Bool(b) => b.into_pyobject(py)?.to_owned().into_any(),
+        Value::Number(n) => {
+            if let Some(i) = n.as_i64() {
+                i.into_pyobject(py)?.into_any()
+            } else if let Some(u) = n.as_u64() {
+                u.into_pyobject(py)?.into_any()
+            } else if let Some(f) = n.as_f64() {
+                f.into_pyobject(py)?.into_any()
+            } else {
+                return Err(error::cob_err("unsupported JSON number"));
+            }
+        }
+        Value::String(s) => s.into_pyobject(py)?.into_any(),
+        Value::Array(items) => {
+            let pyitems = items
+                .into_iter()
+                .map(|v| json_to_py(py, v))
+                .collect::<PyResult<Vec<_>>>()?;
+            PyList::new(py, pyitems)?.into_any()
+        }
+        Value::Object(map) => {
+            let dict = PyDict::new(py);
+            for (k, v) in map {
+                dict.set_item(k, json_to_py(py, v)?)?;
+            }
+            dict.into_any()
+        }
+    })
+}
+
+/// Parse a git ref name into a COB `TypedId`, strictly (the ref must be a
+/// COB ref: `refs/cobs/<typename>/<id>` after namespace stripping). Non-COB
+/// refs — including tag/branch refs that merely share the
+/// `refs/<category>/<typename>/<oid>` shape — yield `Ok(None)`.
+fn typed_id_of(name: &str) -> PyResult<Option<cob::TypedId>> {
+    let Ok(refstr) = git::fmt::RefStr::try_from_str(name) else {
+        return Ok(None);
+    };
+    let typed = match refstr.to_namespaced() {
+        Some(ns) => cob::TypedId::from_namespaced(&ns).map_err(cob_err)?,
+        None => None,
     }
+    .or_else(|| {
+        refstr
+            .qualified()
+            .and_then(|q| cob::TypedId::from_qualified(&q).ok())
+            .flatten()
+    });
+    Ok(typed)
 }
 
 // ─── Raw store ───────────────────────────────────────────────────────────────
@@ -202,8 +280,10 @@ impl PyRaw {
             parents: entry.parents.iter().map(|p| p.to_string()).collect(),
             related: entry.related.iter().map(|r| r.to_string()).collect(),
             identity: entry.resource().map(|r| r.to_string()),
-            type_name: entry.manifest.type_name.to_string(),
-            version: usize::from(entry.manifest.version),
+            manifest: CobManifest {
+                type_name: entry.manifest.type_name.to_string(),
+                version: usize::from(entry.manifest.version),
+            },
         })
     }
 }
@@ -228,23 +308,33 @@ impl PyRaw {
         for reference in repo.backend.references().map_err(git_err)? {
             let reference = reference.map_err(git_err)?;
             let name = reference.name().map_err(git_err)?;
-            // let-chains are MSRV-forbidden (edition 2021 on 1.88), so nested if-let.
-            #[allow(clippy::collapsible_if)]
-            if let Ok(refstr) = git::fmt::RefStr::try_from_str(name) {
-                if let Some((typename, _oid)) = cob::object::parse_refstr(&refstr) {
-                    names.insert(typename.to_string());
-                }
+            if let Some(typed) = typed_id_of(name)? {
+                names.insert(typed.type_name.to_string());
             }
         }
         Ok(names.into_iter().collect())
     }
 
     /// Entity ids (ObjectId hex) that have COB refs under `typename` (sorted).
+    ///
+    /// Enumeration is binding-side and strict (`TypedId`), so COB-shaped
+    /// non-COB refs (e.g. `refs/tags/<typename>/<oid>`) never appear —
+    /// upstream `types()` inherits `parse_refstr`'s loose category matching.
     fn entities(&self, typename: &str) -> PyResult<Vec<String>> {
         let typename = parse_typename(typename)?;
         let repo = self.repo.open()?;
-        let entities = repo.types(&typename).map_err(cob_err)?;
-        Ok(entities.keys().map(|id| id.to_string()).collect())
+        let mut out = BTreeSet::new();
+        for reference in repo.backend.references().map_err(git_err)? {
+            let reference = reference.map_err(git_err)?;
+            let name = reference.name().map_err(git_err)?;
+            match typed_id_of(name)? {
+                Some(typed) if typed.type_name == typename => {
+                    out.insert(typed.id.to_string());
+                }
+                _ => {}
+            }
+        }
+        Ok(out.into_iter().collect())
     }
 
     /// COB refs for one `(typename, entity_id)`.
@@ -303,7 +393,7 @@ impl PyRaw {
             ops.insert(key, op);
         }
 
-        Ok(topological_sort(ops))
+        topological_sort(ops)
     }
 
     fn __repr__(&self) -> String {
@@ -314,7 +404,11 @@ impl PyRaw {
 /// Sort ops so every op appears after all of its (loaded) parents.
 /// Kahn's algorithm; deterministic (lexicographic tie-breaks). Returns a Vec
 /// in emission order — insertion order IS the contract.
-fn topological_sort(ops: BTreeMap<String, RawOp>) -> Vec<RawOp> {
+///
+/// Content-addressed causal history is acyclic by construction; if the walk
+/// cannot emit every op, the data is corrupt (cycle) and we return
+/// `CobError` rather than silently degrade the ordering contract.
+fn topological_sort(ops: BTreeMap<String, RawOp>) -> PyResult<Vec<RawOp>> {
     // pending: op id -> set of not-yet-emitted parents (ids).
     let mut pending: BTreeMap<&str, BTreeSet<&str>> = BTreeMap::new();
     for (id, op) in &ops {
@@ -348,17 +442,20 @@ fn topological_sort(ops: BTreeMap<String, RawOp>) -> Vec<RawOp> {
         ordered.push(ops.get(id).cloned().unwrap());
         emitted.insert(id);
     }
-    // Append any leftover (cyclic) ops in id order — never drop data.
-    for (id, op) in &ops {
-        if !emitted.contains(id.as_str()) {
-            ordered.push(op.clone());
-        }
+    if emitted.len() != ops.len() {
+        return Err(error::cob_err(format!(
+            "corrupt COB history: causal cycle among {} entries (emitted {}/{})",
+            ops.len(),
+            emitted.len(),
+            ops.len()
+        )));
     }
-    ordered
+    Ok(ordered)
 }
 
 pub fn register(_py: Python<'_>, m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<CobRef>()?;
+    m.add_class::<CobManifest>()?;
     m.add_class::<RawOp>()?;
     m.add_class::<PyRaw>()?;
     Ok(())

@@ -53,6 +53,7 @@ TOP_LEVEL = {
         "Raw",
         "RawOp",
         "CobRef",
+        "CobManifest",
     ],
 }
 
@@ -219,11 +220,12 @@ MEMBERS = {
     "RawOp": {
         "attrs": [
             "id", "actor", "timestamp", "actions", "parents", "related",
-            "identity", "type_name", "version",
+            "identity", "manifest",
         ],
-        "methods": ["action_json_types"],
+        "methods": ["actions_json"],
         "classmethods": [],
     },
+    "CobManifest": {"attrs": ["type_name", "version"], "methods": [], "classmethods": []},
     "CobRef": {"attrs": ["name", "target"], "methods": [], "classmethods": []},
 }
 

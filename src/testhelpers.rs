@@ -278,6 +278,25 @@ pub fn create_patch(
     Ok(created.id().to_string())
 }
 
+/// TEST-ONLY: create an arbitrary git ref `name` pointing at `target`
+/// (revspec). Used by tests to plant non-COB refs shaped like COB refs
+/// (typenames() false-positive regression).
+#[pyfunction]
+pub fn create_ref(profile: PyRef<'_, PyProfile>, rid: &str, name: &str, target: &str) -> PyResult<String> {
+    let rid_t = RepoId::from_str(rid)
+        .map_err(|e| error::value_err(format!("invalid RepoId: {e}")))?;
+    let storage = &profile.inner.storage;
+    let repo = storage.repository(rid_t).map_err(error::repository_err)?;
+    let obj = repo
+        .backend
+        .revparse_single(target)
+        .map_err(|e| error::git_err(format!("revparse {target:?}: {e}")))?;
+    repo.backend
+        .reference(name, obj.id(), true, "radiclepy-test")
+        .map_err(error::git_err)?;
+    Ok(name.to_owned())
+}
+
 /// TEST-ONLY: create/insert a routing entry into the profile's node
 /// database (writes are otherwise Phase 5; RoutingStore is read-only).
 #[pyfunction]
@@ -332,6 +351,7 @@ pub fn register(py: Python<'_>, m: &Bound<'_, PyModule>) -> PyResult<()> {
     test_mod.add_function(wrap_pyfunction!(create_issue, &test_mod)?)?;
     test_mod.add_function(wrap_pyfunction!(create_patch, &test_mod)?)?;
     test_mod.add_function(wrap_pyfunction!(add_routing_entry, &test_mod)?)?;
+    test_mod.add_function(wrap_pyfunction!(create_ref, &test_mod)?)?;
     test_mod.add_function(wrap_pyfunction!(local_remote_id, &test_mod)?)?;
     test_mod.add_function(wrap_pyfunction!(parse_alias, &test_mod)?)?;
     m.add_submodule(&test_mod)?;

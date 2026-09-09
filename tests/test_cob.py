@@ -110,6 +110,26 @@ class TestPatches:
 
 
 class TestRawCob:
+    def test_typenames_rejects_cob_shaped_non_cob_refs(self, repo, issue, profile):
+        # Regression (review): parse_refstr accepts refs/<cat>/<typename>/<oid>
+        # for ANY category; typenames() must only accept refs/cobs/...
+        # (via cob::TypedId). Plant fake tag- and branch-shaped COB lookalikes.
+        from radiclepy import _test
+
+        oid = repo.head.oid
+        _test.create_ref(profile, repo.rid, f"refs/tags/xyz.fake.type/{oid}", "master")
+        _test.create_ref(
+            profile, repo.rid, f"refs/heads/xyz.fake.type2/{oid}", "master"
+        )
+        tns = rad.Raw.open(repo).typenames()
+        assert "xyz.fake.type" not in tns
+        assert "xyz.fake.type2" not in tns
+        assert "xyz.fake.type" not in rad.Raw.open(repo).typenames()
+        assert rad.Raw.open(repo).entities("xyz.fake.type") == []
+        assert rad.Raw.open(repo).entities("xyz.fake.type2") == []
+        assert ISSUE_TN in tns  # real COB refs still found
+        assert rad.Raw.open(repo).entities(ISSUE_TN) == [issue]
+
     def test_typenames(self, repo, issue, patch):
         tns = rad.Raw.open(repo).typenames()
         assert ISSUE_TN in tns
@@ -143,24 +163,38 @@ class TestRawCob:
         ops = rad.Raw.open(repo).history(ISSUE_TN, issue)
         assert len(ops) == 1
         op = ops[0]
-        assert op.type_name == ISSUE_TN
+        assert op.manifest.type_name == ISSUE_TN
+        assert "xyz.radicle.issue" in repr(op.manifest)
         assert op.actor.startswith("z6Mk")  # canonical NodeId
-        assert op.timestamp >= 0
         # Fresh issue with labels: comment + edit + label actions, one op.
-        assert len(op.actions) >= 2
+        assert isinstance(op.actions, tuple) and len(op.actions) >= 2
         assert all(isinstance(a, bytes) for a in op.actions)
-        assert op.parents == []
+        assert op.parents == ()
         assert op.identity is not None  # identity COB link (NOT traversed)
-        assert op.version >= 1
-        for t in op.action_json_types():
-            assert t == "dict"  # actions are JSON objects
+        assert op.manifest.version >= 1
+        parsed = op.actions_json()
+        assert isinstance(parsed, tuple) and len(parsed) == len(op.actions)
+        assert all(isinstance(a, dict) and "type" in a for a in parsed)
+        assert "action(s)" in repr(op)
+
+    def test_history_timestamp_is_epoch_seconds(self, repo, issue, now):
+        # Unit regression: COB timestamps are SECONDS (upstream
+        # `cob::change::Timestamp = u64`, converted via from_secs upstream).
+        # A magnitude check alone can't catch ms-vs-s; assert the value
+        # matches wall-clock seconds.
+        op = rad.Raw.open(repo).history(ISSUE_TN, issue)[0]
+        assert now - 3600 <= op.timestamp <= now + 300, (
+            f"timestamp {op.timestamp} not within seconds-window of now={now}"
+        )
 
     def test_history_actions_are_canonical_json(self, repo, issue):
         op = rad.Raw.open(repo).history(ISSUE_TN, issue)[0]
-        for blob in op.actions:
-            parsed = json.loads(blob)
-            assert isinstance(parsed, dict)
-            assert "type" in parsed
+        via_json = op.actions_json()
+        for blob, decoded in zip(op.actions, via_json):
+            assert json.loads(blob) == decoded  # actions_json matches json.loads
+        # Round-trip re-encoding is stable.
+        for blob, decoded in zip(op.actions, via_json):
+            assert json.loads(json.dumps(decoded).encode()) == decoded
 
     def test_history_multi_op_topological(self, repo, profile):
         from radiclepy import _test
@@ -193,5 +227,5 @@ class TestRawCob:
     def test_patch_history(self, repo, patch):
         ops = rad.Raw.open(repo).history(PATCH_TN, patch)
         assert len(ops) == 1
-        assert ops[0].type_name == PATCH_TN
+        assert ops[0].manifest.type_name == PATCH_TN
         assert len(ops[0].actions) >= 1

@@ -387,6 +387,138 @@ Also `profile.routing_store()`.
 
 ---
 
+## COB: typed readers & raw inspection (Phase 4)
+
+Read-only. Typed stores materialize upstream `Store<T>` (`ReadOnly`
+access); writes are Phase 5. COB `String` fields surface as `str` — the
+bytes-first policy applies to byte-typed sources (git), not to UTF-8-by-
+construction COB payloads.
+
+#### `Issues`
+
+Read-only typed issue store for one repository.
+
+##### `Issues.open(repository: Repository) -> Issues` (classmethod) — opens `Store<issue::Issue>` (read-only); `CobError` on failure
+
+##### `issues.rid -> RepoId` (attribute) — repository this store is bound to
+
+##### `issues.all() -> list[Issue]` (method) — eager, sorted by entity id; `CobError` on read failure (never swallowed into an empty list)
+
+##### `issues.get(id: ObjectId) -> Issue | None` (method) — `None` if absent; `ValueError` if `id` is not a valid ObjectId
+
+##### `issues.count() -> int` (method) — number of issues
+
+##### `issues.is_empty() -> bool` (method)
+
+#### `Issue` (value class)
+
+Materialized at read time; immutable.
+
+##### `issue.id -> ObjectId` (attribute) — entity id (change-commit OID hex)
+
+##### `issue.title -> str` (attribute)
+
+##### `issue.description -> str` (attribute) — root comment body
+
+##### `issue.author -> Did` (attribute) — `did:key:…`
+
+##### `issue.state -> str` (attribute) — `"open" | "closed"`
+
+##### `issue.close_reason -> str | None` (attribute) — `"other" | "resolved" | "outOfScope"` when closed
+
+##### `issue.assignees -> list[Did]` (attribute) — sorted
+
+##### `issue.labels -> list[str]` (attribute) — sorted
+
+##### `issue.comment_count -> int` (attribute)
+
+##### `issue.comment_ids -> list[Oid]` (attribute) — comment ids, store order
+
+#### `Patches`
+
+Read-only typed patch store; same surface as `Issues`
+(`open`/`rid`/`all`/`get`/`count`/`is_empty`), materializing `Patch`.
+
+#### `Patch` (value class)
+
+Materialized from the **latest revision** of the patch.
+
+##### `patch.id -> ObjectId` (attribute)
+
+##### `patch.title -> str` (attribute)
+
+##### `patch.description -> str` (attribute) — latest revision's description
+
+##### `patch.author -> Did` (attribute)
+
+##### `patch.state -> str` (attribute) — `"draft" | "open" | "archived" | "merged"`
+
+##### `patch.target -> str` (attribute) — `"delegates"` or `"branch:<name>"`
+
+##### `patch.base -> str` (attribute) — base commit OID of the latest revision
+
+##### `patch.head -> str` (attribute) — head commit OID of the latest revision
+
+##### `patch.version -> int` (attribute) — **revision index** (0-based), not a document version
+
+##### `patch.labels -> list[str]` (attribute) — sorted
+
+##### `patch.revision_count -> int` (attribute)
+
+#### `Raw`
+
+Raw COB inspection — no domain types required.
+
+##### `Raw.open(repository: Repository) -> Raw` (classmethod)
+
+##### `raw.rid -> RepoId` (attribute)
+
+##### `raw.typenames() -> list[str]` (method) — distinct COB typenames, sorted.
+Strict COB-ref acceptance (`cob::TypedId`: `refs/cobs/<typename>/<id>` after
+namespace stripping) — COB-shaped non-COB refs (e.g.
+`refs/tags/<typename>/<oid>`, which `cob::object::parse_refstr`'s shape check
+false-matches) never appear.
+
+##### `raw.entities(typename: str) -> list[ObjectId]` (method) — entity ids with COB refs under `typename`, sorted; same strict acceptance. `ValueError` on invalid typename
+
+##### `raw.refs(typename: str, entity_id: ObjectId) -> list[CobRef]` (method) — COB refs for the entity, sorted by name. These are *not* signed refs: authenticity comes from rad/sigrefs, not from individual COB refs
+
+##### `raw.history(typename: str, entity_id: ObjectId) -> list[RawOp]` (method) — causal history, `entry.parents` traversal only (identity/related links are never followed), deduped across the entity's refs, **topologically ordered** (each op after its loaded parents; deterministic tie-breaks). Insertion order is the contract. Cyclic (impossible-unless-corrupt) data raises `CobError`
+
+#### `RawOp` (value class)
+
+One change entry; one op carries a **non-empty tuple** of actions.
+
+##### `op.id -> Oid` (attribute) — change-commit OID
+
+##### `op.actor -> NodeId` (attribute) — canonical NodeId (upstream stores a PublicKey)
+
+##### `op.timestamp -> int` (attribute) — **unix epoch SECONDS** (upstream `cob::change::Timestamp` is seconds; unlike `node::Timestamp`/routing, which is millis)
+
+##### `op.actions -> tuple[bytes, ...]` (attribute) — raw action payloads (canonical JSON bytes), decoded independently
+
+##### `op.parents -> tuple[Oid, ...]` (attribute) — causal parents (the only traversal edge)
+
+##### `op.related -> tuple[Oid, ...]` (attribute) — related-object links (exposed, never traversed)
+
+##### `op.identity -> Oid | None` (attribute) — identity-COB link (exposed, never traversed)
+
+##### `op.manifest -> CobManifest` (attribute)
+
+##### `op.actions_json() -> tuple[object, ...]` (method) — each action parsed from JSON into plain Python (`None|bool|int|float|str|list|dict`, keys `str`); `CobError` if any action isn't valid JSON
+
+#### `CobManifest` (value class)
+
+##### `manifest.type_name -> str` (attribute) — e.g. `xyz.radicle.issue`
+
+##### `manifest.version -> int` (attribute) — COB schema version
+
+#### `CobRef` (value class)
+
+##### `cob_ref.name -> str` (attribute) — full namespaced ref name, verbatim (`refs/namespaces/<nid>/refs/cobs/…`)
+
+##### `cob_ref.target -> Oid` (attribute) — change commit the ref points at
+
 ## Quick start
 
 ```python

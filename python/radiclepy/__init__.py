@@ -11,6 +11,7 @@ from ._types import Alias, Did, NodeId, ObjectId, Oid, RepoId
 from .radiclepy import (  # type: ignore[attr-defined]
     Aliases,
     CobError,
+    CobManifest,
     CobRef,
     Commit,
     DatabaseError,
@@ -94,6 +95,7 @@ __all__ = [
     "Raw",
     "RawOp",
     "CobRef",
+    "CobManifest",
     # policy & routing (Phase 3)
     "PolicyStore",
     "RoutingStore",
