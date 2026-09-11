@@ -92,7 +92,8 @@ impl PySignedRefs {
         self.parent.as_deref()
     }
     /// Feature level of the signed refs:
-    /// `"none" | "root" | "parent" | "canonical"` (upstream `FeatureLevel`).
+    /// `"none" | "root" | "parent"` (upstream `FeatureLevel` — exactly
+    /// three variants in radicle 0.25.1).
     #[getter]
     fn feature_level(&self) -> &str {
         &self.feature_level

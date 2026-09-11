@@ -140,7 +140,7 @@ class RawOp:                                     # full wire spec in API.md;
 # ── Writes (Phase 5, narrow, each maps 1:1 upstream) ─────────────
 # These take NO signer upstream — the Python wrappers must not take one either.
 # No hidden sign_refs step: composing write-then-sign is the caller's explicit sequence.
-repo.set_default_branch_to_canonical_head() -> SetHeadInfo  # → set_default_branch_to_canonical_head
+repo.set_default_branch_to_canonical_head() -> SetHead        # → set_default_branch_to_canonical_head (upstream name)
 repo.set_identity_head() -> Oid                             # → set_identity_head
 repo.set_remote_identity_root(remote) -> Oid                # → set_remote_identity_root
 repo.sign_refs(signer) -> SignedRefs                        # the only signer-taking write here
@@ -298,9 +298,9 @@ radicle-py/
 4. Phase 4 review: `cob::object::parse_refstr` accepts ANY `refs/<category>/<typename>/<oid>` shape (tag refs false-match) — enumeration uses `cob::TypedId::from_namespaced`/`from_qualified` (strict `refs/cobs/…`); cyclic history raises `CobError`; the shipped RawOp wire contract is exactly the §3 sketch (tuples, `CobManifest`, `actions_json()`).
 
 **Resolved during Phase 5** (evidence: `tests/test_writes.py`, `tests/test_cob_writes.py`, API.md):
-1. Repository writes shipped 1:1 with upstream: `set_default_branch_to_canonical_head` (returns upstream-named `SetHead` — the §3 sketch name `SetHeadInfo` lost to the upstream type name, same rule as `SignedRefs`), `set_identity_head`, `set_remote_identity_root` (upstream writes **unconditionally** — unknown remotes simply get the ref created; idempotent), `sign_refs` (only signer-taking write; unchanged refs reuse the sigrefs commit; `force_sign_refs` not exposed; signature bytes not surfaced — verified/re-derived upstream on read).
+1. Repository writes shipped 1:1 with upstream: `set_default_branch_to_canonical_head` (returns upstream-named `SetHead` — the §3 sketch name `SetHeadInfo` lost to the upstream type name, same rule as `SignedRefs`; sketch updated). `SignedRefs.feature_level` surfaces exactly `"none"|"root"|"parent"` (`FeatureLevel` has no other variant in 0.25.1 — review correction)., `set_identity_head`, `set_remote_identity_root` (upstream writes **unconditionally** — unknown remotes simply get the ref created; idempotent), `sign_refs` (only signer-taking write; unchanged refs reuse the sigrefs commit; `force_sign_refs` not exposed; signature bytes not surfaced — verified/re-derived upstream on read).
 2. COB write shape: signer fixed at store open (`Issues.open_as`/`Patches.open_as` = upstream `WriteAs(signer)`), mutating methods take no signer — mirroring upstream exactly. One COB transaction per mutator call; `NoCache` (no caching layer without a node runtime).
-3. `IssueMut::label` upstream semantics are **REPLACE** (`Action::Label` assigns the label set; upstream test confirms re-labeling is a full set) — surfaced verbatim, documented loudly. No `unlabel` upstream.
+3. `IssueMut::label` AND `IssueMut::assign` upstream semantics are **REPLACE** (`Action::Label`/`Action::Assign` both assign the full `BTreeSet`; empty assignees clears) — surfaced verbatim, documented loudly. No `unlabel` upstream.
 4. `patch::TargetBranch` is constructor-qualified: bare `master` ⇢ `refs/heads/master`, rejects non-`refs/heads` refs; `Patch.target` strips the guaranteed prefix for input-symmetric `"branch:<name>"`. `Title` has no length cap (only non-empty/no-newline).
 5. Address store stays parked (re-confirmed; reads ship with their own writes later).
 

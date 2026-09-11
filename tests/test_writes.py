@@ -66,7 +66,7 @@ class TestSignRefs:
         assert signed.node_id == profile.node_id
         assert HEX40.match(signed.at)
         assert signed.parent is None  # first sigrefs commit is a root
-        assert signed.feature_level in {"none", "root", "parent", "canonical"}
+        assert signed.feature_level in {"none", "root", "parent"}  # 0.25.1 has exactly these
         refs = signed.refs()
         assert isinstance(refs, dict) and refs
         assert all(HEX40.match(oid) for oid in refs.values())

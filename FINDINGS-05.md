@@ -36,9 +36,14 @@ then signer-less mutators. Each mutator is one COB transaction (upstream
 `transaction()` commits immediately); `NoCache` is the only cache (no node
 runtime to own one).
 
-- `Action::Label` **replaces** the label set (`self.labels =
-  BTreeSet::from_iter(labels)`; upstream `test_issue_label` re-labels with
-  full sets). Shipped verbatim + loudly documented. There is no `unlabel`.
+- `Action::Label` AND `Action::Assign` **replace** their sets
+  (`self.labels = BTreeSet::from_iter(labels)`, same shape for assignees;
+  upstream `test_issue_label` re-labels with full sets). Empty assignees
+  clears — test-proven through the real store. Shipped verbatim + loudly
+  documented. There is no `unlabel`.
+- `storage::refs::FeatureLevel` in 0.25.1 has exactly `None | Root | Parent`
+  (`Display`: `none`/`root`/`parent`) — no `canonical` variant (review
+  correction of an earlier doc line and test set).
 - `IssueMut::comment` takes a **mandatory** `CommentId` reply target
   upstream; the binding defaults it to the root comment (documented).
   `edit_description` = root-comment edit (upstream).
@@ -49,8 +54,12 @@ runtime to own one).
   the lifecycle `reason` accepts exactly those two strings.
 - `patch::TargetBranch` is constructor-qualified (`src/cob/patch.rs`): bare
   `master` is stored as `refs/heads/master`; non-`refs/heads/*` qualified
-  refs are rejected. `Patch.target` strips the guaranteed prefix so input
-  `branch:release` ⇢ output `branch:release`.
+  refs are rejected (`refs/heads/refs/heads/x` is a *valid* branch).
+  `Patch.target` removes exactly one prefix via `strip_prefix`
+  (`trim_start_matches` would eat repeated prefixes — review fix) and is
+  canonical *bare*: qualified input `branch:refs/heads/foo` reads back as
+  `branch:foo`; only degenerate `refs/heads/`-prefixed bare names share a
+  canonical form (documented, tested).
 - `Patches::create/draft(title, description, MergeTarget, base, head,
   &labels, cache)` — `base`/`head` are git Oids (`impl Into<git::Oid>`).
   The broader `PatchMut` surface (revisions, review, merge, close) exists

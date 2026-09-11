@@ -95,6 +95,20 @@ class TestIssueWrites:
         m.assign([did])
         assert m.issue.assignees == [did]
 
+    def test_assign_replaces_and_clears(self, issues_w, profile, peer_profile):
+        # Upstream Action::Assign SETS the assignee set (replace, not
+        # additive) — exactly like Action::Label.
+        did_a = profile.signer().did
+        did_b = peer_profile.signer().did
+        m = issues_w.create("t", "d", assignees=[did_a])
+        assert m.issue.assignees == [did_a]
+        m.assign([did_a, did_b])
+        assert m.issue.assignees == sorted([did_a, did_b])
+        m.assign([did_b])  # replacement: did_a is gone
+        assert m.issue.assignees == [did_b]
+        m.assign([])  # empty clears
+        assert m.issue.assignees == []
+
     def test_lifecycle_validation(self, issues_w):
         m = issues_w.create("t", "d")
         with pytest.raises(ValueError, match="invalid state"):
@@ -152,6 +166,26 @@ class TestPatchWrites:
         assert pm.patch.state == "draft"
         # input "branch:<name>" ⇢ stored refs/heads/<name> ⇢ output "branch:<name>"
         assert pm.patch.target == "branch:release"
+
+    def test_qualified_branch_target_canonicalizes(self, patches_w, repo):
+        # Regression (review): output strips exactly ONE refs/heads/ prefix
+        # (strip_prefix, not trim_start_matches). Qualified input is accepted
+        # by the upstream constructor and canonicalizes to bare output;
+        # repeated-prefix branches keep their inner prefix (bare-name
+        # canonical form).
+        pm = patches_w.draft(
+            "q", "d", "branch:refs/heads/foo", repo.head.oid, repo.head.oid
+        )
+        assert pm.patch.target == "branch:foo"  # canonical bare
+        pm2 = patches_w.draft(
+            "r",
+            "d",
+            "branch:refs/heads/refs/heads/nested",
+            repo.head.oid,
+            repo.head.oid,
+        )
+        # One prefix removed only — trim_start_matches would have eaten both.
+        assert pm2.patch.target == "branch:refs/heads/nested"
 
     def test_created_patches_are_readable(self, patches_w, repo):
         pm = patches_w.create("p", "d", "delegates", repo.head.oid, repo.head.oid)

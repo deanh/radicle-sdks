@@ -554,7 +554,7 @@ themselves take none.
 
 ##### `signed.parent -> Oid | None` (attribute) — parent sigrefs commit (`None` at root)
 
-##### `signed.feature_level -> str` (attribute) — `"none" | "root" | "parent" | "canonical"`
+##### `signed.feature_level -> str` (attribute) — `"none" | "root" | "parent"` (upstream `FeatureLevel` has exactly these three in 0.25.1)
 
 ##### `signed.refs() -> dict[str, Oid]` (method) — the signed set (sorted). The cryptographic signature itself is not surfaced (verified/re-derived upstream on read)
 
@@ -600,7 +600,7 @@ Each mutator commits **one COB transaction** and returns the new change-entry
 
 ##### `issue_mut.label(labels: Sequence[str]) -> Oid` (method) — **sets** the label set: upstream `Action::Label` REPLACES (not additive)
 
-##### `issue_mut.assign(assignees: Sequence[Did]) -> Oid` (method)
+##### `issue_mut.assign(assignees: Sequence[Did]) -> Oid` (method) — **sets** the assignee set: upstream `Action::Assign` REPLACES (like `label`); an empty list clears
 
 ##### `issue_mut.lifecycle(state: str, reason: str | None = None) -> Oid` (method) — `state` `"open"|"closed"`; `reason` (closing only) `"unspecified"` (default) | `"solved"`; invalid combinations raise `ValueError`
 
@@ -608,7 +608,7 @@ Each mutator commits **one COB transaction** and returns the new change-entry
 
 ##### `Patches.open_as(repository: Repository, signer: Signer) -> Patches` (classmethod)
 
-##### `patches.create(title, description, target, base, head, labels=None) -> PatchMut` (method) — open patch; `target` `"delegates"` or `"branch:<name>"` (bare name; stored as `refs/heads/<name>`); `base`/`head` git commit Oids that exist in the repository
+##### `patches.create(title, description, target, base, head, labels=None) -> PatchMut` (method) — open patch; `target` `"delegates"` or `"branch:<name>"` (bare name accepted; a fully-qualified `branch:refs/heads/<name>` is accepted too and **canonicalizes to bare output**); `base`/`head` git commit Oids that exist in the repository
 
 ##### `patches.draft(...) -> PatchMut` (method) — same signature as `create`, created in `draft` state. Promoting drafts / revisions / review / merge are NOT part of the narrow Phase 5 surface (PLAN §3)
 
@@ -618,8 +618,12 @@ Each mutator commits **one COB transaction** and returns the new change-entry
 
 ##### `patch_mut.patch -> Patch` (attribute) — materialized creation result
 
-Note: `Patch.target` surfaces `"delegates"` or `"branch:<name>"` with the
-guaranteed `refs/heads/` prefix stripped — symmetric with the `create` input.
+Note: `Patch.target` surfaces `"delegates"` or `"branch:<name>"` with exactly
+one guaranteed `refs/heads/` prefix removed (`strip_prefix` — `repeat`-trim
+would eat repeated prefixes). Output is canonical *bare*: qualified input
+`branch:refs/heads/foo` reads back as `branch:foo`. Degenerate branches whose
+bare name itself starts with `refs/heads/` share the canonical short form and
+are the only non-round-tripping case.
 
 ## Quick start
 

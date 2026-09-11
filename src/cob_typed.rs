@@ -245,10 +245,17 @@ fn materialize_patch(id: &ObjectId, patch: &RawPatch) -> Patch {
     let target = match patch.target() {
         patch::MergeTarget::Delegates => "delegates".to_string(),
         // `TargetBranch` is guaranteed `refs/heads/`-qualified (upstream
-        // constructor); surface the bare branch name for symmetry with the
-        // `create(target="branch:<name>")` input.
+        // constructor). Output is canonical *bare*: exactly one
+        // `refs/heads/` prefix is removed (`strip_prefix`, NOT
+        // `trim_start_matches`, which would eat repeated prefixes).
+        // Input accepts bare or fully-qualified names (upstream
+        // constructor); qualified input canonicalizes to bare output.
         patch::MergeTarget::Branch(branch) => {
-            format!("branch:{}", branch.as_str().trim_start_matches("refs/heads/"))
+            let bare = branch
+                .as_str()
+                .strip_prefix("refs/heads/")
+                .unwrap_or(branch.as_str());
+            format!("branch:{bare}")
         }
     };
     let mut labels: Vec<String> = patch.labels().map(|l| l.name().to_owned()).collect();
@@ -511,7 +518,9 @@ impl PyIssueMut {
             Ok(entry.to_string())
         })
     }
-    /// Assign DIDs; returns the new change-entry id.
+    /// SET the issue's assignee set; returns the new change-entry id.
+    /// Upstream `Action::Assign` REPLACES the assignees (not additive,
+    /// exactly like `label`); an empty list clears the set.
     fn assign(&mut self, assignees: Vec<String>) -> PyResult<String> {
         let assignees = parse_dids(assignees)?;
         issue_tx!(self, |m| {
