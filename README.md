@@ -13,8 +13,8 @@ narrow, upstream-shaped write surface — not a node.
 
 | Platform | Wheel |
 |---|---|
-| Linux x86_64 | `radicle_py-0.1.0-py3-none-manylinux_2_28_x86_64.whl` (glibc ≥ 2.28; auditwheel-repaired) |
-| Linux aarch64 | `radicle_py-0.1.0-py3-none-manylinux_2_28_aarch64.whl` |
+| Linux x86_64 | `radicle_py-0.1.0-cp39-abi3-manylinux_2_28_x86_64.whl` (glibc ≥ 2.28; auditwheel-repaired) |
+| Linux aarch64 | `radicle_py-0.1.0-cp39-abi3-manylinux_2_28_aarch64.whl` |
 | macOS | universal2 wheel (arm64 + x86_64) |
 | Windows | **unsupported, unverified** (v1 scope; revisit post-v1) |
 

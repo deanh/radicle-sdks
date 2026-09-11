@@ -10,8 +10,11 @@ name: wheels
 #     `show`+`repair`ed (NOT `check` alone) and the native-architecture
 #     wheel is installed and imported in a clean venv.
 #   * sdist — `maturin sdist`, installed from source in a clean venv and
-#     imported (proves the source distribution is self-contained; libgit2
-#     and SQLite build from vendor, no system packages).
+#     smoke-tested (proves the source distribution is self-contained;
+#     libgit2 and SQLite build from vendor, no system packages).
+#
+# Both artifact smokes run the SAME script, `tests/wheel_smoke.py` — the
+# single source of truth for release purity + version integrity.
 #
 # Deliberately NO musl tooling — we validate glibc manylinux wheels.
 # Windows is out of scope for v1 (README: unsupported/unverified).
@@ -99,32 +102,31 @@ jobs:
         run: |
           pipx run auditwheel show dist/*.whl
           pipx run auditwheel repair --plat ${{ matrix.target == 'x86_64-unknown-linux-gnu' && 'manylinux_2_28_x86_64' || 'manylinux_2_28_aarch64' }} dist/*.whl -w dist/repaired
+          # The REPAIRED wheel is the release artifact: replace the original
+          # so the smoke test installs (and pip can accidentally choose) and
+          # the upload contain exactly one wheel per platform.
+          rm dist/*.whl
+          mv dist/repaired/*.whl dist/
+          rmdir dist/repaired
 
-      # Install the FINAL artifact (repaired on Linux) in a clean venv:
-      # import, exercise identity, and assert the test-only deterministic
-      # seeding helper (plan §5.7) never ships in release wheels.
+      # Install the FINAL artifact (repaired, originals removed) in a clean
+      # venv and run tests/wheel_smoke.py: version integrity (metadata + tag
+      # match) and release purity (plan §5.7 — no `_from_seed`, and no
+      # `radiclepy._test` in sys.modules / importable).
       - name: Smoke-test the wheel
+        env:
+          # Non-empty only on tag runs; must match the packaged version.
+          RELEASE_TAG: ${{ startsWith(github.ref, 'refs/tags/v') && github.ref_name || '' }}
         run: |
           python3 -m venv .venv-smoke
-          .venv-smoke/bin/pip install --no-index \
-            --find-links dist/repaired --find-links dist radicle-py
-          .venv-smoke/bin/python - <<'PY'
-          import radiclepy as rad
-          assert rad.__version__ == "0.1.0", rad.__version__
-          p = rad.Profile.init(".smoke-home", "ci")
-          assert rad.parse_did(p.did) == p.did
-          assert p.signer().node_id == p.node_id
-          # Deterministic seeding must NOT ship in release wheels (plan §5.7).
-          assert not hasattr(rad.Profile, "_from_seed"), "test helper leaked into release"
-          assert not hasattr(rad, "_test"), "test submodule leaked into release"
-          assert rad.RepoId is str and rad.Did is str
-          print("wheel smoke OK:", p.did)
-          PY
+          .venv-smoke/bin/pip install --no-index --find-links dist radicle-py
+          .venv-smoke/bin/python tests/wheel_smoke.py
+          echo "wheel smoke OK (${{ matrix.kind }})"
 
       - uses: actions/upload-artifact@v4
         with:
           name: wheels-${{ matrix.kind }}
-          path: dist/*.whl dist/repaired/*.whl
+          path: dist/*.whl
 
   sdist:
     name: build / source distribution
@@ -143,15 +145,13 @@ jobs:
         run: uvx --from maturin maturin sdist --out dist
 
       - name: Install sdist in a clean venv and import (self-contained build)
+        env:
+          RELEASE_TAG: ${{ startsWith(github.ref, 'refs/tags/v') && github.ref_name || '' }}
         run: |
           python3 -m venv .venv-sdist
           .venv-sdist/bin/pip install --no-deps dist/*.tar.gz
-          .venv-sdist/bin/python - <<'PY'
-          import radiclepy as rad
-          assert rad.__version__ == "0.1.0"
-          assert not hasattr(rad.Profile, "_from_seed")
-          print("sdist smoke OK:", rad.__version__)
-          PY
+          .venv-sdist/bin/python tests/wheel_smoke.py
+          echo "sdist smoke OK"
 
       - uses: actions/upload-artifact@v4
         with:
