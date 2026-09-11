@@ -250,7 +250,7 @@ radicle-py/
 | **3** | `PolicyStore`, `RoutingStore` named after upstream traits, config-carrying primary ctors via `profile.*_store()`; address store if spike-clean | Verify DB open/lock semantics |
 | **4** | Typed `issue`/`patch` readers + raw COB inspection with wire spec | Second-highest risk: op/serialization fidelity — validate against fixtures produced by real upstream writers |
 | **5** | Narrow writes: `set_default_branch_to_canonical_head`, `set_identity_head`, `set_remote_identity_root`, `sign_refs`, typed COB action writes *only where signing/atomicity behaviour is confirmed* | Deferred by design (review): read-focused first release |
-| **6** | Wheels CI polish (manylinux matrix), README install matrix, version 0.1.0 | Low risk |
+| **6** ✅ | Wheels CI polish (manylinux x86_64 + native aarch64 + macOS universal2 matrix, sdist job), README install matrix, version 0.1.0 | Done |
 
 (Stub completion is not a phase — it's part of every phase, §5.10.)
 
@@ -304,8 +304,11 @@ radicle-py/
 4. `patch::TargetBranch` is constructor-qualified: bare `master` ⇢ `refs/heads/master`, rejects non-`refs/heads` refs; `Patch.target` strips the guaranteed prefix for input-symmetric `"branch:<name>"`. `Title` has no length cap (only non-empty/no-newline).
 5. Address store stays parked (re-confirmed; reads ship with their own writes later).
 
-**Still open:**
-1. (none tracked — next: Phase 6 release polish)
+**Delivered in Phase 6** (release polish):
+1. `wheels.yml`: manylinux_2_28 **x86_64 + aarch64** (native arm64 runner — no QEMU) + macOS **universal2**; Linux wheels `auditwheel show`+`repair`ed; every artifact smoke-installed into a clean venv and imported; **sdist** built, installed from source, imported (self-contained: libgit2/SQLite from vendor). PyPI publishing remains a deliberate manual step (README "Releasing").
+2. Version **0.1.0** (Cargo.toml/pyproject/locks; `radiclepy.__version__` mirrors it); `Development Status :: 3 - Alpha`; LICENSE-MIT/LICENSE-APACHE (dual, matching upstream); CHANGELOG.md.
+3. README: install/platform matrix (Windows listed unsupported/unverified), quick start, conventions, dev + release docs.
+4. Verified locally at 0.1.0: 168 tests (test build) / 55+113 skipped (release), clippy both feature states, host wheel smoke (no `_from_seed`/`_test` in release), sdist build-install-import.
 
 ---
 

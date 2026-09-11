@@ -1,15 +1,32 @@
 name: wheels
 
-# Phase 1+: build the real `radiclepy` extension in maturin's glibc
-# manylinux_2_28 container and audit the result. (wheel-probe/ served its
-# Phase 0A purpose; this job now targets the root project.)
+# Release pipeline for `radicle-py` (Phase 6 polish of the Phase 0A gate).
+#
+# Gates:
+#   * test job — MSRV (1.88) + stable, pytest on the test build, clippy on
+#     BOTH feature states (test-helpers vs the release surface).
+#   * wheels — glibc manylinux_2_28 x86_64 AND aarch64 (native arm64
+#     runner; no QEMU), macOS universal2. Linux wheels are auditwheel
+#     `show`+`repair`ed (NOT `check` alone) and the native-architecture
+#     wheel is installed and imported in a clean venv.
+#   * sdist — `maturin sdist`, installed from source in a clean venv and
+#     imported (proves the source distribution is self-contained; libgit2
+#     and SQLite build from vendor, no system packages).
+#
 # Deliberately NO musl tooling — we validate glibc manylinux wheels.
+# Windows is out of scope for v1 (README: unsupported/unverified).
+# Publishing is intentionally NOT automated: `dist/` artifacts from a
+# `v*` tag run are uploaded and pushed to PyPI manually (`twine upload`).
 
 on:
   push:
     branches: [main]
+    tags: ["v*"]
   pull_request:
   workflow_dispatch:
+
+env:
+  CARGO_INCREMENTAL: "0"
 
 jobs:
   test:
@@ -45,40 +62,98 @@ jobs:
       - name: Clippy (release surface)
         run: cargo clippy --all-targets --locked -- -D warnings
 
-  manylinux:
+  wheels:
+    name: wheel / ${{ matrix.kind }}
+    needs: test
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - kind: manylinux-x86_64
+            os: ubuntu-latest
+            target: x86_64-unknown-linux-gnu
+            manylinux: "2_28"
+          # Native arm64 runner — the manylinux_2_28 aarch64 image runs
+          # under the container, no cross-toolchain, no QEMU.
+          - kind: manylinux-aarch64
+            os: ubuntu-24.04-arm
+            target: aarch64-unknown-linux-gnu
+            manylinux: "2_28"
+          - kind: macos-universal2
+            os: macos-14
+            target: universal2-apple-darwin
+            manylinux: auto
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build wheel
+        uses: PyO3/maturin-action@v1
+        with:
+          target: ${{ matrix.target }}
+          manylinux: ${{ matrix.manylinux }}
+          args: --release --out dist
+
+      - name: Audit + repair wheel (manylinux compliance, Linux only)
+        if: runner.os == 'Linux'
+        run: |
+          pipx run auditwheel show dist/*.whl
+          pipx run auditwheel repair --plat ${{ matrix.target == 'x86_64-unknown-linux-gnu' && 'manylinux_2_28_x86_64' || 'manylinux_2_28_aarch64' }} dist/*.whl -w dist/repaired
+
+      # Install the FINAL artifact (repaired on Linux) in a clean venv:
+      # import, exercise identity, and assert the test-only deterministic
+      # seeding helper (plan §5.7) never ships in release wheels.
+      - name: Smoke-test the wheel
+        run: |
+          python3 -m venv .venv-smoke
+          .venv-smoke/bin/pip install --no-index \
+            --find-links dist/repaired --find-links dist radicle-py
+          .venv-smoke/bin/python - <<'PY'
+          import radiclepy as rad
+          assert rad.__version__ == "0.1.0", rad.__version__
+          p = rad.Profile.init(".smoke-home", "ci")
+          assert rad.parse_did(p.did) == p.did
+          assert p.signer().node_id == p.node_id
+          # Deterministic seeding must NOT ship in release wheels (plan §5.7).
+          assert not hasattr(rad.Profile, "_from_seed"), "test helper leaked into release"
+          assert not hasattr(rad, "_test"), "test submodule leaked into release"
+          assert rad.RepoId is str and rad.Did is str
+          print("wheel smoke OK:", p.did)
+          PY
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: wheels-${{ matrix.kind }}
+          path: dist/*.whl dist/repaired/*.whl
+
+  sdist:
+    name: build / source distribution
     needs: test
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
 
-      - name: Build wheel (maturin-action, glibc manylinux_2_28 container)
-        uses: PyO3/maturin-action@v1
-        with:
-          target: x86_64
-          manylinux: "2_28"
-          args: --release --out dist
+      # Needed by the clean-venv `pip install` below: building from sdist
+      # compiles the extension from source.
+      - uses: dtolnay/rust-toolchain@stable
 
-      - name: Audit wheel (manylinux compliance)
-        run: |
-          pipx run auditwheel show dist/*.whl
-          pipx run auditwheel repair --plat manylinux_2_28_x86_64 dist/*.whl -w dist/repaired
+      - uses: astral-sh/setup-uv@v3
 
-      - name: Smoke-test the wheel (import + identifier roundtrip)
+      - name: Build sdist
+        run: uvx --from maturin maturin sdist --out dist
+
+      - name: Install sdist in a clean venv and import (self-contained build)
         run: |
-          python -m venv .venv-smoke
-          .venv-smoke/bin/pip install --no-index --find-links dist/repaired radicle-py
-          .venv-smoke/bin/python -c "
+          python3 -m venv .venv-sdist
+          .venv-sdist/bin/pip install --no-deps dist/*.tar.gz
+          .venv-sdist/bin/python - <<'PY'
           import radiclepy as rad
-          p = rad.Profile.init('.smoke-home', 'ci')
-          assert rad.parse_did(p.did) == p.did
-          assert p.signer().node_id == p.node_id
-          # Deterministic seeding must NOT ship in release wheels (plan §5.7).
-          assert not hasattr(rad.Profile, '_from_seed'), 'test helper leaked into release'
-          assert rad.RepoId is str and rad.Did is str
-          print('wheel smoke OK:', p.did)
-          "
+          assert rad.__version__ == "0.1.0"
+          assert not hasattr(rad.Profile, "_from_seed")
+          print("sdist smoke OK:", rad.__version__)
+          PY
 
       - uses: actions/upload-artifact@v4
         with:
-          name: wheels
-          path: dist/repaired/*.whl
+          name: sdist
+          path: dist/*.tar.gz
