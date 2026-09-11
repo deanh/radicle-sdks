@@ -8,6 +8,7 @@ mod policy;
 mod profile;
 mod routing;
 mod storage;
+mod write;
 #[cfg(feature = "test-helpers")]
 mod testhelpers;
 mod values;
@@ -25,6 +26,7 @@ fn radiclepy(py: Python<'_>, m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<values::FollowPolicyInfo>()?;
     m.add_class::<values::SeedPolicyInfo>()?;
     m.add_class::<values::RoutingEntry>()?;
+    write::register(py, m)?;
     cob_typed::register(py, m)?;
     cob_raw::register(py, m)?;
     #[cfg(feature = "test-helpers")]

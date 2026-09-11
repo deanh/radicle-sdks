@@ -424,7 +424,7 @@ Materialized at read time; immutable.
 
 ##### `issue.state -> str` (attribute) — `"open" | "closed"`
 
-##### `issue.close_reason -> str | None` (attribute) — `"other" | "resolved" | "outOfScope"` when closed
+##### `issue.close_reason -> str | None` (attribute) — `"unspecified" | "solved"` when closed (upstream `CloseReason` Display)
 
 ##### `issue.assignees -> list[Did]` (attribute) — sorted
 
@@ -518,6 +518,108 @@ One change entry; one op carries a **non-empty tuple** of actions.
 ##### `cob_ref.name -> str` (attribute) — full namespaced ref name, verbatim (`refs/namespaces/<nid>/refs/cobs/…`)
 
 ##### `cob_ref.target -> Oid` (attribute) — change commit the ref points at
+
+## Writes (Phase 5)
+
+Narrow, upstream-shaped writes (PLAN §3). The three canonical-ref writes take
+**no signer** because upstream takes none; `sign_refs` is the ONLY
+signer-taking write. No hidden write-then-sign composition — sequencing is
+the caller's explicit choice. For COB stores the signer is fixed at
+store-open time (`open_as`, upstream `WriteAs(signer)`); mutating methods
+themselves take none.
+
+### Repository writes
+
+##### `repo.set_default_branch_to_canonical_head() -> SetHead` (method) — compute the default-branch head from the delegate set and set it (upstream `set_default_branch_to_canonical_head`)
+
+##### `repo.set_identity_head() -> Oid` (method) — set `rad/id` to the canonical identity head agreed by quorum (upstream `set_identity_head`)
+
+##### `repo.set_remote_identity_root(remote: NodeId) -> Oid` (method) — set the remote's identity-root ref to the repository's canonical identity root. Upstream writes unconditionally (no membership check) and is idempotent. `ValueError` on malformed NodeId
+
+##### `repo.sign_refs(signer: Signer) -> SignedRefs` (method) — sign canonical refs under `refs/rad/sigrefs`; unchanged refs reuse the existing sigrefs commit (no new commit)
+
+#### `SetHead` (value class)
+
+##### `set_head.old -> Oid | None` (attribute) — previous default-branch head (`None` if absent)
+
+##### `set_head.new -> Oid` (attribute) — new default-branch head
+
+##### `set_head.is_updated() -> bool` (method) — whether the head actually moved
+
+#### `SignedRefs` (value class)
+
+##### `signed.node_id -> NodeId` (attribute) — signer / remote namespace
+
+##### `signed.at -> Oid` (attribute) — sigrefs commit carrying this set
+
+##### `signed.parent -> Oid | None` (attribute) — parent sigrefs commit (`None` at root)
+
+##### `signed.feature_level -> str` (attribute) — `"none" | "root" | "parent" | "canonical"`
+
+##### `signed.refs() -> dict[str, Oid]` (method) — the signed set (sorted). The cryptographic signature itself is not surfaced (verified/re-derived upstream on read)
+
+### Typed COB writes
+
+Open a store with a signer once; mutations carry no signer argument:
+
+```python
+issues = rad.Issues.open_as(repo, profile.signer())   # write mode
+m = issues.create("Title", "desc", labels=["bug"])
+m.comment("looks good")                                # reply_to defaults to root
+m.lifecycle("closed", "solved")
+patches = rad.Patches.open_as(repo, profile.signer())
+pm = patches.draft("WIP", "d", "branch:release", base, head)
+```
+
+Stores opened with plain `open()` raise `ValueError` on write attempts.
+
+#### `Issues` (write extensions)
+
+##### `Issues.open_as(repository: Repository, signer: Signer) -> Issues` (classmethod) — write store (upstream `WriteAs(signer)`)
+
+##### `issues.create(title: str, description: str, labels: Sequence[str] | None = None, assignees: Sequence[Did] | None = None) -> IssueMut` (method) — creates and persists immediately; `ValueError` on invalid title/labels/DIDs
+
+##### `issues.get_mut(id: ObjectId) -> IssueMut` (method) — write stores only; `CobError` if absent
+
+#### `IssueMut` (value class)
+
+Each mutator commits **one COB transaction** and returns the new change-entry
+`Oid`; the `issue` snapshot refreshes after each call.
+
+##### `issue_mut.id -> ObjectId` (attribute)
+
+##### `issue_mut.issue -> Issue` (attribute) — snapshot after the latest change through this handle
+
+##### `issue_mut.reload() -> Issue` (method) — re-read from storage
+
+##### `issue_mut.comment(body: str, reply_to: Oid | None = None) -> Oid` (method) — `reply_to` defaults to the root comment (upstream requires a reply target)
+
+##### `issue_mut.edit(title: str) -> Oid` (method)
+
+##### `issue_mut.edit_description(description: str) -> Oid` (method) — edits the root comment (upstream semantics)
+
+##### `issue_mut.label(labels: Sequence[str]) -> Oid` (method) — **sets** the label set: upstream `Action::Label` REPLACES (not additive)
+
+##### `issue_mut.assign(assignees: Sequence[Did]) -> Oid` (method)
+
+##### `issue_mut.lifecycle(state: str, reason: str | None = None) -> Oid` (method) — `state` `"open"|"closed"`; `reason` (closing only) `"unspecified"` (default) | `"solved"`; invalid combinations raise `ValueError`
+
+#### `Patches` (write extensions)
+
+##### `Patches.open_as(repository: Repository, signer: Signer) -> Patches` (classmethod)
+
+##### `patches.create(title, description, target, base, head, labels=None) -> PatchMut` (method) — open patch; `target` `"delegates"` or `"branch:<name>"` (bare name; stored as `refs/heads/<name>`); `base`/`head` git commit Oids that exist in the repository
+
+##### `patches.draft(...) -> PatchMut` (method) — same signature as `create`, created in `draft` state. Promoting drafts / revisions / review / merge are NOT part of the narrow Phase 5 surface (PLAN §3)
+
+#### `PatchMut` (value class)
+
+##### `patch_mut.id -> ObjectId` (attribute)
+
+##### `patch_mut.patch -> Patch` (attribute) — materialized creation result
+
+Note: `Patch.target` surfaces `"delegates"` or `"branch:<name>"` with the
+guaranteed `refs/heads/` prefix stripped — symmetric with the `create` input.
 
 ## Quick start
 

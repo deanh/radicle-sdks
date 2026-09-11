@@ -455,6 +455,35 @@ impl PyRepository {
         Ok(out)
     }
 
+    // ─── Writes (Phase 5, PLAN §3) ─────────────────────────────────────────
+    // Each maps 1:1 to an upstream `WriteRepository`/`SignRepository` method.
+    // The first three take NO signer upstream and take none here; `sign_refs`
+    // is the only signer-taking write. No hidden write-then-sign composition.
+
+    /// Compute the default-branch head from the delegate set and set it
+    /// (upstream `set_default_branch_to_canonical_head`).
+    fn set_default_branch_to_canonical_head(&self) -> PyResult<crate::write::PySetHead> {
+        crate::write::set_default_branch_to_canonical_head(self)
+    }
+
+    /// Set the repository's `rad/id` to the canonical identity head agreed
+    /// by quorum (upstream `set_identity_head`). Returns the new head.
+    fn set_identity_head(&self) -> PyResult<String> {
+        crate::write::set_identity_head(self)
+    }
+
+    /// Set remote `remote`'s identity-root ref to the repository's canonical
+    /// identity root (upstream `set_remote_identity_root`). Returns the root.
+    fn set_remote_identity_root(&self, remote: &str) -> PyResult<String> {
+        crate::write::set_remote_identity_root(self, remote)
+    }
+
+    /// Sign the repository's canonical refs under `refs/rad/sigrefs`
+    /// (upstream `sign_refs`). The ONLY signer-taking write in the binding.
+    fn sign_refs(&self, signer: &crate::profile::PySigner) -> PyResult<crate::write::PySignedRefs> {
+        crate::write::sign_refs(self, signer)
+    }
+
     fn __repr__(&self) -> String {
         format!("Repository({})", self.rid)
     }

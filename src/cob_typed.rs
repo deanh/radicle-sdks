@@ -1,20 +1,27 @@
-//! Typed COB readers (Phase 4): `Issues` and `Patches` stores.
+//! Typed COB stores (Phase 4 readers, Phase 5 writes): `Issues`/`Patches`.
 //!
-//! These wrap upstream `radicle::cob::issue::Issues` / `patch::Patches` in
-//! **read-only** mode (`Store::open(repo, ReadOnly)`). COB *mutations* (which
-//! require a signer) are Phase 5. Materialization is eager — `.all()` returns
-//! a `list`, never a lazy iterator holding a git handle open (PLAN §5.6).
+//! Reads wrap upstream stores in read-only mode (`ReadOnly`); writes open
+//! with `WriteAs(signer)` — the signer lives in the *store access mode*,
+//! never in the mutating methods' arguments (mirrors upstream exactly: no
+//! signer-taking write methods; PLAN §3). Materialization is eager —
+//! `.all()` returns a `list`, never a lazy iterator holding a git handle
+//! open (PLAN §5.6).
 
 use pyo3::prelude::*;
 use pyo3::types::PyType;
 use radicle::cob::issue::{self, Issue as RawIssue, Issues as RawIssues};
 use radicle::cob::patch::{self, Patch as RawPatch, Patches as RawPatches};
-use radicle::cob::store::access::ReadOnly;
-use radicle::cob::ObjectId;
+use radicle::cob::cache::NoCache;
+use radicle::cob::issue::State as IssueState;
+use radicle::cob::store::access::{ReadOnly, WriteAs};
+use radicle::cob::thread::CommentId;
+use radicle::cob::{Label, ObjectId, Title};
+use radicle::identity::Did;
 
 use std::str::FromStr;
 
 use crate::error;
+use crate::profile::PySigner;
 use crate::storage::PyRepository;
 
 /// ValueError for a malformed ObjectId, CobError for a store failure.
@@ -237,7 +244,12 @@ fn materialize_patch(id: &ObjectId, patch: &RawPatch) -> Patch {
     };
     let target = match patch.target() {
         patch::MergeTarget::Delegates => "delegates".to_string(),
-        patch::MergeTarget::Branch(branch) => format!("branch:{}", branch.as_str()),
+        // `TargetBranch` is guaranteed `refs/heads/`-qualified (upstream
+        // constructor); surface the bare branch name for symmetry with the
+        // `create(target="branch:<name>")` input.
+        patch::MergeTarget::Branch(branch) => {
+            format!("branch:{}", branch.as_str().trim_start_matches("refs/heads/"))
+        }
     };
     let mut labels: Vec<String> = patch.labels().map(|l| l.name().to_owned()).collect();
     labels.sort();
@@ -260,10 +272,23 @@ fn materialize_patch(id: &ObjectId, patch: &RawPatch) -> Patch {
 
 // ─── Issues store ────────────────────────────────────────────────────────────
 
-/// Read-only typed issue store for one repository (upstream `cob::issue::Issues`).
-#[pyclass(name = "Issues", module = "radiclepy")]
+/// Typed issue store for one repository (upstream `cob::issue::Issues`).
+/// `open()` is read-only; `open_as(repository, signer)` enables writes
+/// (upstream `WriteAs(signer)` access mode — writes never take a signer).
+#[pyclass(name = "Issues", module = "radiclepy", unsendable)]
 pub struct PyIssues {
     repo: PyRepository,
+    signer: Option<PySigner>,
+}
+
+impl PyIssues {
+    fn write_signer(&self) -> PyResult<PySigner> {
+        self.signer.clone().ok_or_else(|| {
+            error::value_err(
+                "issue store is read-only; open with Issues.open_as(repository, signer)",
+            )
+        })
+    }
 }
 
 #[pymethods]
@@ -271,7 +296,18 @@ impl PyIssues {
     /// Open the issue store of `repository` (read-only).
     #[classmethod]
     fn open(_cls: &Bound<'_, PyType>, repository: PyRepository) -> Self {
-        Self { repo: repository }
+        Self { repo: repository, signer: None }
+    }
+
+    /// Open the issue store for **writes** (upstream `WriteAs(signer)`).
+    /// Mutating methods still take no signer — it is fixed here, once.
+    #[classmethod]
+    fn open_as(
+        _cls: &Bound<'_, PyType>,
+        repository: PyRepository,
+        signer: &PySigner,
+    ) -> Self {
+        Self { repo: repository, signer: Some(signer.clone()) }
     }
 
     #[getter]
@@ -315,25 +351,317 @@ impl PyIssues {
         store.is_empty().map_err(cob_err)
     }
 
-    fn __repr__(&self) -> String {
-        format!("Issues({})", self.repo.rid_str())
+    /// Create an issue; returns a mutable handle (the issue is immediately
+    /// persisted — each mutator is its own COB transaction, upstream).
+    #[pyo3(signature = (title, description, labels=None, assignees=None))]
+    fn create(
+        &self,
+        title: &str,
+        description: &str,
+        labels: Option<Vec<String>>,
+        assignees: Option<Vec<String>>,
+    ) -> PyResult<PyIssueMut> {
+        let signer = self.write_signer()?;
+        let title = parse_title(title)?;
+        let labels = parse_labels(labels.unwrap_or_default())?;
+        let assignees = parse_dids(assignees.unwrap_or_default())?;
+        let repo = self.repo.open()?;
+        let mut store = RawIssues::open(&repo, WriteAs::new(&*signer.inner)).map_err(cob_err)?;
+        let mut cache = NoCache;
+        let created = store
+            .create(title, description, &labels, &assignees, [], &mut cache)
+            .map_err(cob_err)?;
+        let id = created.id().to_owned();
+        let snapshot = materialize_issue(&id, &created);
+        Ok(PyIssueMut {
+            repo: self.repo.clone(),
+            signer,
+            id: id.to_string(),
+            snapshot,
+        })
     }
+
+    /// Mutable handle on an existing issue (write stores only).
+    fn get_mut(&self, id: &str) -> PyResult<PyIssueMut> {
+        let signer = self.write_signer()?;
+        let id = parse_object_id(id)?;
+        let repo = self.repo.open()?;
+        let mut store = RawIssues::open(&repo, WriteAs::new(&*signer.inner)).map_err(cob_err)?;
+        let mut cache = NoCache;
+        let m = store.get_mut(&id, &mut cache).map_err(cob_err)?;
+        let snapshot = materialize_issue(&id, &m);
+        Ok(PyIssueMut {
+            repo: self.repo.clone(),
+            signer,
+            id: id.to_string(),
+            snapshot,
+        })
+    }
+
+    fn __repr__(&self) -> String {
+        format!(
+            "Issues({}{})",
+            self.repo.rid_str(),
+            if self.signer.is_some() {
+                ", write"
+            } else {
+                ", read-only"
+            }
+        )
+    }
+}
+
+// ─── IssueMut (Phase 5 writes) ───────────────────────────────────────────────
+
+/// Mutable handle on an issue; every method commits one COB operation
+/// (upstream transaction) and refreshes the `issue` snapshot.
+#[pyclass(name = "IssueMut", module = "radiclepy", unsendable)]
+pub struct PyIssueMut {
+    repo: PyRepository,
+    signer: PySigner,
+    id: String,
+    snapshot: Issue,
+}
+
+/// One COB transaction against the issue behind the handle: open the write
+/// store, load the entry mutably, run `$body` (which binds `m: &mut IssueMut`,
+/// must evaluate to `PyResult<String>`), then refresh the snapshot from the
+/// upstream-updated entry. Commit-per-call mirrors upstream transactions.
+macro_rules! issue_tx {
+    ($slf:expr, |$m:ident| $body:expr) => {{
+        let repo = $slf.repo.open()?;
+        let mut store =
+            RawIssues::open(&repo, WriteAs::new(&*$slf.signer.inner)).map_err(cob_err)?;
+        let mut cache = NoCache;
+        let id = parse_object_id(&$slf.id)?;
+        let mut loaded = store.get_mut(&id, &mut cache).map_err(cob_err)?;
+        let result: PyResult<String> = {
+            let $m = &mut loaded;
+            $body
+        };
+        $slf.snapshot = materialize_issue(&id, &loaded);
+        result
+    }};
+}
+
+#[pymethods]
+impl PyIssueMut {
+    /// Issue id (ObjectId hex).
+    #[getter]
+    fn id(&self) -> &str {
+        &self.id
+    }
+    /// Snapshot of the issue after the latest change through this handle.
+    #[getter]
+    fn issue(&self) -> Issue {
+        self.snapshot.clone()
+    }
+    /// Re-read the issue from storage (upstream reload semantics).
+    fn reload(&mut self) -> PyResult<Issue> {
+        issue_tx!(self, |m| {
+            let _ = &*m;
+            Ok(String::new())
+        })?;
+        Ok(self.snapshot.clone())
+    }
+    /// Comment on the issue; returns the new change-entry id.
+    /// `reply_to` defaults to the root comment (upstream requires a target).
+    #[pyo3(signature = (body, reply_to=None))]
+    fn comment(&mut self, body: &str, reply_to: Option<&str>) -> PyResult<String> {
+        let reply_to = match reply_to {
+            Some(id) => parse_comment_id(id)?,
+            None => {
+                let root = self
+                    .snapshot
+                    .comment_ids
+                    .first()
+                    .ok_or_else(|| error::op_err("issue has no root comment"))?;
+                parse_comment_id(root)?
+            }
+        };
+        let body = body.to_owned();
+        issue_tx!(self, |m| {
+            let entry = m.comment(body, reply_to, []).map_err(cob_err)?;
+            Ok(entry.to_string())
+        })
+    }
+    /// Set the issue title; returns the new change-entry id.
+    fn edit(&mut self, title: &str) -> PyResult<String> {
+        let title = parse_title(title)?;
+        issue_tx!(self, |m| {
+            let entry = m.edit(title).map_err(cob_err)?;
+            Ok(entry.to_string())
+        })
+    }
+    /// Set the issue description (edits the root comment); returns entry id.
+    fn edit_description(&mut self, description: &str) -> PyResult<String> {
+        let description = description.to_owned();
+        issue_tx!(self, |m| {
+            let entry = m.edit_description(description, []).map_err(cob_err)?;
+            Ok(entry.to_string())
+        })
+    }
+    /// SET the issue's label set; returns the new change-entry id.
+    /// Upstream `Action::Label` REPLACES the labels (not additive): this
+    /// handle's previous labels are gone after the call.
+    fn label(&mut self, labels: Vec<String>) -> PyResult<String> {
+        let labels = parse_labels(labels)?;
+        issue_tx!(self, |m| {
+            let entry = m.label(labels).map_err(cob_err)?;
+            Ok(entry.to_string())
+        })
+    }
+    /// Assign DIDs; returns the new change-entry id.
+    fn assign(&mut self, assignees: Vec<String>) -> PyResult<String> {
+        let assignees = parse_dids(assignees)?;
+        issue_tx!(self, |m| {
+            let entry = m.assign(assignees).map_err(cob_err)?;
+            Ok(entry.to_string())
+        })
+    }
+    /// Open/close the issue; returns the new change-entry id.
+    /// `state` is `"open"` or `"closed"`; `reason` (when closing) is
+    /// `"unspecified"` (default) or `"solved"` (upstream `CloseReason`).
+    #[pyo3(signature = (state, reason=None))]
+    fn lifecycle(&mut self, state: &str, reason: Option<&str>) -> PyResult<String> {
+        let state = match state {
+            "open" => {
+                if reason.is_some() {
+                    return Err(error::value_err("reason is only valid for state='closed'"));
+                }
+                IssueState::Open
+            }
+            "closed" => IssueState::Closed {
+                reason: match reason.unwrap_or("unspecified") {
+                    "solved" => issue::CloseReason::Solved,
+                    "unspecified" => issue::CloseReason::Other,
+                    other => {
+                        return Err(error::value_err(format!(
+                            "invalid close reason {other:?}; expected 'unspecified' or 'solved'"
+                        )))
+                    }
+                },
+            },
+            other => {
+                return Err(error::value_err(format!(
+                    "invalid state {other:?}; expected 'open' or 'closed'"
+                )))
+            }
+        };
+        issue_tx!(self, |m| {
+            let entry = m.lifecycle(state).map_err(cob_err)?;
+            Ok(entry.to_string())
+        })
+    }
+    fn __repr__(&self) -> String {
+        format!("IssueMut({})", self.id)
+    }
+}
+
+fn parse_title(value: &str) -> PyResult<Title> {
+    Title::new(value).map_err(|e| error::value_err(format!("invalid title: {e}")))
+}
+
+fn parse_labels(values: Vec<String>) -> PyResult<Vec<Label>> {
+    values
+        .iter()
+        .map(|l| {
+            Label::new(l.as_str())
+                .map_err(|e| error::value_err(format!("invalid label {l:?}: {e}")))
+        })
+        .collect()
+}
+
+fn parse_dids(values: Vec<String>) -> PyResult<Vec<Did>> {
+    values
+        .iter()
+        .map(|d| {
+            d.parse::<Did>()
+                .map_err(|e| error::value_err(format!("invalid DID {d:?}: {e}")))
+        })
+        .collect()
+}
+
+fn parse_comment_id(value: &str) -> PyResult<CommentId> {
+    value
+        .parse::<CommentId>()
+        .map_err(|e| error::value_err(format!("invalid comment id {value:?}: {e}")))
 }
 
 // ─── Patches store ───────────────────────────────────────────────────────────
 
-/// Read-only typed patch store for one repository (upstream `cob::patch::Patches`).
-#[pyclass(name = "Patches", module = "radiclepy")]
+/// Typed patch store for one repository (upstream `cob::patch::Patches`).
+/// `open()` is read-only; `open_as(repository, signer)` enables writes
+/// (upstream `WriteAs(signer)` access mode).
+#[pyclass(name = "Patches", module = "radiclepy", unsendable)]
 pub struct PyPatches {
     repo: PyRepository,
+    signer: Option<PySigner>,
 }
+
+impl PyPatches {
+    fn write_signer(&self) -> PyResult<PySigner> {
+        self.signer.clone().ok_or_else(|| {
+            error::value_err(
+                "patch store is read-only; open with Patches.open_as(repository, signer)",
+            )
+        })
+    }
+    #[allow(clippy::too_many_arguments)]
+    fn _create_or_draft(
+        &self,
+        title: &str,
+        description: &str,
+        target: &str,
+        base: &str,
+        head: &str,
+        labels: Option<Vec<String>>,
+        draft: bool,
+    ) -> PyResult<PyPatchMut> {
+        let signer = self.write_signer()?;
+        let title = parse_title(title)?;
+        let target = parse_merge_target(target)?;
+        let labels = parse_labels(labels.unwrap_or_default())?;
+        let base = crate::write::parse_git_oid(base)?;
+        let head = crate::write::parse_git_oid(head)?;
+        let repo = self.repo.open()?;
+        let mut store = RawPatches::open(&repo, WriteAs::new(&*signer.inner)).map_err(cob_err)?;
+        let mut cache = NoCache;
+        let m = if draft {
+            store
+                .draft(title, description, target, base, head, &labels, &mut cache)
+                .map_err(cob_err)?
+        } else {
+            store
+                .create(title, description, target, base, head, &labels, &mut cache)
+                .map_err(cob_err)?
+        };
+        let id = m.id().to_owned();
+        let snapshot = materialize_patch(&id, &m);
+        Ok(PyPatchMut {
+            id: id.to_string(),
+            snapshot,
+        })
+    }
+}
+
 
 #[pymethods]
 impl PyPatches {
     /// Open the patch store of `repository` (read-only).
     #[classmethod]
     fn open(_cls: &Bound<'_, PyType>, repository: PyRepository) -> Self {
-        Self { repo: repository }
+        Self { repo: repository, signer: None }
+    }
+
+    /// Open the patch store for **writes** (upstream `WriteAs(signer)`).
+    #[classmethod]
+    fn open_as(
+        _cls: &Bound<'_, PyType>,
+        repository: PyRepository,
+        signer: &PySigner,
+    ) -> Self {
+        Self { repo: repository, signer: Some(signer.clone()) }
     }
 
     #[getter]
@@ -377,8 +705,94 @@ impl PyPatches {
         store.is_empty().map_err(cob_err)
     }
 
+    /// Create an **open** patch (upstream `Patches::create`). `target` is
+    /// `"delegates"` or `"branch:<name>"`; `base`/`head` are git commit OIDs
+    /// that must exist in the repository.
+    #[pyo3(signature = (title, description, target, base, head, labels=None))]
+    fn create(
+        &self,
+        title: &str,
+        description: &str,
+        target: &str,
+        base: &str,
+        head: &str,
+        labels: Option<Vec<String>>,
+    ) -> PyResult<PyPatchMut> {
+        self._create_or_draft(title, description, target, base, head, labels, false)
+    }
+
+    /// Create a **draft** patch (upstream `Patches::draft`). Promoting a
+    /// draft to open is not part of the narrow Phase 5 surface (PLAN §3).
+    #[pyo3(signature = (title, description, target, base, head, labels=None))]
+    fn draft(
+        &self,
+        title: &str,
+        description: &str,
+        target: &str,
+        base: &str,
+        head: &str,
+        labels: Option<Vec<String>>,
+    ) -> PyResult<PyPatchMut> {
+        self._create_or_draft(title, description, target, base, head, labels, true)
+    }
+
+
     fn __repr__(&self) -> String {
-        format!("Patches({})", self.repo.rid_str())
+        format!(
+            "Patches({}{})",
+            self.repo.rid_str(),
+            if self.signer.is_some() {
+                ", write"
+            } else {
+                ", read-only"
+            }
+        )
+    }
+}
+
+// ─── PatchMut (Phase 5) ──────────────────────────────────────────────────────
+
+/// Handle on a patch created through a write store. The narrow Phase 5
+/// surface exposes the materialized creation result only — patch mutations
+/// (revisions, review, merge) are deliberately not wrapped (PLAN §3:
+/// create/draft only).
+#[pyclass(name = "PatchMut", module = "radiclepy")]
+pub struct PyPatchMut {
+    id: String,
+    snapshot: Patch,
+}
+
+#[pymethods]
+impl PyPatchMut {
+    /// Patch id (ObjectId hex).
+    #[getter]
+    fn id(&self) -> &str {
+        &self.id
+    }
+    /// Materialized patch as created.
+    #[getter]
+    fn patch(&self) -> Patch {
+        self.snapshot.clone()
+    }
+    fn __repr__(&self) -> String {
+        format!("PatchMut({})", self.id)
+    }
+}
+
+fn parse_merge_target(value: &str) -> PyResult<patch::MergeTarget> {
+    match value {
+        "delegates" => Ok(patch::MergeTarget::Delegates),
+        other => match other.strip_prefix("branch:") {
+            Some(name) => {
+                let branch = patch::TargetBranch::try_from(name).map_err(|e| {
+                    error::value_err(format!("invalid branch name {name:?}: {e}"))
+                })?;
+                Ok(patch::MergeTarget::Branch(branch))
+            }
+            None => Err(error::value_err(
+                "target must be 'delegates' or 'branch:<name>'",
+            )),
+        },
     }
 }
 
@@ -387,5 +801,7 @@ pub fn register(_py: Python<'_>, m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<Patch>()?;
     m.add_class::<PyIssues>()?;
     m.add_class::<PyPatches>()?;
+    m.add_class::<PyIssueMut>()?;
+    m.add_class::<PyPatchMut>()?;
     Ok(())
 }

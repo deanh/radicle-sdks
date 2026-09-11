@@ -295,9 +295,17 @@ radicle-py/
 1. Typed readers via `Store::open(repo, ReadOnly)` (Issues/Patches `Deref` to `Store`); eager materialization; COB `String` fields are plain `str` (UTF-8 by construction — bytes-first policy is for byte-typed sources).
 2. Raw walk contract shipped: `entry.parents`-only traversal, global per-entity dedup, Kahn topological output (insertion-ordered Vec — a `BTreeMap` collect silently re-sorts; regression test added), identity/related exposed as links, never traversed.
 3. COB refs carry the full namespaced form (`refs/namespaces/<nid>/refs/cobs/…`); `Entry.timestamp` is **seconds** `u64` (not millis — Phase 4 review correction); `RawOp.actor` is the canonical NodeId; `Version` converts via `usize::from`.
+4. Phase 4 review: `cob::object::parse_refstr` accepts ANY `refs/<category>/<typename>/<oid>` shape (tag refs false-match) — enumeration uses `cob::TypedId::from_namespaced`/`from_qualified` (strict `refs/cobs/…`); cyclic history raises `CobError`; the shipped RawOp wire contract is exactly the §3 sketch (tuples, `CobManifest`, `actions_json()`).
+
+**Resolved during Phase 5** (evidence: `tests/test_writes.py`, `tests/test_cob_writes.py`, API.md):
+1. Repository writes shipped 1:1 with upstream: `set_default_branch_to_canonical_head` (returns upstream-named `SetHead` — the §3 sketch name `SetHeadInfo` lost to the upstream type name, same rule as `SignedRefs`), `set_identity_head`, `set_remote_identity_root` (upstream writes **unconditionally** — unknown remotes simply get the ref created; idempotent), `sign_refs` (only signer-taking write; unchanged refs reuse the sigrefs commit; `force_sign_refs` not exposed; signature bytes not surfaced — verified/re-derived upstream on read).
+2. COB write shape: signer fixed at store open (`Issues.open_as`/`Patches.open_as` = upstream `WriteAs(signer)`), mutating methods take no signer — mirroring upstream exactly. One COB transaction per mutator call; `NoCache` (no caching layer without a node runtime).
+3. `IssueMut::label` upstream semantics are **REPLACE** (`Action::Label` assigns the label set; upstream test confirms re-labeling is a full set) — surfaced verbatim, documented loudly. No `unlabel` upstream.
+4. `patch::TargetBranch` is constructor-qualified: bare `master` ⇢ `refs/heads/master`, rejects non-`refs/heads` refs; `Patch.target` strips the guaranteed prefix for input-symmetric `"branch:<name>"`. `Title` has no length cap (only non-empty/no-newline).
+5. Address store stays parked (re-confirmed; reads ship with their own writes later).
 
 **Still open:**
-1. (none tracked — next: Phase 5 writes)
+1. (none tracked — next: Phase 6 release polish)
 
 ---
 

@@ -102,9 +102,12 @@ impl PyAliases {
 
 // ─── Signer ──────────────────────────────────────────────────────────────────
 
+/// `Clone` is a cheap `Arc` share (upstream `profile::Signer` isn't
+/// `Clone` — e.g. the SSH-agent variant); write stores share one handle.
 #[pyclass(name = "Signer", module = "radiclepy", unsendable)]
+#[derive(Clone)]
 pub struct PySigner {
-    pub(crate) inner: radicle::profile::Signer,
+    pub(crate) inner: std::rc::Rc<radicle::profile::Signer>,
 }
 
 #[pymethods]
@@ -242,7 +245,7 @@ impl PyProfile {
     /// matching `radicle::Profile::signer()`.
     fn signer(&self) -> PyResult<PySigner> {
         let signer = self.inner.signer().map_err(error::signer_err)?;
-        Ok(PySigner { inner: signer })
+        Ok(PySigner { inner: std::rc::Rc::new(signer) })
     }
 
     /// Read-write policy store of this profile's home (Phase 3).

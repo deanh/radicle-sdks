@@ -54,6 +54,10 @@ TOP_LEVEL = {
         "RawOp",
         "CobRef",
         "CobManifest",
+        "SetHead",
+        "SignedRefs",
+        "IssueMut",
+        "PatchMut",
     ],
 }
 
@@ -85,7 +89,21 @@ MEMBERS = {
             "blob",
             "history",
             "remotes",
+            "set_default_branch_to_canonical_head",
+            "set_identity_head",
+            "set_remote_identity_root",
+            "sign_refs",
         ],
+        "classmethods": [],
+    },
+    "SetHead": {
+        "attrs": ["old", "new"],
+        "methods": ["is_updated"],
+        "classmethods": [],
+    },
+    "SignedRefs": {
+        "attrs": ["node_id", "at", "parent", "feature_level"],
+        "methods": ["refs"],
         "classmethods": [],
     },
     "HeadInfo": {"attrs": ["name", "oid"], "methods": [], "classmethods": []},
@@ -188,13 +206,26 @@ MEMBERS = {
     },
     "Issues": {
         "attrs": ["rid"],
-        "methods": ["all", "get", "count", "is_empty"],
-        "classmethods": ["open"],
+        "methods": ["all", "get", "count", "is_empty", "create", "get_mut"],
+        "classmethods": ["open", "open_as"],
+    },
+    "IssueMut": {
+        "attrs": ["id", "issue"],
+        "methods": [
+            "reload", "comment", "edit", "edit_description", "label",
+            "assign", "lifecycle",
+        ],
+        "classmethods": [],
     },
     "Patches": {
         "attrs": ["rid"],
-        "methods": ["all", "get", "count", "is_empty"],
-        "classmethods": ["open"],
+        "methods": ["all", "get", "count", "is_empty", "create", "draft"],
+        "classmethods": ["open", "open_as"],
+    },
+    "PatchMut": {
+        "attrs": ["id", "patch"],
+        "methods": [],
+        "classmethods": [],
     },
     "Raw": {
         "attrs": ["rid"],
