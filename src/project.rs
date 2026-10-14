@@ -48,11 +48,12 @@ pub fn init_project(
     // Upstream init cleanup deletes `rad` on failure, even if it predates
     // this call. Match the CLI's preflight to preserve existing configuration
     // and remote-tracking refs before any upstream side effects.
-    match repo.find_remote("rad") {
+    match repo.find_remote(&radicle::rad::REMOTE_NAME) {
         Ok(_) => {
-            return Err(error::op_err(
-                "repository already has a 'rad' remote; refusing to initialize",
-            ));
+            return Err(error::op_err(format!(
+                "repository already has a '{}' remote; refusing to initialize",
+                *radicle::rad::REMOTE_NAME,
+            )));
         }
         Err(err) if err.code() == git::raw::ErrorCode::NotFound => {}
         Err(err) => return Err(error::git_err(err)),
