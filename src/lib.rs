@@ -2,16 +2,18 @@ use pyo3::prelude::*;
 
 mod cob_raw;
 mod cob_typed;
+mod cob_values;
 mod error;
 mod identity;
 mod policy;
 mod profile;
+mod project;
 mod routing;
 mod storage;
-mod write;
 #[cfg(feature = "test-helpers")]
 mod testhelpers;
 mod values;
+mod write;
 
 #[pymodule]
 fn radiclepy(py: Python<'_>, m: &Bound<'_, PyModule>) -> PyResult<()> {
@@ -19,6 +21,8 @@ fn radiclepy(py: Python<'_>, m: &Bound<'_, PyModule>) -> PyResult<()> {
     error::register(py, m)?;
     identity::register(py, m)?;
     profile::register(py, m)?;
+    project::register(m)?;
+    cob_values::register(m)?;
     storage::register(py, m)?;
     storage::register_values(py, m)?;
     policy::register(py, m)?;

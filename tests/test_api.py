@@ -21,7 +21,8 @@ API_MD = Path(__file__).resolve().parent.parent / "API.md"
 
 # Documented top-level members and their kinds (mirrors API.md headings).
 TOP_LEVEL = {
-    "functions": ["parse_repo_id", "parse_did", "parse_node_id", "parse_oid", "parse_object_id"],
+    "functions": ["parse_repo_id", "parse_did", "parse_node_id", "parse_oid", "parse_object_id",
+                  "init_project", "fork_project", "checkout_project"],
     "exceptions": [
         "Error", "StorageError", "RepositoryError", "GitError",
         "DatabaseError", "IdentityError", "SignerError", "PolicyError", "CobError",
@@ -58,6 +59,9 @@ TOP_LEVEL = {
         "SignedRefs",
         "IssueMut",
         "PatchMut",
+        "Comment",
+        "Revision",
+        "Review",
     ],
 }
 
@@ -219,12 +223,13 @@ MEMBERS = {
     },
     "Patches": {
         "attrs": ["rid"],
-        "methods": ["all", "get", "count", "is_empty", "create", "draft"],
+        "methods": ["all", "get", "count", "is_empty", "create", "draft", "get_mut"],
         "classmethods": ["open", "open_as"],
     },
     "PatchMut": {
         "attrs": ["id", "patch"],
-        "methods": [],
+        "methods": ["reload", "edit", "label", "assign", "update", "ready", "unready",
+                    "archive", "unarchive", "comment", "review", "merge"],
         "classmethods": [],
     },
     "Raw": {
@@ -235,7 +240,7 @@ MEMBERS = {
     "Issue": {
         "attrs": [
             "id", "title", "description", "author", "state", "close_reason",
-            "assignees", "labels", "comment_count", "comment_ids",
+            "assignees", "labels", "comment_count", "comment_ids", "comments",
         ],
         "methods": [],
         "classmethods": [],
@@ -243,11 +248,15 @@ MEMBERS = {
     "Patch": {
         "attrs": [
             "id", "title", "description", "author", "state", "target",
-            "base", "head", "version", "labels", "revision_count",
+            "base", "head", "version", "labels", "revision_count", "revisions",
+            "assignees", "merged_revision", "merged_commit",
         ],
         "methods": [],
         "classmethods": [],
     },
+    "Comment": {"attrs": ["id", "author", "body", "timestamp", "reply_to"]},
+    "Review": {"attrs": ["id", "author", "verdict", "summary", "timestamp"]},
+    "Revision": {"attrs": ["id", "author", "description", "base", "head", "timestamp", "comments", "reviews"]},
     "RawOp": {
         "attrs": [
             "id", "actor", "timestamp", "actions", "parents", "related",

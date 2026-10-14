@@ -1,120 +1,164 @@
-# radicle-py
+# radicle-py — alpha release candidate
 
-Python bindings for the [`radicle`](https://crates.io/crates/radicle) crate
-(exact pin **`=0.25.1`**, crates.io source
-authoritative). abi3 wheels for **CPython ≥ 3.9** on Linux and macOS; fully
-typed (PEP 561). No async runtime, no p2p networking: this is the radicle
-node library — identities, storage, policy/routing stores, COB reads and a
-narrow, upstream-shaped write surface — not a node.
+Typed Python bindings for the [`radicle`](https://crates.io/crates/radicle)
+crate, pinned to **`=0.25.1`**. The alpha covers **local project workflows**:
+profiles/signers, project init/fork/checkout, Git/storage inspection, local
+policy/routing, issue discussions and common writes, patch
+revision/review/lifecycle operations, and raw COB inspection.
 
-**0.1.0** — first release. See [`CHANGELOG.md`](./CHANGELOG.md).
+This is **not a node or a network client**. Fetching/announcing projects,
+connections and daemon control are outside this alpha. Policy writes change
+persisted local policy; they do not perform networking. APIs may change during
+alpha; pin installations to a reviewed Git commit.
 
-## Install
+## Install from Git
 
-| Platform | Wheel |
-|---|---|
-| Linux x86_64 | `radicle_py-0.1.0-cp39-abi3-manylinux_2_28_x86_64.whl` (glibc ≥ 2.28; auditwheel-repaired) |
-| Linux aarch64 | `radicle_py-0.1.0-cp39-abi3-manylinux_2_28_aarch64.whl` |
-| macOS | universal2 wheel (arm64 + x86_64) |
-| Windows | **unsupported, unverified** (v1 scope; revisit post-v1) |
+The alpha is distributed from Git, **not PyPI**. Requires CPython ≥ 3.9,
+Git, Rust ≥ 1.88 and a C toolchain. libgit2 and SQLite build from bundled
+sources. Linux and macOS are the targets; Windows is unsupported/unverified.
+Git-URI installation compiles for the host and does not require a published
+wheel. Python package version remains `0.1.0` with the Alpha classifier;
+the **Git commit**, not the package version, identifies each RC build.
+
+Set `SDK_GIT_URL` to the actual clone URL of the SDK repository (this checkout
+has no configured remote), then install:
 
 ```sh
-pip install radicle-py        # once published to PyPI (see RELEASING below)
+python -m venv .venv
+. .venv/bin/activate
+SDK_GIT_URL=https://YOUR-HOST/YOUR-REPOSITORY.git
+python -m pip install "git+${SDK_GIT_URL}@alpha-rc"
+# Reproducible install: replace the branch with a full reviewed commit SHA.
+python -m pip install "git+${SDK_GIT_URL}@FULL_COMMIT_SHA"
 ```
 
-Wheels bundle libgit2 and SQLite statically — no system packages needed at
-runtime (or to build from sdist, beyond a C toolchain and Rust ≥ 1.88).
-Python 3.9+ on all platforms (single abi3 wheel per platform).
+A local Git checkout also works, after the RC changes have been committed:
 
-## Quick start
+```sh
+python -m pip install "git+file:///absolute/path/to/radicle-py@alpha-rc"
+```
+
+Do not enable the `test-helpers` Cargo feature in alpha installations.
+For troubleshooting, check `git --version`, `rustc --version` and your C
+compiler before installation. No `rad` executable or running daemon is needed
+for SDK local workflows. Subsequent external Git operations against the
+configured `rad` remote require **`git-remote-rad`** separately.
+
+## Runnable local quick start
+
+Unlike the interactive **`rad init` CLI**, `radiclepy.init_project` calls the
+crate directly with explicit metadata. Git subprocess calls below only create
+the input Git repository; they use argument arrays, never a shell.
 
 ```python
+from pathlib import Path
+import subprocess
+import tempfile
 import radiclepy as rad
 
-profile = rad.Profile.init("/tmp/rad-demo", "alice")   # secure random key
-storage = rad.Storage.from_profile(profile)
-repo = storage.repository("rad:z…")                    # read-only handle
-print(repo.head.name, repo.commit(repo.head.oid).message_str)
+with tempfile.TemporaryDirectory() as directory:
+    root = Path(directory)
+    work = root / "work"
+    work.mkdir()
 
-policy = profile.policy_store()                        # follow/seed policies
-policy.follow(profile.node_id, alias="self")
+    def git(*args):
+        subprocess.run(
+            ["git", "-C", str(work), "-c", "user.name=Alice",
+             "-c", "user.email=alice@example.invalid", *args],
+            check=True, capture_output=True,
+        )
 
-for issue in rad.Issues.open(repo).all():              # typed COB readers
-    print(issue.title, issue.state, issue.labels)
+    git("init", "--initial-branch=main")
+    (work / "README.md").write_text("# Hello Radicle\n")
+    git("add", "README.md")
+    git("commit", "-m", "initial commit")
 
-# Writes are narrow and upstream-shaped: the three canonical-ref writes take
-# no signer; sign_refs is the only signer-taking write; COB write stores fix
-# the signer at open (`open_as`) — mutators take none.
-signed = repo.sign_refs(profile.signer())
-issues = rad.Issues.open_as(repo, profile.signer())
-m = issues.create("hello", "first issue", labels=["demo"])
-m.comment("…", reply_to=m.issue.comment_ids[0])
+    profile = rad.Profile.init(str(root / "rad-home"), "alice")
+    storage = rad.Storage.from_profile(profile)
+    signer = profile.signer()
+    rid = rad.init_project(storage, signer, str(work), "hello", "Demo", "main")
+    repo = storage.repository(rid)
+    print(rid, repo.commit(repo.head.oid).message_str)
+
+    issues = rad.Issues.open_as(repo, signer)
+    issue = issues.create("First issue", "Description", labels=["demo"])
+    issue.comment("A reply")
+    for comment in issue.reload().comments:
+        print(comment.author, comment.body)
+    issue.lifecycle("closed", "solved")
+
+    rad.fork_project(storage, signer, rid)
+    rad.checkout_project(storage, rid, signer.node_id, str(root / "checkout"))
 ```
 
-## Conventions (contract)
+For an existing home, `Profile.load()` resolves `RAD_HOME` or `~/.radicle`;
+`Storage.from_profile(profile).repositories()` discovers stored projects.
+Use `RAD_PASSPHRASE` for an encrypted keystore or the upstream SSH-agent path.
+Encrypted-key success/wrong/missing-passphrase paths are tested; live
+SSH-agent integration is not verified by the alpha suite.
 
-- Identifiers (`RepoId`, `Did`, `NodeId`, `Oid`, `ObjectId`, `Alias`) are
-  `str` at the boundary; `parse_*` functions validate.
-- `ValueError` comes only from binding validators; operational failures
-  raise the `radiclepy.Error` hierarchy (`StorageError`, `RepositoryError`,
-  `GitError`, `DatabaseError`, `IdentityError`, `SignerError`,
-  `PolicyError`, `CobError`).
-- Byte-typed sources (git names/messages) are `bytes`; explicit lossy
-  `*_str` accessors are provided. COB `String` fields are plain `str`.
-- Test-only helpers (`Profile._from_seed`, `radiclepy._test`) are
-  compile-time gated and never ship in release wheels (CI wheel smoke
-  asserts their absence).
+## Contract and scope limits
+
+- IDs are strings; `parse_*` functions validate/canonicalize them.
+- Binding input validation raises `ValueError`; operational failures raise
+  the `radiclepy.Error` hierarchy. Project multi-step failures can leave
+  partial filesystem/configuration changes; no rollback guarantee is made.
+- Git byte-typed fields preserve `bytes`, with lossy `*_str` conveniences.
+- Typed comments/revisions/reviews use epoch **milliseconds**; raw COB
+  operations use epoch **seconds**.
+- Values are snapshots, collections are eager copies, and handles reopen
+  on use. `Issues.open`/`Patches.open` are lazy; failures occur on operations.
+- Signers and write-store/mutable handles are thread-affine; no async API or
+  cross-thread guarantee. Paths currently accept strings, not `PathLike`.
+- Repository canonical-ref writes do not silently sign afterward;
+  `sign_refs(signer)` is explicit. **Typed COB mutations sign upstream**.
+- Patch `merge` records an upstream COB merge operation: it does not merge
+  Git, move a branch, or clean up refs. The commit must already be in storage.
+  Target-branch/quorum evaluation may leave the patch open even if the call
+  succeeds; inspect `patch.reload().state`.
+- No generic Git write API: callers use Git for commits/imports/branch movement.
+- Deferred: node control/network fetch/announce, identity governance/private
+  access administration, address-store management, routing writes, inline
+  review machinery, reactions, attachments and edit/redaction history APIs.
 
 ## Documentation
 
-- [`API.md`](./API.md) — the public API contract (the binding's spec).
-- [`CHANGELOG.md`](./CHANGELOG.md) — release notes.
-- [`PLAN.md`](./PLAN.md) — the design (v3.2), reviewed three times.
-  Canonical; `../radicle-py-plan.md` is a symlink here.
-- Feasibility & phase evidence:
-  [`FINDINGS-0A.md`](./FINDINGS-0A.md),
-  [`FINDINGS-02.md`](./FINDINGS-02.md) (tree order, tag peel),
-  [`FINDINGS-03.md`](./FINDINGS-03.md) (stores, sqlite semantics),
-  [`FINDINGS-04.md`](./FINDINGS-04.md) (COB walk contract),
-  [`FINDINGS-05.md`](./FINDINGS-05.md) (writes).
-- `spike/`, `wheel-probe/` — throwaway Phase 0A probes. NOT the binding.
+- [`API.md`](./API.md): current public API contract.
+- [`ALPHA-PLAN.md`](./ALPHA-PLAN.md): bounded alpha/MVP scope and completion record.
+- [`CHANGELOG.md`](./CHANGELOG.md): release changes.
+- [`PLAN.md`](./PLAN.md): historical phased implementation design; not the
+  current release checklist. `FINDINGS-*.md` retain phase evidence.
+- `spike/` and `wheel-probe/`: historical feasibility probes, not the SDK.
 
-## Development
-
-Requires Rust ≥ 1.88 (MSRV, from `radicle 0.25.1`), [uv](https://docs.astral.sh/uv/),
-and a C toolchain (libgit2/SQLite build from source).
+## Development and validation
 
 ```sh
-uv sync --dev
-uv run maturin develop --uv --features test-helpers   # test build (deterministic fixtures)
-uv run pytest -q                                      # 168 tests
-
-# release surface (what ships): no test-helpers — helpers are skipped/absent
-uv run maturin develop --uv
+uv sync --dev --locked
+uv run maturin develop --uv --features test-helpers
 uv run pytest -q
-
 cargo clippy --all-targets --locked --features test-helpers -- -D warnings
 cargo clippy --all-targets --locked -- -D warnings
+
+# Public-only build: helper-free workflows still run; legacy fixtures skip.
+uv run maturin develop --uv
+uv run pytest -q
+uv run python tests/workflow_smoke.py
 ```
 
-Release wheels build **without** `test-helpers`; the deterministic seed
-helper is absent there by construction — CI's wheel smoke step asserts it.
+CI builds Linux manylinux_2_28 x86_64/aarch64 and macOS universal2 artifacts,
+checks the source distribution, and executes installed-artifact workflow
+smokes. These are validation artifacts, not PyPI publication. Host-built
+Linux wheels may have a newer glibc floor and must not be substituted for
+CI's repaired wheels. Platform verification is established by successful
+native CI jobs, not the abi3 tag alone.
 
-## Releasing
-
-1. Bump `version` in `Cargo.toml` + `pyproject.toml` (keep `Cargo.lock` /
-   `uv.lock` in sync); update `CHANGELOG.md`.
-2. Tag `vX.Y.Z` — `wheels.yml` builds the manylinux ×2 + macOS universal2
-   wheels and the sdist, audits/repairs Linux wheels, and smoke-imports
-   every artifact.
-3. Publishing to PyPI is manual for now: download the tag's artifacts and
-   `twine upload` them.
+For an RC, commit the changes, run CI, then install the reviewed commit via
+Git URI and run `tests/wheel_smoke.py` and `tests/workflow_smoke.py` using the
+clean environment's interpreter. Do not install an uncommitted worktree via
+Git URI expecting those changes to be included. No automated publisher or
+PyPI upload is part of this alpha flow.
 
 ## License
 
-Dual-licensed under either of
-
-- Apache License, Version 2.0 ([LICENSE-APACHE](./LICENSE-APACHE))
-- MIT license ([LICENSE-MIT](./LICENSE-MIT))
-
-at your option. Same terms as the upstream `radicle` crate.
+Dual **MIT OR Apache-2.0**, matching upstream. See `LICENSE-MIT` and
+`LICENSE-APACHE`.

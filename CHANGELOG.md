@@ -2,7 +2,25 @@
 
 All notable changes to `radicle-py` are documented here.
 
-## 0.1.0 — first release
+## Alpha-RC — Git-distributed core MVP (`0.1.0`, commit-pinned)
+
+- Non-interactive crate adapters: `init_project`, `fork_project`,
+  `checkout_project`; upstream Git executable dependency is documented.
+- Typed immutable `Comment`, `Revision`, `Review` snapshots; issue discussion
+  bodies and patch revision/review reads. Typed timestamps are milliseconds,
+  distinct from raw operation seconds.
+- Mutable/reloadable `PatchMut`, `Patches.get_mut`, revision updates,
+  ready/unready/archive/unarchive, metadata/labels/assignees, revision comments,
+  basic review verdicts and merge records with evaluated merge fields.
+- Helper-free two-actor integration workflows, installed-artifact domain
+  smoke, encrypted-key negative paths and representative stub signatures.
+- Corrected lazy store-open contract and replaced the placeholder quick start.
+- Alpha installation is via a Git URI, preferably a full commit SHA, not
+  PyPI. Package version stays `0.1.0`; the commit identifies RC revisions.
+- Deferred networking, identity governance, inline review machinery and
+  generic Git mutations; no Git merge engine or automatic branch movement.
+
+## 0.1.0 — initial implementation
 
 Bindings scoped exclusively to the `radicle` crate `=0.25.1` (crates.io
 source authoritative). abi3 wheels (CPython ≥ 3.9), typed (PEP 561),

@@ -9,10 +9,10 @@
 
 use pyo3::prelude::*;
 use pyo3::types::PyType;
-use radicle::cob::issue::{self, Issue as RawIssue, Issues as RawIssues};
-use radicle::cob::patch::{self, Patch as RawPatch, Patches as RawPatches};
 use radicle::cob::cache::NoCache;
 use radicle::cob::issue::State as IssueState;
+use radicle::cob::issue::{self, Issue as RawIssue, Issues as RawIssues};
+use radicle::cob::patch::{self, Patch as RawPatch, Patches as RawPatches};
 use radicle::cob::store::access::{ReadOnly, WriteAs};
 use radicle::cob::thread::CommentId;
 use radicle::cob::{Label, ObjectId, Title};
@@ -20,6 +20,7 @@ use radicle::identity::Did;
 
 use std::str::FromStr;
 
+use crate::cob_values::{self, Comment, Revision};
 use crate::error;
 use crate::profile::PySigner;
 use crate::storage::PyRepository;
@@ -55,6 +56,7 @@ pub struct Issue {
     pub(crate) labels: Vec<String>,
     pub(crate) comment_count: usize,
     pub(crate) comment_ids: Vec<String>,
+    pub(crate) comments: Vec<Comment>,
 }
 
 #[pymethods]
@@ -108,6 +110,11 @@ impl Issue {
         self.comment_ids.clone()
     }
 
+    #[getter]
+    fn comments(&self) -> Vec<Comment> {
+        self.comments.clone()
+    }
+
     fn __repr__(&self) -> String {
         format!("Issue({}, {:?}, {})", self.id, self.title, self.state)
     }
@@ -121,9 +128,7 @@ fn close_reason_str(reason: &issue::CloseReason) -> String {
 fn materialize_issue(id: &ObjectId, issue: &RawIssue) -> Issue {
     let (state, close_reason) = match issue.state() {
         issue::State::Open => ("open".to_string(), None),
-        issue::State::Closed { reason } => {
-            ("closed".to_string(), Some(close_reason_str(reason)))
-        }
+        issue::State::Closed { reason } => ("closed".to_string(), Some(close_reason_str(reason))),
     };
     let mut assignees: Vec<String> = issue.assignees().map(|d| d.to_string()).collect();
     assignees.sort();
@@ -143,6 +148,10 @@ fn materialize_issue(id: &ObjectId, issue: &RawIssue) -> Issue {
         labels,
         comment_count,
         comment_ids,
+        comments: issue
+            .comments()
+            .map(|(id, c)| cob_values::comment(id, c))
+            .collect(),
     }
 }
 
@@ -167,6 +176,10 @@ pub struct Patch {
     pub(crate) version: usize,
     pub(crate) labels: Vec<String>,
     pub(crate) revision_count: usize,
+    pub(crate) revisions: Vec<Revision>,
+    pub(crate) assignees: Vec<String>,
+    pub(crate) merged_revision: Option<String>,
+    pub(crate) merged_commit: Option<String>,
 }
 
 #[pymethods]
@@ -225,6 +238,23 @@ impl Patch {
         self.revision_count
     }
 
+    #[getter]
+    fn revisions(&self) -> Vec<Revision> {
+        self.revisions.clone()
+    }
+    #[getter]
+    fn assignees(&self) -> Vec<String> {
+        self.assignees.clone()
+    }
+    #[getter]
+    fn merged_revision(&self) -> Option<&str> {
+        self.merged_revision.as_deref()
+    }
+    #[getter]
+    fn merged_commit(&self) -> Option<&str> {
+        self.merged_commit.as_deref()
+    }
+
     fn __repr__(&self) -> String {
         format!("Patch({}, {:?}, {})", self.id, self.title, self.state)
     }
@@ -274,6 +304,19 @@ fn materialize_patch(id: &ObjectId, patch: &RawPatch) -> Patch {
         version: patch.version(),
         labels,
         revision_count: patch.revisions().count(),
+        revisions: patch
+            .revisions()
+            .map(|(_, r)| cob_values::revision(r))
+            .collect(),
+        assignees: patch.assignees().map(|d| d.to_string()).collect(),
+        merged_revision: match patch.state() {
+            patch::State::Merged { revision, .. } => Some(revision.to_string()),
+            _ => None,
+        },
+        merged_commit: match patch.state() {
+            patch::State::Merged { commit, .. } => Some(commit.to_string()),
+            _ => None,
+        },
     }
 }
 
@@ -303,18 +346,20 @@ impl PyIssues {
     /// Open the issue store of `repository` (read-only).
     #[classmethod]
     fn open(_cls: &Bound<'_, PyType>, repository: PyRepository) -> Self {
-        Self { repo: repository, signer: None }
+        Self {
+            repo: repository,
+            signer: None,
+        }
     }
 
     /// Open the issue store for **writes** (upstream `WriteAs(signer)`).
     /// Mutating methods still take no signer — it is fixed here, once.
     #[classmethod]
-    fn open_as(
-        _cls: &Bound<'_, PyType>,
-        repository: PyRepository,
-        signer: &PySigner,
-    ) -> Self {
-        Self { repo: repository, signer: Some(signer.clone()) }
+    fn open_as(_cls: &Bound<'_, PyType>, repository: PyRepository, signer: &PySigner) -> Self {
+        Self {
+            repo: repository,
+            signer: Some(signer.clone()),
+        }
     }
 
     #[getter]
@@ -547,14 +592,14 @@ impl PyIssueMut {
                     other => {
                         return Err(error::value_err(format!(
                             "invalid close reason {other:?}; expected 'unspecified' or 'solved'"
-                        )))
+                        )));
                     }
                 },
             },
             other => {
                 return Err(error::value_err(format!(
                     "invalid state {other:?}; expected 'open' or 'closed'"
-                )))
+                )));
             }
         };
         issue_tx!(self, |m| {
@@ -648,29 +693,32 @@ impl PyPatches {
         let id = m.id().to_owned();
         let snapshot = materialize_patch(&id, &m);
         Ok(PyPatchMut {
+            repo: self.repo.clone(),
+            signer,
             id: id.to_string(),
             snapshot,
         })
     }
 }
 
-
 #[pymethods]
 impl PyPatches {
     /// Open the patch store of `repository` (read-only).
     #[classmethod]
     fn open(_cls: &Bound<'_, PyType>, repository: PyRepository) -> Self {
-        Self { repo: repository, signer: None }
+        Self {
+            repo: repository,
+            signer: None,
+        }
     }
 
     /// Open the patch store for **writes** (upstream `WriteAs(signer)`).
     #[classmethod]
-    fn open_as(
-        _cls: &Bound<'_, PyType>,
-        repository: PyRepository,
-        signer: &PySigner,
-    ) -> Self {
-        Self { repo: repository, signer: Some(signer.clone()) }
+    fn open_as(_cls: &Bound<'_, PyType>, repository: PyRepository, signer: &PySigner) -> Self {
+        Self {
+            repo: repository,
+            signer: Some(signer.clone()),
+        }
     }
 
     #[getter]
@@ -714,6 +762,23 @@ impl PyPatches {
         store.is_empty().map_err(cob_err)
     }
 
+    /// Mutable handle on an existing patch (write stores only).
+    fn get_mut(&self, id: &str) -> PyResult<PyPatchMut> {
+        let signer = self.write_signer()?;
+        let id = parse_object_id(id)?;
+        let repo = self.repo.open()?;
+        let mut store = RawPatches::open(&repo, WriteAs::new(&*signer.inner)).map_err(cob_err)?;
+        let mut cache = NoCache;
+        let m = store.get_mut(&id, &mut cache).map_err(cob_err)?;
+        let snapshot = materialize_patch(&id, &m);
+        Ok(PyPatchMut {
+            repo: self.repo.clone(),
+            signer,
+            id: id.to_string(),
+            snapshot,
+        })
+    }
+
     /// Create an **open** patch (upstream `Patches::create`). `target` is
     /// `"delegates"` or `"branch:<name>"`; `base`/`head` are git commit OIDs
     /// that must exist in the repository.
@@ -730,8 +795,8 @@ impl PyPatches {
         self._create_or_draft(title, description, target, base, head, labels, false)
     }
 
-    /// Create a **draft** patch (upstream `Patches::draft`). Promoting a
-    /// draft to open is not part of the narrow Phase 5 surface (PLAN §3).
+    /// Create a **draft** patch (upstream `Patches::draft`); use ready()
+    /// on the returned handle to promote it.
     #[pyo3(signature = (title, description, target, base, head, labels=None))]
     fn draft(
         &self,
@@ -744,7 +809,6 @@ impl PyPatches {
     ) -> PyResult<PyPatchMut> {
         self._create_or_draft(title, description, target, base, head, labels, true)
     }
-
 
     fn __repr__(&self) -> String {
         format!(
@@ -761,27 +825,137 @@ impl PyPatches {
 
 // ─── PatchMut (Phase 5) ──────────────────────────────────────────────────────
 
-/// Handle on a patch created through a write store. The narrow Phase 5
-/// surface exposes the materialized creation result only — patch mutations
-/// (revisions, review, merge) are deliberately not wrapped (PLAN §3:
-/// create/draft only).
-#[pyclass(name = "PatchMut", module = "radiclepy")]
+/// Mutable patch handle; reopen/load per call, one upstream transaction.
+#[pyclass(name = "PatchMut", module = "radiclepy", unsendable)]
 pub struct PyPatchMut {
+    repo: PyRepository,
+    signer: PySigner,
     id: String,
     snapshot: Patch,
 }
 
+macro_rules! patch_tx {
+    ($slf:expr, |$m:ident| $body:expr) => {{
+        let repo = $slf.repo.open()?;
+        let mut store =
+            RawPatches::open(&repo, WriteAs::new(&*$slf.signer.inner)).map_err(cob_err)?;
+        let mut cache = NoCache;
+        let id = parse_object_id(&$slf.id)?;
+        let mut loaded = store.get_mut(&id, &mut cache).map_err(cob_err)?;
+        let result = {
+            let $m = &mut loaded;
+            $body
+        };
+        $slf.snapshot = materialize_patch(&id, &loaded);
+        result
+    }};
+}
+
+fn parse_revision(value: &str) -> PyResult<patch::RevisionId> {
+    parse_comment_id(value).map(patch::RevisionId::from)
+}
+
 #[pymethods]
 impl PyPatchMut {
-    /// Patch id (ObjectId hex).
     #[getter]
     fn id(&self) -> &str {
         &self.id
     }
-    /// Materialized patch as created.
     #[getter]
     fn patch(&self) -> Patch {
         self.snapshot.clone()
+    }
+
+    fn reload(&mut self) -> PyResult<Patch> {
+        patch_tx!(self, |m| {
+            let _ = &*m;
+            Ok::<(), PyErr>(())
+        })?;
+        Ok(self.snapshot.clone())
+    }
+    fn edit(&mut self, title: &str, target: &str) -> PyResult<String> {
+        let title = parse_title(title)?;
+        let target = parse_merge_target(target)?;
+        patch_tx!(self, |m| m
+            .edit(title, target)
+            .map(|id| id.to_string())
+            .map_err(cob_err))
+    }
+    fn label(&mut self, labels: Vec<String>) -> PyResult<String> {
+        let labels = parse_labels(labels)?;
+        patch_tx!(self, |m| m
+            .label(labels)
+            .map(|id| id.to_string())
+            .map_err(cob_err))
+    }
+    fn assign(&mut self, assignees: Vec<String>) -> PyResult<String> {
+        let assignees = parse_dids(assignees)?.into_iter().collect();
+        patch_tx!(self, |m| m
+            .assign(assignees)
+            .map(|id| id.to_string())
+            .map_err(cob_err))
+    }
+    fn update(&mut self, description: &str, base: &str, head: &str) -> PyResult<String> {
+        let base = crate::write::parse_git_oid(base)?;
+        let head = crate::write::parse_git_oid(head)?;
+        patch_tx!(self, |m| m
+            .update(description, base, head)
+            .map(|id| id.to_string())
+            .map_err(cob_err))
+    }
+    fn ready(&mut self) -> PyResult<bool> {
+        patch_tx!(self, |m| m.ready().map_err(cob_err))
+    }
+    fn unready(&mut self) -> PyResult<bool> {
+        patch_tx!(self, |m| m.unready().map_err(cob_err))
+    }
+    fn archive(&mut self) -> PyResult<bool> {
+        patch_tx!(self, |m| m.archive().map_err(cob_err))
+    }
+    fn unarchive(&mut self) -> PyResult<bool> {
+        patch_tx!(self, |m| m.unarchive().map_err(cob_err))
+    }
+
+    #[pyo3(signature = (revision, body, reply_to=None))]
+    fn comment(&mut self, revision: &str, body: &str, reply_to: Option<&str>) -> PyResult<String> {
+        let revision = parse_revision(revision)?;
+        let reply_to = reply_to.map(parse_comment_id).transpose()?;
+        patch_tx!(self, |m| m
+            .comment(revision, body, reply_to, None, [])
+            .map(|id| id.to_string())
+            .map_err(cob_err))
+    }
+    #[pyo3(signature = (revision, verdict=None, summary=None))]
+    fn review(
+        &mut self,
+        revision: &str,
+        verdict: Option<&str>,
+        summary: Option<String>,
+    ) -> PyResult<String> {
+        let revision = parse_revision(revision)?;
+        let verdict = match verdict {
+            Some("accept") => Some(patch::Verdict::Accept),
+            Some("reject") => Some(patch::Verdict::Reject),
+            None => None,
+            _ => {
+                return Err(error::value_err(
+                    "verdict must be 'accept', 'reject' or None",
+                ));
+            }
+        };
+        patch_tx!(self, |m| m
+            .review(revision, verdict, summary, vec![])
+            .map(|id| id.to_string())
+            .map_err(cob_err))
+    }
+    /// Record a merge; does not merge Git, move branches or clean up refs.
+    fn merge(&mut self, revision: &str, commit: &str) -> PyResult<String> {
+        let revision = parse_revision(revision)?;
+        let commit = crate::write::parse_git_oid(commit)?;
+        patch_tx!(self, |m| m
+            .merge(revision, commit)
+            .map(|merged| merged.entry.to_string())
+            .map_err(cob_err))
     }
     fn __repr__(&self) -> String {
         format!("PatchMut({})", self.id)
@@ -793,9 +967,8 @@ fn parse_merge_target(value: &str) -> PyResult<patch::MergeTarget> {
         "delegates" => Ok(patch::MergeTarget::Delegates),
         other => match other.strip_prefix("branch:") {
             Some(name) => {
-                let branch = patch::TargetBranch::try_from(name).map_err(|e| {
-                    error::value_err(format!("invalid branch name {name:?}: {e}"))
-                })?;
+                let branch = patch::TargetBranch::try_from(name)
+                    .map_err(|e| error::value_err(format!("invalid branch name {name:?}: {e}")))?;
                 Ok(patch::MergeTarget::Branch(branch))
             }
             None => Err(error::value_err(

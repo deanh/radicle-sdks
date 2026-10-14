@@ -18,12 +18,12 @@ name: wheels
 #
 # Deliberately NO musl tooling — we validate glibc manylinux wheels.
 # Windows is out of scope for v1 (README: unsupported/unverified).
-# Publishing is intentionally NOT automated: `dist/` artifacts from a
-# `v*` tag run are uploaded and pushed to PyPI manually (`twine upload`).
+# Alpha distribution is via a pinned Git URI. Artifacts are validation aids;
+# there is no PyPI publication step.
 
 on:
   push:
-    branches: [main]
+    branches: [main, alpha-rc]
     tags: ["v*"]
   pull_request:
   workflow_dispatch:
@@ -113,6 +113,20 @@ jobs:
       # venv and run tests/wheel_smoke.py: version integrity (metadata + tag
       # match) and release purity (plan §5.7 — no `_from_seed`, and no
       # `radiclepy._test` in sys.modules / importable).
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.9"
+
+      - name: Smoke-test the wheel on oldest supported Python
+        run: |
+          python -m venv .venv-oldest
+          .venv-oldest/bin/pip install --no-index --find-links dist radicle-py
+          .venv-oldest/bin/python tests/wheel_smoke.py
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.14"
+
       - name: Smoke-test the wheel
         env:
           # Non-empty only on tag runs; must match the packaged version.
@@ -127,6 +141,43 @@ jobs:
         with:
           name: wheels-${{ matrix.kind }}
           path: dist/*.whl
+
+  macos-intel-smoke:
+    name: universal2 / Intel / Python ${{ matrix.python }}
+    needs: wheels
+    runs-on: macos-15-intel
+    strategy:
+      matrix:
+        python: ["3.9", "3.14"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: wheels-macos-universal2
+          path: dist
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python }}
+      - run: |
+          python -m venv .venv-intel
+          .venv-intel/bin/pip install --no-index --find-links dist radicle-py
+          .venv-intel/bin/python tests/wheel_smoke.py
+
+  git-install:
+    name: alpha / Git URI install
+    needs: test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.9"
+      - name: Install the exact checked-out commit via Git URI
+        run: |
+          python -m venv .venv-git
+          .venv-git/bin/pip install "git+file://${GITHUB_WORKSPACE}@${GITHUB_SHA}"
+          .venv-git/bin/python tests/wheel_smoke.py
 
   sdist:
     name: build / source distribution

@@ -1,4 +1,9 @@
-# Plan: `radicle-py` — a comprehensive Python binding for the `radicle` crate
+# Historical plan: `radicle-py` — phased crate binding implementation
+
+**Historical design, not the current release checklist.** The bounded alpha-RC
+scope, implementation status and Git-URI distribution plan are in
+[`ALPHA-PLAN.md`](./ALPHA-PLAN.md). [`API.md`](./API.md) is the current public
+contract. Status lines and API sketches below are retained as phase history.
 
 Status: **v3.4** — Phase 0A ✅ · Phase 1 ✅ (approved; binding scaffold, identifiers, Home/Profile/Aliases/Signer, error hierarchy, fixture strategy, feature-gated test helpers, 37 tests; CI: test job on pinned MSRV 1.88 + stable with clippy `-D warnings`, then manylinux wheel + audit + release-surface smoke). Findings: [`FINDINGS-0A.md`](./FINDINGS-0A.md). **This file (`radicle-py/PLAN.md`) is canonical**; `../radicle-py-plan.md` is a symlink to it. Links are relative to `radicle-py/`. v3.1: UTF-8 policy (bytes-first) + raw-action representation resolved. v3.2 (post-review): raw history traversal rule added to §5.5 (`entry.parents` only); COB-refs terminology corrected; packaging gate tracked in `wheels.yml`.
 Reference pattern: [`../python-community-computer/`](../python-community-computer/) (PyO3 + maturin hybrid, hand-written `.pyi` stubs, API.md as the contract, pytest conformance suite, wheels CI).

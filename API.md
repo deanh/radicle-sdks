@@ -398,7 +398,7 @@ construction COB payloads.
 
 Read-only typed issue store for one repository.
 
-##### `Issues.open(repository: Repository) -> Issues` (classmethod) — opens `Store<issue::Issue>` (read-only); `CobError` on failure
+##### `Issues.open(repository: Repository) -> Issues` (classmethod) — lazy read-only handle; the upstream store is opened at each operation, so repository/store failures occur on use, not at handle construction. `Patches.open` has the same semantics; `open_as` retains a signer and is also lazy.
 
 ##### `issues.rid -> RepoId` (attribute) — repository this store is bound to
 
@@ -434,6 +434,8 @@ Materialized at read time; immutable.
 
 ##### `issue.comment_ids -> list[Oid]` (attribute) — comment ids, store order
 
+##### `issue.comments -> list[Comment]` (attribute) — non-redacted comments in upstream thread order, including the root; copied immutable snapshots.
+
 #### `Patches`
 
 Read-only typed patch store; same surface as `Issues`
@@ -441,7 +443,7 @@ Read-only typed patch store; same surface as `Issues`
 
 #### `Patch` (value class)
 
-Materialized from the **latest revision** of the patch.
+Summary fields are materialized from the **latest revision by the patch author** (upstream `latest()`); `revisions` includes non-redacted revisions by all authors.
 
 ##### `patch.id -> ObjectId` (attribute)
 
@@ -464,6 +466,14 @@ Materialized from the **latest revision** of the patch.
 ##### `patch.labels -> list[str]` (attribute) — sorted
 
 ##### `patch.revision_count -> int` (attribute)
+
+##### `patch.revisions -> list[Revision]` (attribute) — non-redacted revisions by all authors, in upstream timeline order. Summary `base`/`head`/`description` use the latest revision by the patch author, which need not be the last revision by another actor.
+
+##### `patch.assignees -> list[Did]` (attribute)
+
+##### `patch.merged_revision -> Oid | None` (attribute)
+
+##### `patch.merged_commit -> Oid | None` (attribute) — both merge fields are set only when evaluated state is `merged`.
 
 #### `Raw`
 
@@ -610,13 +620,44 @@ Each mutator commits **one COB transaction** and returns the new change-entry
 
 ##### `patches.create(title, description, target, base, head, labels=None) -> PatchMut` (method) — open patch; `target` `"delegates"` or `"branch:<name>"` (bare name accepted; a fully-qualified `branch:refs/heads/<name>` is accepted too and **canonicalizes to bare output**); `base`/`head` git commit Oids that exist in the repository
 
-##### `patches.draft(...) -> PatchMut` (method) — same signature as `create`, created in `draft` state. Promoting drafts / revisions / review / merge are NOT part of the narrow Phase 5 surface (PLAN §3)
+##### `patches.draft(...) -> PatchMut` (method) — same signature as `create`, created in `draft` state.
 
-#### `PatchMut` (value class)
+##### `patches.get_mut(id: ObjectId) -> PatchMut` (method) — write stores only; `ValueError` for malformed IDs or read-only access, `CobError` if absent.
+
+#### `PatchMut` (mutable handle)
+
+Reopens and reloads on every call; a signer is retained from the store.
+Each mutation is one upstream COB transaction and signs refs upstream.
+Authorization/store failures raise `CobError`; validator failures raise `ValueError`.
+No atomic multi-call transaction or automatic Git branch movement is promised.
 
 ##### `patch_mut.id -> ObjectId` (attribute)
 
-##### `patch_mut.patch -> Patch` (attribute) — materialized creation result
+##### `patch_mut.patch -> Patch` (attribute) — snapshot after the latest operation through this handle
+
+##### `patch_mut.reload() -> Patch` (method) — refresh from storage, including other writers' changes
+
+##### `patch_mut.edit(title: str, target: str) -> Oid` (method)
+
+##### `patch_mut.label(labels: Sequence[str]) -> Oid` (method) — replaces the label set
+
+##### `patch_mut.assign(assignees: Sequence[Did]) -> Oid` (method) — replaces the assignee set
+
+##### `patch_mut.update(description: str, base: Oid, head: Oid) -> Oid` (method) — add a revision; commits must exist in storage, returns revision ID
+
+##### `patch_mut.ready() -> bool` (method) — false unless draft
+
+##### `patch_mut.unready() -> bool` (method) — false unless open with no merge conflicts
+
+##### `patch_mut.archive() -> bool` (method) — upstream always attempts lifecycle and returns true on success
+
+##### `patch_mut.unarchive() -> bool` (method) — false unless archived
+
+##### `patch_mut.comment(revision: Oid, body: str, reply_to: Oid | None = None) -> Oid` (method) — revision discussion; no inline location or embeds
+
+##### `patch_mut.review(revision: Oid, verdict: str | None = None, summary: str | None = None) -> Oid` (method) — verdict `accept`/`reject`; at least one of verdict/summary must be supplied (`CobError` otherwise); returns review ID
+
+##### `patch_mut.merge(revision: Oid, commit: Oid) -> Oid` (method) — returns operation ID, **not a Git merge**. Does not move branches or clean up refs. Upstream checks authorization and evaluates whether the commit is in the author's target branch and the delegate quorum is met. An operation may succeed but leave the patch open; inspect/reload `patch.state`. Commit must already exist in storage.
 
 Note: `Patch.target` surfaces `"delegates"` or `"branch:<name>"` with exactly
 one guaranteed `refs/heads/` prefix removed (`strip_prefix` — `repeat`-trim
@@ -625,30 +666,41 @@ would eat repeated prefixes). Output is canonical *bare*: qualified input
 bare name itself starts with `refs/heads/` share the canonical short form and
 are the only non-round-tripping case.
 
+## Local project lifecycle (alpha)
+
+These are **non-interactive crate adapters**, not calls to the interactive `rad init` CLI. All required metadata is explicit. No node daemon or `rad` executable is needed. Upstream init/checkout invoke the **Git executable** (`git` on PATH).
+
+#### `init_project(storage: Storage, signer: Signer, path: str, name: str, description: str, default_branch: str, *, visibility: str = "public") -> RepoId`
+
+Convert an existing Git repository with a committed, short-named default branch into a Radicle project. Visibility is `public` or `private` (empty explicit allow list; advanced access administration is excluded). Sets up the `rad` remote and local storage, and signs refs. Returns the new project ID. Binding name/branch/visibility validation raises `ValueError`; absent repository/branch/commit raises `GitError`; upstream project-payload and multi-step failures raise `Error`. Cleanup follows upstream and is not a rollback guarantee.
+
+#### `fork_project(storage: Storage, signer: Signer, repo_id: RepoId) -> None`
+
+Create/overwrite the signer's namespaced default branch from the stored canonical head, then sign refs. The project must already be in storage. `ValueError` for malformed ID, `Error` for upstream failures.
+
+#### `checkout_project(storage: Storage, repo_id: RepoId, remote: NodeId, path: str, *, bare: bool = False) -> str`
+
+Create a working copy from **local storage**, preserving upstream remote configuration and bare-mode behavior; return the supplied path. This is not network clone. An existing repository destination or absent stored project fails. `ValueError` for malformed IDs, `Error` for upstream failures. A failed checkout may leave a partial destination directory; callers own cleanup. Later external Git operations on the configured Radicle remote need `git-remote-rad` installed separately.
+
+## Collaboration snapshot values
+
+#### `Comment`
+
+Read-only properties: `id: Oid`, `author: Did`, `body: str` (latest edit), `timestamp: int` (original creation, epoch **milliseconds**), `reply_to: Oid | None`. Redacted comments are omitted upstream. This narrow snapshot does not expose edit histories, reactions, embeds or inline locations.
+
+#### `Review`
+
+Read-only properties: `id: Oid`, `author: Did`, `verdict: Literal['accept', 'reject'] | None`, `summary: str` (latest edit), `timestamp: int` (epoch **milliseconds**). Revision reviews contain one current review per actor, in upstream actor-key order; inline review discussions are not exposed.
+
+#### `Revision`
+
+Read-only properties: `id: Oid`, `author: Did`, `description: str`, `base: Oid`, `head: Oid`, `timestamp: int` (epoch **milliseconds**), `comments: list[Comment]` (non-redacted, thread order), `reviews: list[Review]`.
+
+These typed timestamps come from `cob::common::Timestamp`; **RawOp.timestamp remains epoch seconds** from the raw change entry. Collection getters return copies; snapshots do not refresh automatically. Signers and mutable stores/handles are thread-affine; no async/thread-safety guarantee is made.
+
 ## Quick start
 
-```python
-import radiclepy as rad
-
-profile = rad.Profile.init("/tmp/rad-demo", "alice")   # secure random key
-storage = rad.Storage.from_profile(profile)
-repo = storage.repository("rad:z…")                     # read-only handle
-head = repo.head
-commit = repo.commit(head.oid)
-print(head.name, commit.oid, commit.message_str)
-
-for entry in repo.tree(commit.tree).entries:            # canonical git order
-    print(entry.name_str, entry.kind, oct(entry.mode))
-
-policy = profile.policy_store()                         # Phase 3
-policy.follow(profile.node_id, alias="self")
-print(policy.follow_policies())
-
-for issue in rad.Issues.open(repo).all():               # Phase 4
-    print(issue.title, issue.state, issue.labels)
-ops = rad.Raw.open(repo).history("xyz.radicle.issue", issue.id)
-print(len(ops), "causal ops,", sum(len(o.actions) for o in ops), "actions")
-```
+See [README.md](./README.md) for a complete runnable, non-interactive temporary-project example and Git-URI installation.
 
 ## Layout notes
 

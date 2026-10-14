@@ -45,11 +45,20 @@ def main() -> int:
 
     # -- identifier aliases are plain str + validators -----------------------
     assert rad.RepoId is str and rad.Did is str and rad.NodeId is str
-    p = rad.Profile.init(tempfile.mkdtemp(prefix="rad-smoke-home-"), "ci")
-    assert rad.parse_did(p.did) == p.did
-    assert p.signer().node_id == p.node_id
+    from pathlib import Path
+    from workflow_smoke import run_workflows
 
-    print(f"wheel smoke OK: radiclepy {rad.__version__} ({p.did})")
+    # Validate PEP 561 data in the installed artifact, not the source tree.
+    package = Path(rad.__file__).parent
+    for filename in ("py.typed", "__init__.pyi", "_types.pyi"):
+        assert (package / filename).is_file(), f"missing typing file: {filename}"
+    with tempfile.TemporaryDirectory(prefix="rad-smoke-home-") as root:
+        p = rad.Profile.init(str(Path(root) / "ci"), "ci")
+        assert rad.parse_did(p.did) == p.did
+        assert p.signer().node_id == p.node_id
+        run_workflows(str(Path(root) / "workflow"))
+
+    print(f"wheel smoke OK: radiclepy {rad.__version__}")
     return 0
 
 
