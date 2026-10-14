@@ -14,7 +14,15 @@ the bounded core-MVP implementation is complete:
 
 Local validation: **179 tests passed** in the helper build; both Clippy feature states passed. Release wheel installed on **CPython 3.9 and 3.14**: complete workflow smoke passed and **66 tests passed / 113 legacy fixture skips** on each. The sdist built and installed on CPython 3.14; workflow smoke passed. Exact-commit Git URI installations of `ea73a08cac90e5d5ec10e44987d22099419f2c14` succeeded in clean environments on **CPython 3.9 (pip)** and **3.14 (uv)**; the complete helper-free workflow smoke passed on both. Metadata checks (`twine check`, no upload) passed for wheel and sdist. Local Rust was 1.97.1; the declared 1.88 MSRV remains a CI gate.
 
-Remaining external verification: run the configured native Linux aarch64/macOS and manylinux_2_28 CI jobs after configuring/pushing a Git remote. This checkout has no remote; no remote CI, push, tag or publication is claimed. Host Linux wheels are manylinux_2_39 validation artifacts, not universal distribution claims. Live SSH-agent integration remains explicitly unverified.
+Remaining external verification: run the configured native Linux aarch64/macOS and manylinux_2_28 CI jobs; these are not verified locally. Host Linux wheels are manylinux_2_39 validation artifacts, not universal distribution claims. Live SSH-agent integration remains explicitly unverified. The initial delivery had no remote; the repository has since been initialized in Radicle and submitted as patch `d73ccc6cf80efe8660f9ba33d1997d30540d339f`.
+
+### Review follow-up
+
+- Init preflights any existing `rad` remote before calling upstream; regression tests assert the remote, full local config, tracking refs and stored project survive re-init with different metadata.
+- `Patch.latest_revision` identifies the author revision matching summary fields; `version` is documented as all-author revision slots minus one, including redactions, not a list index. Mixed-author coverage exercises review selection via the new ID.
+- Branch listings remove exactly one heads prefix. Checkout's canonical content versus push namespace, retained GIL, and raw-sort complexity are explicit.
+- Workflow signing checks now read persisted sigrefs and their COB tips without an explicit signing operation.
+- Validation after review: **181 passed** with helpers; Clippy passed in both feature states. Clean release wheels on CPython **3.9 and 3.14** passed full workflow smoke and **68 tests / 113 legacy fixture skips** each.
 
 ## Baseline recommendation
 

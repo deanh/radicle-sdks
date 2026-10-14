@@ -248,7 +248,7 @@ MEMBERS = {
     "Patch": {
         "attrs": [
             "id", "title", "description", "author", "state", "target",
-            "base", "head", "version", "labels", "revision_count", "revisions",
+            "base", "head", "latest_revision", "version", "labels", "revision_count", "revisions",
             "assignees", "merged_revision", "merged_commit",
         ],
         "methods": [],

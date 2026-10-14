@@ -4,6 +4,12 @@ All notable changes to `radicle-py` are documented here.
 
 ## Alpha-RC — Git-distributed core MVP (`0.1.0`, commit-pinned)
 
+- Review fixes: init refuses existing `rad` remotes before destructive
+  upstream cleanup; `Patch.latest_revision` disambiguates summary fields from
+  all-author revision slots; branch listings strip exactly one prefix.
+  Regression coverage preserves remote config/tracking refs and reads persisted
+  sigrefs without signing. Checkout's canonical-head/push-namespace semantics,
+  raw-sort complexity and retained GIL are documented.
 - Non-interactive crate adapters: `init_project`, `fork_project`,
   `checkout_project`; upstream Git executable dependency is documented.
 - Typed immutable `Comment`, `Revision`, `Review` snapshots; issue discussion

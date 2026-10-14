@@ -580,7 +580,16 @@ class Patch:
     @property
     def head(self) -> Oid: ...
     @property
-    def version(self) -> int: ...
+    def latest_revision(self) -> Oid:
+        """Patch-author revision ID corresponding to base/head/description."""
+        ...
+    @property
+    def version(self) -> int:
+        """Upstream revision slots minus one, including all authors/redactions.
+
+        Not an index into revisions; use latest_revision for review/merge.
+        """
+        ...
     @property
     def labels(self) -> list[str]: ...
     @property

@@ -20,8 +20,8 @@ Git-URI installation compiles for the host and does not require a published
 wheel. Python package version remains `0.1.0` with the Alpha classifier;
 the **Git commit**, not the package version, identifies each RC build.
 
-Set `SDK_GIT_URL` to the actual clone URL of the SDK repository (this checkout
-has no configured remote), then install:
+Set `SDK_GIT_URL` to a clone URL of the SDK repository supported by your Git
+installation, then install:
 
 ```sh
 python -m venv .venv
@@ -109,7 +109,14 @@ SSH-agent integration is not verified by the alpha suite.
 - Values are snapshots, collections are eager copies, and handles reopen
   on use. `Issues.open`/`Patches.open` are lazy; failures occur on operations.
 - Signers and write-store/mutable handles are thread-affine; no async API or
-  cross-thread guarantee. Paths currently accept strings, not `PathLike`.
+  cross-thread guarantee. Init/checkout retain the GIL during upstream Git
+  subprocess calls. Paths currently accept strings, not `PathLike`.
+- Init refuses an existing `rad` remote without altering its configuration
+  or tracking refs. Checkout uses canonical heads; its `remote` parameter
+  selects the push namespace, not a peer's branch to check out.
+- Patch `latest_revision` identifies the patch-author revision described by
+  `base`/`head`/`description`. Use it for review/merge of that revision;
+  `version` counts all revision slots (including redactions), not a list index.
 - Repository canonical-ref writes do not silently sign afterward;
   `sign_refs(signer)` is explicit. **Typed COB mutations sign upstream**.
 - Patch `merge` records an upstream COB merge operation: it does not merge

@@ -461,7 +461,9 @@ Summary fields are materialized from the **latest revision by the patch author**
 
 ##### `patch.head -> str` (attribute) — head commit OID of the latest revision
 
-##### `patch.version -> int` (attribute) — **revision index** (0-based), not a document version
+##### `patch.latest_revision -> Oid` (attribute) — ID returned by upstream `latest()`, identifying the patch-author revision described by `base`, `head` and `description`. Use this ID for review/merge of the summary revision, not `revisions[-1].id`.
+
+##### `patch.version -> int` (attribute) — upstream revision-slot count minus one, including every author and redacted slots. **Not an index into `revisions`**, and not the index of `latest_revision` or a document version. `revision_count` counts non-redacted revisions.
 
 ##### `patch.labels -> list[str]` (attribute) — sorted
 
@@ -668,11 +670,11 @@ are the only non-round-tripping case.
 
 ## Local project lifecycle (alpha)
 
-These are **non-interactive crate adapters**, not calls to the interactive `rad init` CLI. All required metadata is explicit. No node daemon or `rad` executable is needed. Upstream init/checkout invoke the **Git executable** (`git` on PATH).
+These are **non-interactive crate adapters**, not calls to the interactive `rad init` CLI. All required metadata is explicit. No node daemon or `rad` executable is needed. Upstream init/checkout invoke the **Git executable** (`git` on PATH). These synchronous operations retain the GIL, including during upstream subprocess calls.
 
 #### `init_project(storage: Storage, signer: Signer, path: str, name: str, description: str, default_branch: str, *, visibility: str = "public") -> RepoId`
 
-Convert an existing Git repository with a committed, short-named default branch into a Radicle project. Visibility is `public` or `private` (empty explicit allow list; advanced access administration is excluded). Sets up the `rad` remote and local storage, and signs refs. Returns the new project ID. Binding name/branch/visibility validation raises `ValueError`; absent repository/branch/commit raises `GitError`; upstream project-payload and multi-step failures raise `Error`. Cleanup follows upstream and is not a rollback guarantee.
+Convert an existing Git repository with a committed, short-named default branch into a Radicle project. Visibility is `public` or `private` (empty explicit allow list; advanced access administration is excluded). Sets up the `rad` remote and local storage, and signs refs. Returns the new project ID. Binding name/branch/visibility validation raises `ValueError`; absent repository/branch/commit raises `GitError`; upstream project-payload and multi-step failures raise `Error`. An existing `rad` remote is refused before upstream init (`Error`), preserving its configuration and tracking refs; init is not a metadata-update API. For new initialization, cleanup follows upstream and is not a rollback guarantee.
 
 #### `fork_project(storage: Storage, signer: Signer, repo_id: RepoId) -> None`
 
@@ -680,7 +682,7 @@ Create/overwrite the signer's namespaced default branch from the stored canonica
 
 #### `checkout_project(storage: Storage, repo_id: RepoId, remote: NodeId, path: str, *, bare: bool = False) -> str`
 
-Create a working copy from **local storage**, preserving upstream remote configuration and bare-mode behavior; return the supplied path. This is not network clone. An existing repository destination or absent stored project fails. `ValueError` for malformed IDs, `Error` for upstream failures. A failed checkout may leave a partial destination directory; callers own cleanup. Later external Git operations on the configured Radicle remote need `git-remote-rad` installed separately.
+Create a working copy from **local storage**, fetching canonical `refs/heads/*` and checking out the canonical default-branch head. `remote` selects the namespace in the configured **push URL**, not the source of the checked-out content; a different peer branch is not checked out. Preserve upstream bare-mode behavior and return the supplied path. This is not network clone. An existing repository destination or absent stored project fails. `ValueError` for malformed IDs, `Error` for upstream failures. A failed checkout may leave a partial destination directory; callers own cleanup. Later external Git operations on the configured Radicle remote need `git-remote-rad` installed separately.
 
 ## Collaboration snapshot values
 

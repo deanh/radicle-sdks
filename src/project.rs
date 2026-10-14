@@ -45,6 +45,18 @@ pub fn init_project(
         _ => return Err(error::value_err("visibility must be 'public' or 'private'")),
     };
     let repo = git::raw::Repository::open(path).map_err(error::git_err)?;
+    // Upstream init cleanup deletes `rad` on failure, even if it predates
+    // this call. Match the CLI's preflight to preserve existing configuration
+    // and remote-tracking refs before any upstream side effects.
+    match repo.find_remote("rad") {
+        Ok(_) => {
+            return Err(error::op_err(
+                "repository already has a 'rad' remote; refusing to initialize",
+            ));
+        }
+        Err(err) if err.code() == git::raw::ErrorCode::NotFound => {}
+        Err(err) => return Err(error::git_err(err)),
+    }
     // init's upstream push does not check the subprocess exit status. Ensure
     // the requested branch really has a commit before allowing side effects.
     repo.find_reference(&format!("refs/heads/{default_branch}"))

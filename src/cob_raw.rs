@@ -403,7 +403,10 @@ impl PyRaw {
 
 /// Sort ops so every op appears after all of its (loaded) parents.
 /// Kahn's algorithm; deterministic (lexicographic tie-breaks). Returns a Vec
-/// in emission order — insertion order IS the contract.
+/// in emission order — insertion order IS the contract. This simple variant
+/// rescans pending nodes/parents per emission (quadratic for typical sparse
+/// histories, worse for dense graphs); acceptable for typical COB sizes.
+/// A ready-queue/indegree implementation is deferred until profiling warrants it.
 ///
 /// Content-addressed causal history is acyclic by construction; if the walk
 /// cannot emit every op, the data is corrupt (cycle) and we return

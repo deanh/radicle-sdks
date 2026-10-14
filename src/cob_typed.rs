@@ -160,7 +160,8 @@ fn materialize_issue(id: &ObjectId, issue: &RawIssue) -> Issue {
 /// A materialized patch (read-only snapshot of upstream `cob::patch::Patch`).
 ///
 /// `state`: `"draft" | "open" | "archived" | "merged"`. `base`/`head` are the
-/// latest revision's base and tip commit OIDs; `target` is the merge target as
+/// latest patch-author revision's base and tip commit OIDs; `latest_revision`
+/// identifies that revision. `target` is the merge target as
 /// a string (`"delegates"` or `"branch:<name>"`).
 #[pyclass(name = "Patch", module = "radiclepy")]
 #[derive(Clone)]
@@ -173,6 +174,7 @@ pub struct Patch {
     pub(crate) target: String,
     pub(crate) base: String,
     pub(crate) head: String,
+    pub(crate) latest_revision: String,
     pub(crate) version: usize,
     pub(crate) labels: Vec<String>,
     pub(crate) revision_count: usize,
@@ -192,7 +194,7 @@ impl Patch {
     fn title(&self) -> &str {
         &self.title
     }
-    /// Latest revision description.
+    /// Latest patch-author revision description.
     #[getter]
     fn description(&self) -> &str {
         &self.description
@@ -212,17 +214,23 @@ impl Patch {
     fn target(&self) -> &str {
         &self.target
     }
-    /// Base commit OID of the latest revision.
+    /// Base commit OID of the latest patch-author revision.
     #[getter]
     fn base(&self) -> &str {
         &self.base
     }
-    /// Tip commit OID of the latest revision.
+    /// Tip commit OID of the latest patch-author revision.
     #[getter]
     fn head(&self) -> &str {
         &self.head
     }
-    /// Revision index of the latest revision (0-based).
+    /// ID of the patch-author revision described by base/head/description.
+    #[getter]
+    fn latest_revision(&self) -> &str {
+        &self.latest_revision
+    }
+    /// Upstream revision-slot count minus one, including other authors and
+    /// redacted slots; not an index into the non-redacted revisions snapshot.
     #[getter]
     fn version(&self) -> usize {
         self.version
@@ -290,7 +298,7 @@ fn materialize_patch(id: &ObjectId, patch: &RawPatch) -> Patch {
     };
     let mut labels: Vec<String> = patch.labels().map(|l| l.name().to_owned()).collect();
     labels.sort();
-    let (_rid, revision) = patch.latest();
+    let (latest_revision, revision) = patch.latest();
 
     Patch {
         id: id.to_string(),
@@ -301,6 +309,7 @@ fn materialize_patch(id: &ObjectId, patch: &RawPatch) -> Patch {
         target,
         base: revision.base().to_string(),
         head: revision.head().to_string(),
+        latest_revision: latest_revision.to_string(),
         version: patch.version(),
         labels,
         revision_count: patch.revisions().count(),

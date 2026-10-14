@@ -20,6 +20,14 @@ def git(path, *args):
     return result.stdout.strip()
 
 
+def signed_refs(stored, node_id):
+    """Read persisted sigrefs without calling the SDK's signing operation."""
+    tip = git(stored, "rev-parse", f"refs/namespaces/{node_id}/refs/rad/sigrefs")
+    refs = dict((name, oid) for oid, name in
+                (line.split() for line in git(stored, "show", f"{tip}:refs").splitlines()))
+    return tip, refs
+
+
 def project_fixture(root):
     root = Path(root)
     profile = rad.Profile.init(str(root / "alice"), "alice")
@@ -61,7 +69,7 @@ def run_workflows(root):
     assert git(checkout, "rev-parse", "HEAD") == base
     assert (checkout / "hello.txt").read_text() == "hello\n"
 
-    before = repo.sign_refs(signer).at
+    before, _ = signed_refs(stored, signer.node_id)
     issues = rad.Issues.open_as(repo, signer)
     issue = issues.create("hello", "root", labels=["bug"])
     first = issue.comment("first")
@@ -77,7 +85,10 @@ def run_workflows(root):
     assert abs(snapshot.comments[0].timestamp - int(time.time() * 1000)) < 60_000
     assert snapshot.assignees == [peer.did] and snapshot.labels == ["urgent"]
     assert snapshot.state == "open"
-    assert repo.sign_refs(signer).at != before  # upstream COB writes sign refs
+    after, refs = signed_refs(stored, signer.node_id)
+    assert after != before  # read only: the COB writes themselves moved sigrefs
+    issue_ref = "refs/cobs/xyz.radicle.issue/" + issue.id
+    assert refs[issue_ref] == git(stored, "rev-parse", f"refs/namespaces/{signer.node_id}/{issue_ref}")
 
     head = add_commit(work, stored, signer, "revision one\n")
     patches = rad.Patches.open_as(repo, signer)
@@ -96,7 +107,7 @@ def run_workflows(root):
     other.comment(revision, "reply", comment)
     review = other.review(revision, "accept", "approved")
     refreshed = patch.reload()
-    latest = refreshed.revisions[-1]
+    latest = next(r for r in refreshed.revisions if r.id == refreshed.latest_revision)
     assert latest.id == revision and latest.head == newer
     assert [c.body for c in latest.comments] == ["looks good", "reply"]
     assert latest.comments[-1].reply_to == comment
@@ -110,7 +121,9 @@ def run_workflows(root):
     assert final.state == "merged"
     assert final.merged_revision == revision and final.merged_commit == newer
     assert final.revision_count == 2
-    assert "refs/cobs/xyz.radicle.patch/" + patch.id in repo.sign_refs(signer).refs()
+    _, refs = signed_refs(stored, signer.node_id)
+    patch_ref = "refs/cobs/xyz.radicle.patch/" + patch.id
+    assert refs[patch_ref] == git(stored, "rev-parse", f"refs/namespaces/{signer.node_id}/{patch_ref}")
     assert rad.Raw.open(repo).history("xyz.radicle.patch", patch.id)
 
 

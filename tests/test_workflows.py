@@ -23,10 +23,16 @@ def test_local_project_failures(project, tmp_path, monkeypatch):
             rad.init_project(storage, profile.signer(), str(work), "ok", "d", branch)
     with pytest.raises(ValueError):
         rad.init_project(storage, profile.signer(), str(work), "ok", "d", "main", visibility="invalid")
-    with pytest.raises(rad.GitError):
-        rad.init_project(storage, profile.signer(), str(work), "ok", "d", "absent")
-    with pytest.raises(rad.Error):
-        rad.init_project(storage, profile.signer(), str(work), "ok", "d", "main")
+    config_before = git(work, "config", "--local", "--list")
+    refs_before = git(work, "for-each-ref", "refs/remotes/rad/")
+    assert refs_before
+    for description in ("d", "corrected description"):
+        with pytest.raises(rad.Error, match="already has a 'rad' remote"):
+            rad.init_project(storage, profile.signer(), str(work), "ok", description, "main")
+        assert git(work, "remote") == "rad"
+        assert git(work, "config", "--local", "--list") == config_before
+        assert git(work, "for-each-ref", "refs/remotes/rad/") == refs_before
+        assert storage.repositories() == [repo.rid]
     with pytest.raises(rad.Error):
         rad.checkout_project(storage, repo.rid, profile.node_id, str(work))
     with pytest.raises(rad.Error):
@@ -44,6 +50,9 @@ def test_local_project_failures(project, tmp_path, monkeypatch):
     fresh.mkdir()
     git(fresh, "init", "--initial-branch=main")
     git(fresh, "commit", "--allow-empty", "-m", "initial")
+    with pytest.raises(rad.GitError):
+        rad.init_project(storage, profile.signer(), str(fresh), "ok", "d", "absent")
+    assert git(fresh, "remote") == ""
     with monkeypatch.context() as env:
         env.setenv("PATH", "")
         with pytest.raises(rad.Error):
@@ -70,7 +79,7 @@ def test_patch_validation_and_authorization(project):
     head = add_commit(work, stored, profile.signer(), "patch\n")
     writer = rad.Patches.open_as(repo, profile.signer())
     patch = writer.create("title", "desc", "delegates", base, head)
-    revision = patch.patch.revisions[-1].id
+    revision = patch.patch.latest_revision
     with pytest.raises(ValueError, match="read-only"):
         rad.Patches.open(repo).get_mut(patch.id)
     with pytest.raises(rad.CobError):
@@ -138,12 +147,42 @@ def test_snapshots_and_clearing(project):
         patch.patch.revisions[0].head = "changed"
     # All actors' revisions are exposed, while upstream summary/latest()
     # intentionally follows the patch author's revisions only.
+    author_revision = patch.patch.latest_revision
+    peer_head = add_commit(work, stored, peer.signer(), "peer changes\n")
     peer_patch = rad.Patches.open_as(repo, peer.signer()).get_mut(patch.id)
-    peer_revision = peer_patch.update("peer revision", base, base)
+    peer_revision = peer_patch.update("peer revision", base, peer_head)
     refreshed = patch.reload()
     assert refreshed.revisions[-1].id == peer_revision
     assert refreshed.revisions[-1].author == peer.did
     assert refreshed.description == "d"
+    assert refreshed.latest_revision == author_revision != peer_revision
+    latest = next(r for r in refreshed.revisions if r.id == refreshed.latest_revision)
+    assert (latest.base, latest.head, latest.description) == (refreshed.base, refreshed.head, refreshed.description)
+    assert refreshed.version == 1  # upstream counts both authors' slots
+    assert refreshed.revisions[refreshed.version].id != refreshed.latest_revision
+    peer_patch.review(refreshed.latest_revision, "accept", "author's revision")
+    latest = next(r for r in patch.reload().revisions if r.id == author_revision)
+    assert latest.reviews[0].summary == "author's revision"
+
+
+def test_branch_prefix_preserved(project):
+    _, _, _, repo, _, stored, base = project
+    git(stored, "update-ref", "refs/heads/refs/heads/nested", base)
+    assert "refs/heads/nested" in repo.branches()
+    assert "nested" not in repo.branches()
+    assert repo.branch_head("refs/heads/nested") == base
+
+
+def test_checkout_uses_canonical_not_remote_head(project, tmp_path):
+    _, peer, storage, repo, work, stored, base = project
+    rad.fork_project(storage, peer.signer(), repo.rid)
+    peer_head = add_commit(work, stored, peer.signer(), "peer branch\n")
+    repo.sign_refs(peer.signer())  # sign the external Git import, not a COB write
+    destination = tmp_path / "canonical-checkout"
+    rad.checkout_project(storage, repo.rid, peer.node_id, str(destination))
+    assert git(destination, "rev-parse", "HEAD") == base != peer_head
+    assert (destination / "hello.txt").read_text() == "hello\n"
+    assert git(destination, "remote", "get-url", "--push", "rad").endswith("/" + peer.node_id)
 
 
 def test_encrypted_signer(tmp_path, monkeypatch):

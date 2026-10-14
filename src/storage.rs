@@ -226,13 +226,8 @@ impl PyRepository {
         let mut names = Vec::new();
         for r in repo.backend.references().map_err(error::git_err)? {
             let r = r.map_err(error::git_err)?;
-            let name = r
-                .name()
-                .map_err(error::git_err)?
-                .trim_start_matches("refs/heads/")
-                .to_owned();
-            if r.name().map_err(error::git_err)?.starts_with("refs/heads/") {
-                names.push(name);
+            if let Some(name) = r.name().map_err(error::git_err)?.strip_prefix("refs/heads/") {
+                names.push(name.to_owned());
             }
         }
         names.sort();
