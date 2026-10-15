@@ -584,7 +584,7 @@ patches = rad.Patches.open_as(repo, profile.signer())
 pm = patches.draft("WIP", "d", base=base, head=head, target="branch:release")
 ```
 
-Stores opened with plain `open()` raise `ValueError` on write attempts.
+Stores opened with plain `open()` raise `ReadOnlyError` on write attempts.
 
 #### `Issues` (write extensions)
 
@@ -618,6 +618,31 @@ Each mutator commits **one COB transaction** and returns the new change-entry
 ##### `issue_mut.lifecycle(state: str, reason: str | None = None) -> Oid` (method) — `state` `"open"|"closed"`; `reason` (closing only) `"unspecified"` (default) | `"solved"`; invalid combinations raise `ValueError`
 
 #### `Patches` (write extensions)
+
+**Creating patches from a working copy: use Git, not this API.** The
+recommended way to open or update a patch from a checkout is
+`git push rad HEAD:refs/patches` (requires `git-remote-rad`). Pushing to the
+patch's `refs/heads/patches/<id>` branch adds a revision. The remote helper
+copies the commits into storage, derives `base`, creates the patch through
+the same upstream API this binding wraps, and signs refs.
+
+`create`/`draft`/`update` are for programs whose commits are **already in
+storage**. They write the patch object directly and differ from the push path:
+
+| Step | `git push rad HEAD:refs/patches` | `create`/`draft`/`update` |
+|---|---|---|
+| Get commits into storage | yes | caller's responsibility |
+| `base` | merge-base with the canonical head | must be passed explicitly |
+| Empty patch (`base == head`) | rejected | accepted (upstream API allows it) |
+| `refs/heads/patches/<id>` branch | created | not created |
+| Sign refs | yes | yes (COB writes sign) |
+| Sync to a running node | yes (unless `no-sync`) | never |
+
+The missing patch branch doesn't affect replication: revisions record `base`
+and `head` as related commits of the patch's change entry, so they travel with
+the patch. Don't import commits by pushing to your namespaced **default
+branch** (`refs/namespaces/<nid>/refs/heads/<default>`): that moves your copy
+of the project's branch, which feeds canonical-head and merge evaluation.
 
 ##### `Patches.open_as(repository: Repository, signer: Signer) -> Patches` (classmethod)
 

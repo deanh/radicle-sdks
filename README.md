@@ -126,6 +126,10 @@ SSH-agent integration is not verified by the alpha suite.
   Target-branch/quorum evaluation may leave the patch open even if the call
   succeeds; inspect `patch.reload().state`.
 - No generic Git write API: callers use Git for commits/imports/branch movement.
+- To open or update a patch from a working copy, use
+  `git push rad HEAD:refs/patches` (needs `git-remote-rad`). `Patches.create`,
+  `draft` and `update` are for commits already in storage and need an
+  explicit `base`; see API.md for how they differ from the push path.
 - Deferred: node control/network fetch/announce, identity governance/private
   access administration, address-store management, routing writes, inline
   review machinery, reactions, attachments and edit/redaction history APIs.

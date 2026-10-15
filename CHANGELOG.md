@@ -4,6 +4,9 @@ All notable changes to `radicle-py` are documented here.
 
 ## Post-alpha Python UX (unreleased)
 
+- Docs: recommend `git push rad HEAD:refs/patches` for patches from a working
+  copy, and document how `Patches.create`/`draft`/`update` differ from that
+  path. Fix API.md: read-only stores raise `ReadOnlyError`, not `ValueError`.
 - Immutable snapshots now compare and hash structurally, recursively over all
   fields. Equal independent loads deduplicate as dict/set keys; different
   snapshots of the same entity remain distinct. Handles retain identity semantics.
