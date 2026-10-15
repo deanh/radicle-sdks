@@ -704,6 +704,19 @@ These typed timestamps come from `cob::common::Timestamp`; **RawOp.timestamp rem
 
 See [README.md](./README.md) for a complete runnable, non-interactive temporary-project example and Git-URI installation.
 
+## Snapshot equality and hashing
+
+All immutable value classes have structural equality and hashing over every
+stored field, recursively including nested snapshots and ordered collections.
+Equal independently loaded snapshots collapse into one set/dictionary key.
+Snapshots with the same entity ID but different contents are unequal: use
+`.id`/`.oid` explicitly for identity-only comparisons. Hashing large snapshots
+is proportional to their contents; hashes are not a persistent wire format.
+
+Collection getters return copies, so mutating those copies never changes the
+snapshot or its hash. Handles (`Profile`, `Home`, `Storage`, `Repository`,
+`Signer`, stores, `Raw`, `*Mut`, aliases) retain identity equality/hashing.
+
 ## Python convenience surface
 
 All public filesystem inputs (`path` and `home_path`) accept

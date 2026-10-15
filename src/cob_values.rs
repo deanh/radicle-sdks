@@ -4,8 +4,8 @@ use pyo3::prelude::*;
 use radicle::cob::{patch, thread};
 use radicle::identity::Did;
 
-#[pyclass(name = "Comment", module = "radiclepy", get_all, frozen)]
-#[derive(Clone)]
+#[pyclass(name = "Comment", module = "radiclepy", get_all, frozen, eq, hash)]
+#[derive(Clone, PartialEq, Eq, Hash)]
 pub struct Comment {
     pub id: String,
     pub author: String,
@@ -29,8 +29,8 @@ pub fn comment<L>(id: &thread::CommentId, c: &thread::Comment<L>) -> Comment {
     }
 }
 
-#[pyclass(name = "Review", module = "radiclepy", get_all, frozen)]
-#[derive(Clone)]
+#[pyclass(name = "Review", module = "radiclepy", get_all, frozen, eq, hash)]
+#[derive(Clone, PartialEq, Eq, Hash)]
 pub struct Review {
     pub id: String,
     pub author: String,
@@ -44,8 +44,8 @@ impl Review {
     fn __repr__(&self) -> String { format!("Review({}, {}, {:?})", self.id, self.author, self.verdict) }
 }
 
-#[pyclass(name = "Revision", module = "radiclepy", get_all, frozen)]
-#[derive(Clone)]
+#[pyclass(name = "Revision", module = "radiclepy", get_all, frozen, eq, hash)]
+#[derive(Clone, PartialEq, Eq, Hash)]
 pub struct Revision {
     pub id: String,
     pub author: String,

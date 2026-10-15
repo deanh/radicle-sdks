@@ -25,8 +25,8 @@ use crate::storage::PyRepository;
 
 /// Output of `Repository.set_default_branch_to_canonical_head`
 /// (upstream `storage::SetHead`).
-#[pyclass(name = "SetHead", module = "radiclepy")]
-#[derive(Clone)]
+#[pyclass(name = "SetHead", module = "radiclepy", frozen, eq, hash)]
+#[derive(Clone, PartialEq, Eq, Hash)]
 pub struct PySetHead {
     pub(crate) old: Option<String>,
     pub(crate) new: String,
@@ -63,8 +63,8 @@ impl PySetHead {
 /// The cryptographic signature itself is deliberately NOT surfaced: it is
 /// verified (and re-derived) by upstream on every read path; the binding
 /// exposes the identity and content of the signed set.
-#[pyclass(name = "SignedRefs", module = "radiclepy")]
-#[derive(Clone)]
+#[pyclass(name = "SignedRefs", module = "radiclepy", frozen, eq, hash)]
+#[derive(Clone, PartialEq, Eq, Hash)]
 pub struct PySignedRefs {
     pub(crate) node_id: String,
     pub(crate) at: String,

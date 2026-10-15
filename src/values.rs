@@ -16,8 +16,8 @@ fn lossy(bytes: &[u8]) -> String {
 
 /// The repository head: qualified ref name + target OID
 /// (upstream `ReadRepository::head() -> (Qualified, Oid)`).
-#[pyclass(name = "HeadInfo", module = "radiclepy", frozen)]
-#[derive(Clone)]
+#[pyclass(name = "HeadInfo", module = "radiclepy", frozen, eq, hash)]
+#[derive(Clone, PartialEq, Eq, Hash)]
 pub struct HeadInfo {
     pub(crate) name: String,
     pub(crate) oid: String,
@@ -52,8 +52,8 @@ impl HeadInfo {
 
 /// A git commit. All identity/message fields are bytes-first; `*_str`
 /// accessors are explicitly lossy (PLAN §5.4).
-#[pyclass(name = "Commit", module = "radiclepy")]
-#[derive(Clone)]
+#[pyclass(name = "Commit", module = "radiclepy", frozen, eq, hash)]
+#[derive(Clone, PartialEq, Eq, Hash)]
 pub struct Commit {
     pub(crate) oid: String,
     pub(crate) tree: String,
@@ -172,8 +172,8 @@ impl Commit {
 /// Ordering contract (PLAN §5.4 / FINDINGS-02 S5): lists of entries preserve
 /// libgit2's canonical git tree order (directories sort as `<name>/`). The
 /// binding never re-sorts.
-#[pyclass(name = "TreeEntry", module = "radiclepy")]
-#[derive(Clone)]
+#[pyclass(name = "TreeEntry", module = "radiclepy", frozen, eq, hash)]
+#[derive(Clone, PartialEq, Eq, Hash)]
 pub struct TreeEntry {
     pub(crate) name: Vec<u8>,
     pub(crate) kind: Option<String>,
@@ -221,8 +221,8 @@ impl TreeEntry {
 }
 
 /// A git tree: ordered entries in canonical git order (see `TreeEntry`).
-#[pyclass(name = "Tree", module = "radiclepy")]
-#[derive(Clone)]
+#[pyclass(name = "Tree", module = "radiclepy", frozen, eq, hash)]
+#[derive(Clone, PartialEq, Eq, Hash)]
 pub struct Tree {
     pub(crate) oid: String,
     pub(crate) entries: Vec<TreeEntry>,
@@ -259,8 +259,8 @@ impl Tree {
 ///
 /// Peeling is performed only on tag objects; for lightweight tags the target
 /// *is* the peeled object (no silent commit→tree peel).
-#[pyclass(name = "TagInfo", module = "radiclepy")]
-#[derive(Clone)]
+#[pyclass(name = "TagInfo", module = "radiclepy", frozen, eq, hash)]
+#[derive(Clone, PartialEq, Eq, Hash)]
 pub struct TagInfo {
     pub(crate) name: String,
     pub(crate) target: String,
@@ -314,8 +314,8 @@ impl TagInfo {
 // ─── RemoteInfo ──────────────────────────────────────────────────────────────
 
 /// A remote tracked by the repository (upstream signed refs).
-#[pyclass(name = "RemoteInfo", module = "radiclepy")]
-#[derive(Clone)]
+#[pyclass(name = "RemoteInfo", module = "radiclepy", frozen, eq, hash)]
+#[derive(Clone, PartialEq, Eq, Hash)]
 pub struct RemoteInfo {
     pub(crate) fetcher: String,
     pub(crate) heads: Vec<String>,
@@ -342,8 +342,8 @@ impl RemoteInfo {
 // ─── ProjectDoc ──────────────────────────────────────────────────────────────
 
 /// The project identity document (canonical identity head), verified at load.
-#[pyclass(name = "ProjectDoc", module = "radiclepy")]
-#[derive(Clone)]
+#[pyclass(name = "ProjectDoc", module = "radiclepy", frozen, eq, hash)]
+#[derive(Clone, PartialEq, Eq, Hash)]
 pub struct ProjectDoc {
     pub(crate) name: String,
     pub(crate) description: String,
@@ -417,8 +417,8 @@ impl ProjectDoc {
 /// Ordering contract (FINDINGS-02 S7): libgit2 revwalk default order; **not**
 /// explicitly topological/time-sorted (the pinned upstream does not expose
 /// `Sort`). Callers needing strict topology must verify or cap depth.
-#[pyclass(name = "HistoryPage", module = "radiclepy")]
-#[derive(Clone)]
+#[pyclass(name = "HistoryPage", module = "radiclepy", frozen, eq, hash)]
+#[derive(Clone, PartialEq, Eq, Hash)]
 pub struct HistoryPage {
     pub(crate) name: String,
     pub(crate) head: String,
@@ -470,8 +470,8 @@ impl HistoryPage {
 // ─── Policy & routing value classes (Phase 3) ────────────────────────────────
 
 /// A node follow policy (upstream `policy::FollowPolicy`).
-#[pyclass(name = "FollowPolicyInfo", module = "radiclepy")]
-#[derive(Clone)]
+#[pyclass(name = "FollowPolicyInfo", module = "radiclepy", frozen, eq, hash)]
+#[derive(Clone, PartialEq, Eq, Hash)]
 pub struct FollowPolicyInfo {
     pub(crate) node_id: String,
     pub(crate) alias: Option<String>,
@@ -510,8 +510,8 @@ impl FollowPolicyInfo {
 ///
 /// `scope` (`"all" | "followed"`) is present only when policy is `"allow"` —
 /// blocked repos have no scope.
-#[pyclass(name = "SeedPolicyInfo", module = "radiclepy")]
-#[derive(Clone)]
+#[pyclass(name = "SeedPolicyInfo", module = "radiclepy", frozen, eq, hash)]
+#[derive(Clone, PartialEq, Eq, Hash)]
 pub struct SeedPolicyInfo {
     pub(crate) rid: String,
     pub(crate) policy: String,
@@ -552,8 +552,8 @@ impl SeedPolicyInfo {
 ///
 /// `timestamp` is **unix epoch milliseconds** (upstream `node::Timestamp`
 /// is a millis `u64` newtype).
-#[pyclass(name = "RoutingEntry", module = "radiclepy")]
-#[derive(Clone, PartialEq, Eq, PartialOrd, Ord)]
+#[pyclass(name = "RoutingEntry", module = "radiclepy", frozen, eq, hash)]
+#[derive(Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct RoutingEntry {
     pub(crate) rid: String,
     pub(crate) node_id: String,

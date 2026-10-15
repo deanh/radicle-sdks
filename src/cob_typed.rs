@@ -43,8 +43,8 @@ fn cob_err(err: impl std::fmt::Display) -> PyErr {
 /// Comment bodies are `str` (upstream `String`); comment ids are COB
 /// `ObjectId` hex strings. `state` is `"open" | "closed"`; a closed issue's
 /// close reason (if any) is `close_reason`.
-#[pyclass(name = "Issue", module = "radiclepy")]
-#[derive(Clone)]
+#[pyclass(name = "Issue", module = "radiclepy", frozen, eq, hash)]
+#[derive(Clone, PartialEq, Eq, Hash)]
 pub struct Issue {
     pub(crate) id: String,
     pub(crate) title: String,
@@ -163,8 +163,8 @@ fn materialize_issue(id: &ObjectId, issue: &RawIssue) -> Issue {
 /// latest patch-author revision's base and tip commit OIDs; `latest_revision`
 /// identifies that revision. `target` is the merge target as
 /// a string (`"delegates"` or `"branch:<name>"`).
-#[pyclass(name = "Patch", module = "radiclepy")]
-#[derive(Clone)]
+#[pyclass(name = "Patch", module = "radiclepy", frozen, eq, hash)]
+#[derive(Clone, PartialEq, Eq, Hash)]
 pub struct Patch {
     pub(crate) id: String,
     pub(crate) title: String,

@@ -6,7 +6,10 @@ Execution record:
 - Patch 1 implemented: PathLike inputs (including custom fspath and rejected
   byte paths), Literal contracts, reprs, profile storage, lifecycle sugar and
   cheap protocols. Helper build: 186 tests passed.
-- Patches 2, 5 and supporting tooling are next; 3 and 4 remain consumer-triggered.
+- Patch 2 implemented: all 21 snapshot classes have structural equality/hash;
+  tests cover independent loads, nested-only differences, same-ID changes,
+  unrelated types, copied collections and identity handles.
+- Patch 5 and supporting tooling are next; 3 and 4 remain consumer-triggered.
 
 Original scope follows. Scope: remove concrete
 friction from the *existing* alpha surface. "Pythonic" is not a completeness
