@@ -619,24 +619,39 @@ Each mutator commits **one COB transaction** and returns the new change-entry
 
 #### `Patches` (write extensions)
 
-**Creating patches from a working copy: use Git, not this API.** The
-recommended way to open or update a patch from a checkout is
-`git push rad HEAD:refs/patches` (requires `git-remote-rad`). Pushing to the
-patch's `refs/heads/patches/<id>` branch adds a revision. The remote helper
-copies the commits into storage, derives `base`, creates the patch through
-the same upstream API this binding wraps, and signs refs.
+**Creating or updating patches from a working copy: use Git, not this API.**
+Use these separate commands from a checkout (requires `git-remote-rad`):
+
+```sh
+# Open a new patch.
+git push rad HEAD:refs/patches
+# Add a revision to an existing patch (replace <id> with its patch ID).
+git push rad HEAD:refs/heads/patches/<id>
+```
+
+The remote helper copies the commits into storage, derives `base`, creates or
+updates the patch through the same upstream API this binding wraps, and signs
+refs.
 
 `create`/`draft`/`update` are for programs whose commits are **already in
-storage**. They write the patch object directly and differ from the push path:
+storage**. They write the patch object directly. For **creation**, the paths
+differ as follows:
 
-| Step | `git push rad HEAD:refs/patches` | `create`/`draft`/`update` |
+| Step | `git push rad HEAD:refs/patches` | `create`/`draft` |
 |---|---|---|
 | Get commits into storage | yes | caller's responsibility |
-| `base` | merge-base with the canonical head | must be passed explicitly |
+| `base` | merge-base with the canonical head by default; `patch.base` push option overrides it | must be passed explicitly |
 | Empty patch (`base == head`) | rejected | accepted (upstream API allows it) |
 | `refs/heads/patches/<id>` branch | created | not created |
 | Sign refs | yes | yes (COB writes sign) |
-| Sync to a running node | yes (unless `no-sync`) | never |
+| Network sync | attempted when seeding and the node is running, unless `no-sync`; sync failure does not fail the local push | never |
+
+For **updates**, pushing to `refs/heads/patches/<id>` uses the same default
+base calculation (or `patch.base` override), skips an already-recorded
+base/head pair, and can record an open patch as merged when `base == head`.
+SDK `update()` instead takes an explicit base, adds a revision without moving
+the patch branch, and does not automatically record a merge or sync. Its
+commits must already be in storage, and the COB transaction signs refs.
 
 The missing patch branch doesn't affect replication: revisions record `base`
 and `head` as related commits of the patch's change entry, so they travel with
