@@ -721,7 +721,10 @@ stored field, recursively including nested snapshots and ordered collections.
 Equal independently loaded snapshots collapse into one set/dictionary key.
 Snapshots with the same entity ID but different contents are unequal: use
 `.id`/`.oid` explicitly for identity-only comparisons. Hashing large snapshots
-is proportional to their contents; hashes are not a persistent wire format.
+is proportional to their contents. Hashes use a shared, randomly keyed Rust
+hasher per process, including for nested content; they are independent of
+`PYTHONHASHSEED` and are not a persistent wire format. Equal snapshots still
+have equal hashes within the process; equality does not depend on the key.
 
 Collection getters return copies, so mutating those copies never changes the
 snapshot or its hash. Handles (`Profile`, `Home`, `Storage`, `Repository`,

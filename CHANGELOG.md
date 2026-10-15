@@ -7,6 +7,8 @@ All notable changes to `radicle-py` are documented here.
 - Immutable snapshots now compare and hash structurally, recursively over all
   fields. Equal independent loads deduplicate as dict/set keys; different
   snapshots of the same entity remain distinct. Handles retain identity semantics.
+  Snapshot hashes use process-local random keys (independent of PYTHONHASHSEED),
+  rather than PyO3's fixed-key generated hashing of peer-controlled content.
 - Accept `str | os.PathLike[str]` on filesystem inputs; bytes paths remain
   unsupported and path returns remain strings.
 - Add `Profile.storage`, `rid in storage`, iteration over copied tree entries,

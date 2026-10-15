@@ -7,6 +7,18 @@
 //! `RoutingEntry.timestamp` is unix epoch **milliseconds**.
 
 use pyo3::prelude::*;
+use std::collections::hash_map::RandomState;
+use std::hash::{BuildHasher, Hash};
+use std::sync::OnceLock;
+
+/// Hash the complete Rust snapshot with a shared, process-local random key.
+/// Unlike PyO3's generated hash (DefaultHasher::new), this does not use fixed
+/// keys for peer-controlled content. Hashes are intentionally not persistent
+/// and are independent of PYTHONHASHSEED; no Python field copies are needed.
+pub(crate) fn snapshot_hash(value: &impl Hash) -> u64 {
+    static STATE: OnceLock<RandomState> = OnceLock::new();
+    STATE.get_or_init(RandomState::new).hash_one(value)
+}
 
 fn lossy(bytes: &[u8]) -> String {
     String::from_utf8_lossy(bytes).into_owned()
@@ -16,7 +28,7 @@ fn lossy(bytes: &[u8]) -> String {
 
 /// The repository head: qualified ref name + target OID
 /// (upstream `ReadRepository::head() -> (Qualified, Oid)`).
-#[pyclass(name = "HeadInfo", module = "radiclepy", frozen, eq, hash)]
+#[pyclass(name = "HeadInfo", module = "radiclepy", frozen, eq)]
 #[derive(Clone, PartialEq, Eq, Hash)]
 pub struct HeadInfo {
     pub(crate) name: String,
@@ -25,6 +37,10 @@ pub struct HeadInfo {
 
 #[pymethods]
 impl HeadInfo {
+    fn __hash__(&self) -> u64 {
+        snapshot_hash(self)
+    }
+
     /// Qualified ref name, e.g. `refs/heads/master`.
     #[getter]
     fn name(&self) -> &str {
@@ -52,7 +68,7 @@ impl HeadInfo {
 
 /// A git commit. All identity/message fields are bytes-first; `*_str`
 /// accessors are explicitly lossy (PLAN §5.4).
-#[pyclass(name = "Commit", module = "radiclepy", frozen, eq, hash)]
+#[pyclass(name = "Commit", module = "radiclepy", frozen, eq)]
 #[derive(Clone, PartialEq, Eq, Hash)]
 pub struct Commit {
     pub(crate) oid: String,
@@ -72,6 +88,10 @@ pub struct Commit {
 
 #[pymethods]
 impl Commit {
+    fn __hash__(&self) -> u64 {
+        snapshot_hash(self)
+    }
+
     #[getter]
     fn oid(&self) -> &str {
         &self.oid
@@ -172,7 +192,7 @@ impl Commit {
 /// Ordering contract (PLAN §5.4 / FINDINGS-02 S5): lists of entries preserve
 /// libgit2's canonical git tree order (directories sort as `<name>/`). The
 /// binding never re-sorts.
-#[pyclass(name = "TreeEntry", module = "radiclepy", frozen, eq, hash)]
+#[pyclass(name = "TreeEntry", module = "radiclepy", frozen, eq)]
 #[derive(Clone, PartialEq, Eq, Hash)]
 pub struct TreeEntry {
     pub(crate) name: Vec<u8>,
@@ -183,6 +203,10 @@ pub struct TreeEntry {
 
 #[pymethods]
 impl TreeEntry {
+    fn __hash__(&self) -> u64 {
+        snapshot_hash(self)
+    }
+
     /// Raw entry name bytes (may be invalid UTF-8).
     #[getter]
     fn name(&self) -> Vec<u8> {
@@ -221,7 +245,7 @@ impl TreeEntry {
 }
 
 /// A git tree: ordered entries in canonical git order (see `TreeEntry`).
-#[pyclass(name = "Tree", module = "radiclepy", frozen, eq, hash)]
+#[pyclass(name = "Tree", module = "radiclepy", frozen, eq)]
 #[derive(Clone, PartialEq, Eq, Hash)]
 pub struct Tree {
     pub(crate) oid: String,
@@ -230,6 +254,10 @@ pub struct Tree {
 
 #[pymethods]
 impl Tree {
+    fn __hash__(&self) -> u64 {
+        snapshot_hash(self)
+    }
+
     #[getter]
     fn oid(&self) -> &str {
         &self.oid
@@ -259,7 +287,7 @@ impl Tree {
 ///
 /// Peeling is performed only on tag objects; for lightweight tags the target
 /// *is* the peeled object (no silent commit→tree peel).
-#[pyclass(name = "TagInfo", module = "radiclepy", frozen, eq, hash)]
+#[pyclass(name = "TagInfo", module = "radiclepy", frozen, eq)]
 #[derive(Clone, PartialEq, Eq, Hash)]
 pub struct TagInfo {
     pub(crate) name: String,
@@ -271,6 +299,10 @@ pub struct TagInfo {
 
 #[pymethods]
 impl TagInfo {
+    fn __hash__(&self) -> u64 {
+        snapshot_hash(self)
+    }
+
     /// Short tag name (without `refs/tags/`).
     #[getter]
     fn name(&self) -> &str {
@@ -314,7 +346,7 @@ impl TagInfo {
 // ─── RemoteInfo ──────────────────────────────────────────────────────────────
 
 /// A remote tracked by the repository (upstream signed refs).
-#[pyclass(name = "RemoteInfo", module = "radiclepy", frozen, eq, hash)]
+#[pyclass(name = "RemoteInfo", module = "radiclepy", frozen, eq)]
 #[derive(Clone, PartialEq, Eq, Hash)]
 pub struct RemoteInfo {
     pub(crate) fetcher: String,
@@ -323,6 +355,10 @@ pub struct RemoteInfo {
 
 #[pymethods]
 impl RemoteInfo {
+    fn __hash__(&self) -> u64 {
+        snapshot_hash(self)
+    }
+
     /// The remote's fetcher node id.
     #[getter]
     fn fetcher(&self) -> &str {
@@ -342,7 +378,7 @@ impl RemoteInfo {
 // ─── ProjectDoc ──────────────────────────────────────────────────────────────
 
 /// The project identity document (canonical identity head), verified at load.
-#[pyclass(name = "ProjectDoc", module = "radiclepy", frozen, eq, hash)]
+#[pyclass(name = "ProjectDoc", module = "radiclepy", frozen, eq)]
 #[derive(Clone, PartialEq, Eq, Hash)]
 pub struct ProjectDoc {
     pub(crate) name: String,
@@ -358,6 +394,10 @@ pub struct ProjectDoc {
 
 #[pymethods]
 impl ProjectDoc {
+    fn __hash__(&self) -> u64 {
+        snapshot_hash(self)
+    }
+
     #[getter]
     fn name(&self) -> &str {
         &self.name
@@ -417,7 +457,7 @@ impl ProjectDoc {
 /// Ordering contract (FINDINGS-02 S7): libgit2 revwalk default order; **not**
 /// explicitly topological/time-sorted (the pinned upstream does not expose
 /// `Sort`). Callers needing strict topology must verify or cap depth.
-#[pyclass(name = "HistoryPage", module = "radiclepy", frozen, eq, hash)]
+#[pyclass(name = "HistoryPage", module = "radiclepy", frozen, eq)]
 #[derive(Clone, PartialEq, Eq, Hash)]
 pub struct HistoryPage {
     pub(crate) name: String,
@@ -429,6 +469,10 @@ pub struct HistoryPage {
 
 #[pymethods]
 impl HistoryPage {
+    fn __hash__(&self) -> u64 {
+        snapshot_hash(self)
+    }
+
     /// The revision expression as passed by the caller (e.g. `"master"`,
     /// `"HEAD~3"`); not normalized to a qualified ref.
     #[getter]
@@ -470,7 +514,7 @@ impl HistoryPage {
 // ─── Policy & routing value classes (Phase 3) ────────────────────────────────
 
 /// A node follow policy (upstream `policy::FollowPolicy`).
-#[pyclass(name = "FollowPolicyInfo", module = "radiclepy", frozen, eq, hash)]
+#[pyclass(name = "FollowPolicyInfo", module = "radiclepy", frozen, eq)]
 #[derive(Clone, PartialEq, Eq, Hash)]
 pub struct FollowPolicyInfo {
     pub(crate) node_id: String,
@@ -480,6 +524,10 @@ pub struct FollowPolicyInfo {
 
 #[pymethods]
 impl FollowPolicyInfo {
+    fn __hash__(&self) -> u64 {
+        snapshot_hash(self)
+    }
+
     /// The node this policy applies to.
     #[getter]
     fn node_id(&self) -> &str {
@@ -510,7 +558,7 @@ impl FollowPolicyInfo {
 ///
 /// `scope` (`"all" | "followed"`) is present only when policy is `"allow"` —
 /// blocked repos have no scope.
-#[pyclass(name = "SeedPolicyInfo", module = "radiclepy", frozen, eq, hash)]
+#[pyclass(name = "SeedPolicyInfo", module = "radiclepy", frozen, eq)]
 #[derive(Clone, PartialEq, Eq, Hash)]
 pub struct SeedPolicyInfo {
     pub(crate) rid: String,
@@ -520,6 +568,10 @@ pub struct SeedPolicyInfo {
 
 #[pymethods]
 impl SeedPolicyInfo {
+    fn __hash__(&self) -> u64 {
+        snapshot_hash(self)
+    }
+
     #[getter]
     fn rid(&self) -> &str {
         &self.rid
@@ -552,7 +604,7 @@ impl SeedPolicyInfo {
 ///
 /// `timestamp` is **unix epoch milliseconds** (upstream `node::Timestamp`
 /// is a millis `u64` newtype).
-#[pyclass(name = "RoutingEntry", module = "radiclepy", frozen, eq, hash)]
+#[pyclass(name = "RoutingEntry", module = "radiclepy", frozen, eq)]
 #[derive(Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct RoutingEntry {
     pub(crate) rid: String,
@@ -562,6 +614,10 @@ pub struct RoutingEntry {
 
 #[pymethods]
 impl RoutingEntry {
+    fn __hash__(&self) -> u64 {
+        snapshot_hash(self)
+    }
+
     #[getter]
     fn rid(&self) -> &str {
         &self.rid

@@ -1,10 +1,31 @@
 """Structural snapshots versus identity handles, using public release APIs."""
+import json
+import os
 from pathlib import Path
 import sqlite3
+import subprocess
+import sys
 
 import pytest
 import radiclepy as rad
 from workflow_smoke import project_fixture, git
+
+
+def _snapshots(repo, profile, issue_id, patch_id):
+    policy = profile.policy_store()
+    raw = rad.Raw.open(repo)
+    i = rad.Issues.open(repo).get(issue_id)
+    p = rad.Patches.open(repo).get(patch_id)
+    op = raw.history("xyz.radicle.issue", issue_id)[0]
+    base = repo.head.oid
+    return [repo.head, repo.commit(base), repo.tree(repo.commit(base).tree),
+            repo.tree(repo.commit(base).tree).entries[0], repo.tags()[0],
+            repo.remotes()[0], repo.identity(), repo.history("HEAD"),
+            repo.set_default_branch_to_canonical_head(), repo.sign_refs(profile.signer()),
+            i, p, i.comments[0], p.revisions[0], p.revisions[0].reviews[0],
+            op, op.manifest, raw.refs("xyz.radicle.issue", issue_id)[0],
+            policy.follow_policies()[0], policy.seed_policies()[0],
+            profile.routing_store().entries()[0]]
 
 
 def test_all_snapshot_equality_and_hashes(tmp_path):
@@ -20,22 +41,8 @@ def test_all_snapshot_equality_and_hashes(tmp_path):
     patch = rad.Patches.open_as(repo, profile.signer()).create(
         "title", "desc", base=base, head=base, target="delegates")
     patch.review(patch.patch.latest_revision, "accept", "summary")
-    raw = rad.Raw.open(repo)
-
-    def snapshots():
-        i = rad.Issues.open(repo).get(issue.id)
-        p = rad.Patches.open(repo).get(patch.id)
-        op = raw.history("xyz.radicle.issue", issue.id)[0]
-        return [repo.head, repo.commit(base), repo.tree(repo.commit(base).tree),
-                repo.tree(repo.commit(base).tree).entries[0], repo.tags()[0],
-                repo.remotes()[0], repo.identity(), repo.history("HEAD"),
-                repo.set_default_branch_to_canonical_head(), repo.sign_refs(profile.signer()),
-                i, p, i.comments[0], p.revisions[0], p.revisions[0].reviews[0],
-                op, op.manifest, raw.refs("xyz.radicle.issue", issue.id)[0],
-                policy.follow_policies()[0], policy.seed_policies()[0],
-                profile.routing_store().entries()[0]]
-
-    first, second = snapshots(), snapshots()
+    first = _snapshots(repo, profile, issue.id, patch.id)
+    second = _snapshots(repo, profile, issue.id, patch.id)
     assert len({type(v) for v in first}) == 21
     for left, right in zip(first, second):
         assert left is not right and left == right and not (left != right)
@@ -59,6 +66,34 @@ def test_all_snapshot_equality_and_hashes(tmp_path):
         assert left == right and hash(left) == before
         with pytest.raises(AttributeError):
             left.unknown_field = 1
+
+    # Read the same persisted snapshots in independent interpreters, including
+    # with Python's hash randomization disabled. Every class must use our
+    # process-local random state, not PyO3's fixed-key generated hash.
+    code = """
+import json, sys
+import radiclepy as rad
+sys.path.insert(0, sys.argv[1])
+from test_value_semantics import _snapshots
+profile = rad.Profile.load()
+repo = profile.storage.repository(sys.argv[2])
+values = _snapshots(repo, profile, sys.argv[3], sys.argv[4])
+assert all(hash(v) == hash(v) for v in values)
+print(json.dumps([hash(v) for v in values]))
+"""
+    runs = []
+    for seed in ("0", "0", "1", "1"):
+        env = dict(os.environ, RAD_HOME=profile.home.path, PYTHONHASHSEED=seed)
+        result = subprocess.run(
+            [sys.executable, "-c", code, str(Path(__file__).resolve().parent),
+             repo.rid, issue.id, patch.id],
+            env=env, check=True, capture_output=True, text=True, timeout=30,
+        )
+        runs.append(json.loads(result.stdout))
+    assert all(len(run) == len(first) for run in runs)
+    for value, hashes in zip(first, zip(*runs)):
+        assert len(set(hashes[:2])) == 2, type(value).__name__
+        assert len(set(hashes[2:])) == 2, type(value).__name__
 
 
 def test_changed_and_nested_snapshots_are_not_equal(tmp_path):

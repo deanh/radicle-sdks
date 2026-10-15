@@ -4,7 +4,7 @@ use pyo3::prelude::*;
 use radicle::cob::{patch, thread};
 use radicle::identity::Did;
 
-#[pyclass(name = "Comment", module = "radiclepy", get_all, frozen, eq, hash)]
+#[pyclass(name = "Comment", module = "radiclepy", get_all, frozen, eq)]
 #[derive(Clone, PartialEq, Eq, Hash)]
 pub struct Comment {
     pub id: String,
@@ -16,6 +16,10 @@ pub struct Comment {
 
 #[pymethods]
 impl Comment {
+    fn __hash__(&self) -> u64 {
+        crate::values::snapshot_hash(self)
+    }
+
     fn __repr__(&self) -> String { format!("Comment({}, {})", self.id, self.author) }
 }
 
@@ -29,7 +33,7 @@ pub fn comment<L>(id: &thread::CommentId, c: &thread::Comment<L>) -> Comment {
     }
 }
 
-#[pyclass(name = "Review", module = "radiclepy", get_all, frozen, eq, hash)]
+#[pyclass(name = "Review", module = "radiclepy", get_all, frozen, eq)]
 #[derive(Clone, PartialEq, Eq, Hash)]
 pub struct Review {
     pub id: String,
@@ -41,10 +45,14 @@ pub struct Review {
 
 #[pymethods]
 impl Review {
+    fn __hash__(&self) -> u64 {
+        crate::values::snapshot_hash(self)
+    }
+
     fn __repr__(&self) -> String { format!("Review({}, {}, {:?})", self.id, self.author, self.verdict) }
 }
 
-#[pyclass(name = "Revision", module = "radiclepy", get_all, frozen, eq, hash)]
+#[pyclass(name = "Revision", module = "radiclepy", get_all, frozen, eq)]
 #[derive(Clone, PartialEq, Eq, Hash)]
 pub struct Revision {
     pub id: String,
@@ -59,6 +67,10 @@ pub struct Revision {
 
 #[pymethods]
 impl Revision {
+    fn __hash__(&self) -> u64 {
+        crate::values::snapshot_hash(self)
+    }
+
     fn __repr__(&self) -> String { format!("Revision({}, {})", self.id, self.head) }
 }
 

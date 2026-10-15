@@ -21,6 +21,11 @@ Execution record:
   smokes, stubtest, consumer typing and annotation completeness. Clippy passes
   in both feature states. Local wheel is manylinux_2_39 x86_64, not a substitute
   for native manylinux_2_28/macOS CI; Rust 1.88 and live SSH remain unverified.
+- Review follow-up: replaced fixed-key generated hashes on all 21 snapshots
+  with a shared process-randomized Rust hasher, preserving all-field equality
+  and avoiding Python tuple copies. Subprocess tests read identical snapshots
+  with PYTHONHASHSEED=0 and 1 and verify per-process variation for every class.
+  Removed the temporary `pythonic-ux` push trigger from CI.
 - Patches 3 and 4 remain consumer-triggered; no datetime views or store-close
   protocol were added. No Radicle submission/merge has been performed.
 

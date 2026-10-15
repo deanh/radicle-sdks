@@ -25,7 +25,7 @@ use crate::storage::PyRepository;
 
 /// Output of `Repository.set_default_branch_to_canonical_head`
 /// (upstream `storage::SetHead`).
-#[pyclass(name = "SetHead", module = "radiclepy", frozen, eq, hash)]
+#[pyclass(name = "SetHead", module = "radiclepy", frozen, eq)]
 #[derive(Clone, PartialEq, Eq, Hash)]
 pub struct PySetHead {
     pub(crate) old: Option<String>,
@@ -34,6 +34,10 @@ pub struct PySetHead {
 
 #[pymethods]
 impl PySetHead {
+    fn __hash__(&self) -> u64 {
+        crate::values::snapshot_hash(self)
+    }
+
     /// Previous default-branch head (`None` if the branch did not exist).
     #[getter]
     fn old(&self) -> Option<&str> {
@@ -63,7 +67,7 @@ impl PySetHead {
 /// The cryptographic signature itself is deliberately NOT surfaced: it is
 /// verified (and re-derived) by upstream on every read path; the binding
 /// exposes the identity and content of the signed set.
-#[pyclass(name = "SignedRefs", module = "radiclepy", frozen, eq, hash)]
+#[pyclass(name = "SignedRefs", module = "radiclepy", frozen, eq)]
 #[derive(Clone, PartialEq, Eq, Hash)]
 pub struct PySignedRefs {
     pub(crate) node_id: String,
@@ -76,6 +80,10 @@ pub struct PySignedRefs {
 
 #[pymethods]
 impl PySignedRefs {
+    fn __hash__(&self) -> u64 {
+        crate::values::snapshot_hash(self)
+    }
+
     /// Node id of the signer / remote namespace these refs live under.
     #[getter]
     fn node_id(&self) -> &str {

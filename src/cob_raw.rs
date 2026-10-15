@@ -47,7 +47,7 @@ fn parse_cob_object_id(value: &str) -> PyResult<cob::ObjectId> {
 
 /// A COB ref: a git ref pointing at a change commit (authenticity comes from
 /// `refs/rad/sigrefs`, not from the COB ref itself).
-#[pyclass(name = "CobRef", module = "radiclepy", frozen, eq, hash)]
+#[pyclass(name = "CobRef", module = "radiclepy", frozen, eq)]
 #[derive(Clone, PartialEq, Eq, Hash)]
 pub struct CobRef {
     pub(crate) name: String,
@@ -56,6 +56,10 @@ pub struct CobRef {
 
 #[pymethods]
 impl CobRef {
+    fn __hash__(&self) -> u64 {
+        crate::values::snapshot_hash(self)
+    }
+
     /// Full git ref name (e.g.
     /// `refs/namespaces/<nid>/refs/cobs/<typename>/<entity>/<rest>`).
     #[getter]
@@ -74,7 +78,7 @@ impl CobRef {
 
 /// A single raw COB operation (change entry). One op carries a **non-empty**
 /// tuple of action payloads.
-#[pyclass(name = "RawOp", module = "radiclepy", frozen, eq, hash)]
+#[pyclass(name = "RawOp", module = "radiclepy", frozen, eq)]
 #[derive(Clone, PartialEq, Eq, Hash)]
 pub struct RawOp {
     pub(crate) id: String,
@@ -89,7 +93,7 @@ pub struct RawOp {
 
 /// The manifest of a change entry: what kind of COB it is, and which COB
 /// schema version produced it (upstream `change::Manifest`).
-#[pyclass(name = "CobManifest", module = "radiclepy", frozen, eq, hash)]
+#[pyclass(name = "CobManifest", module = "radiclepy", frozen, eq)]
 #[derive(Clone, PartialEq, Eq, Hash)]
 pub struct CobManifest {
     pub(crate) type_name: String,
@@ -98,6 +102,10 @@ pub struct CobManifest {
 
 #[pymethods]
 impl CobManifest {
+    fn __hash__(&self) -> u64 {
+        crate::values::snapshot_hash(self)
+    }
+
     /// COB typename, e.g. `xyz.radicle.issue`.
     #[getter]
     fn type_name(&self) -> &str {
@@ -115,6 +123,10 @@ impl CobManifest {
 
 #[pymethods]
 impl RawOp {
+    fn __hash__(&self) -> u64 {
+        crate::values::snapshot_hash(self)
+    }
+
     /// Change commit OID (hex).
     #[getter]
     fn id(&self) -> &str {

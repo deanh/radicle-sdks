@@ -43,7 +43,7 @@ fn cob_err(err: impl std::fmt::Display) -> PyErr {
 /// Comment bodies are `str` (upstream `String`); comment ids are COB
 /// `ObjectId` hex strings. `state` is `"open" | "closed"`; a closed issue's
 /// close reason (if any) is `close_reason`.
-#[pyclass(name = "Issue", module = "radiclepy", frozen, eq, hash)]
+#[pyclass(name = "Issue", module = "radiclepy", frozen, eq)]
 #[derive(Clone, PartialEq, Eq, Hash)]
 pub struct Issue {
     pub(crate) id: String,
@@ -61,6 +61,10 @@ pub struct Issue {
 
 #[pymethods]
 impl Issue {
+    fn __hash__(&self) -> u64 {
+        crate::values::snapshot_hash(self)
+    }
+
     #[getter]
     fn id(&self) -> &str {
         &self.id
@@ -163,7 +167,7 @@ fn materialize_issue(id: &ObjectId, issue: &RawIssue) -> Issue {
 /// latest patch-author revision's base and tip commit OIDs; `latest_revision`
 /// identifies that revision. `target` is the merge target as
 /// a string (`"delegates"` or `"branch:<name>"`).
-#[pyclass(name = "Patch", module = "radiclepy", frozen, eq, hash)]
+#[pyclass(name = "Patch", module = "radiclepy", frozen, eq)]
 #[derive(Clone, PartialEq, Eq, Hash)]
 pub struct Patch {
     pub(crate) id: String,
@@ -186,6 +190,10 @@ pub struct Patch {
 
 #[pymethods]
 impl Patch {
+    fn __hash__(&self) -> u64 {
+        crate::values::snapshot_hash(self)
+    }
+
     #[getter]
     fn id(&self) -> &str {
         &self.id
