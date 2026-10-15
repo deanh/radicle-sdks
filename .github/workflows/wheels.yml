@@ -3,7 +3,7 @@ name: wheels
 # Release pipeline for `radicle-py` (Phase 6 polish of the Phase 0A gate).
 #
 # Gates:
-#   * test job — MSRV (1.88) + stable, pytest on the test build, clippy on
+#   * test job — MSRV (1.91) + stable, pytest on the test build, clippy on
 #     BOTH feature states (test-helpers vs the release surface).
 #   * wheels — glibc manylinux_2_28 x86_64 AND aarch64 (native arm64
 #     runner; no QEMU), macOS universal2. Linux wheels are auditwheel
@@ -38,8 +38,10 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        # 1.88 = declared MSRV (radicle 0.25.1); stable guards drift.
-        rust: ["1.88", "stable"]
+        # 1.91 = measured MSRV: radicle 0.25.1 declares 1.88.0 but fails to
+        # compile on 1.88-1.90 (E0382, cob/identity.rs:506). Re-measure on
+        # every radicle pin bump; stable guards drift.
+        rust: ["1.91", "stable"]
     steps:
       - uses: actions/checkout@v4
 

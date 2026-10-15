@@ -14,7 +14,7 @@ alpha; pin installations to a reviewed Git commit.
 ## Install from Git
 
 The alpha is distributed from Git, **not PyPI**. Requires CPython ≥ 3.9,
-Git, Rust ≥ 1.88 and a C toolchain. libgit2 and SQLite build from bundled
+Git, Rust ≥ 1.91 and a C toolchain. libgit2 and SQLite build from bundled
 sources. Linux and macOS are the targets; Windows is unsupported/unverified.
 Git-URI installation compiles for the host and does not require a published
 wheel. Python package version remains `0.1.0` with the Alpha classifier;

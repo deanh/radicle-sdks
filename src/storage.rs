@@ -265,7 +265,7 @@ impl PyRepository {
         for r in repo.backend.references().map_err(error::git_err)? {
             let r = r.map_err(error::git_err)?;
             let name = r.name().map_err(error::git_err)?;
-            // let-chains are MSRV-forbidden (1.88 stable), so nested if-let.
+            // Nested if-let kept from the 1.88 era; let-chains would also be fine now.
             #[allow(clippy::collapsible_if)]
             if let Some(short) = name.strip_prefix("refs/tags/") {
                 if let Some(target) = r.target() {
