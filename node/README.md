@@ -1,7 +1,9 @@
-# radicle-sdk: T0 spike
+# radicle-sdk: TypeScript alpha (in progress)
 
-**Experimental feasibility code, not TypeScript v0.** The Python package and
-its root Git-install path are unchanged. No shared core has been extracted.
+**Experimental, incomplete TypeScript v0.** Builds on the isolated T0 spike;
+issue workflows are implemented, patch workflows are not yet implemented.
+The Python package and its root Git-install path are unchanged. No shared core
+has been extracted.
 The native crate lives in `node/native`; the npm manifest is at repository root
 so Git dependencies can build it without unsupported subdirectory fragments.
 
@@ -24,7 +26,7 @@ cargo clippy --manifest-path node/native/Cargo.toml --all-targets --locked -- -D
 ```
 
 `prepare` builds the Rust addon with the committed Cargo lockfile, generates
-native TypeScript declarations, then compiles the thin TS wrapper. T0 uses a
+native TypeScript declarations, then compiles the thin TS wrapper. This alpha uses a
 debug native build, not a release/performance or portable-binary claim.
 Do not regenerate the lockfiles casually: the standalone feature graph needs
 explicit `indexmap/std` for pinned radicle 0.25.1.
@@ -72,7 +74,7 @@ bash node/scripts/git-install-smoke.sh bun  # best effort
 These checks default to `git+file://...#HEAD`, isolate package-manager caches,
 and reuse compiled Cargo dependencies only (the repository contains no built
 addon). Set `SDK_GIT_URL` to test a different clone transport. The smoke runs
-init/inspect/fork/checkout and issue creation/commenting using installed exports.
+init/inspect/fork/checkout and the complete issue workflow using installed exports.
 No publication is involved. `npm install /path/to/checkout` is a manual fallback,
 not a replacement for the Git-install gate.
 
@@ -82,8 +84,9 @@ not a replacement for the Git-install gate.
   metadata/storage handles.
 - Lazy `storage.repository(rid)`; async repository `head`, `identity`, `commit`.
 - Async `initProject` (public project), `forkProject`, `checkoutProject`.
-- Lazy `Issues.open/openAs`; async `create/get/getMut`.
-- Mutable issue handle with `id`, async `reload/comment`.
+- Lazy `Issues.open/openAs`; async `all/get/create/getMut`.
+- Mutable issue handle with `id`, async `reload/comment/edit/editDescription`,
+  `label/assign/close/reopen`.
 - Generated readonly DTOs, literal state/visibility domains and copied byte fields.
 - Real `RadicleError` instances/codes and argument-error translation.
 
@@ -99,10 +102,17 @@ const rid = await initProject(profile.storage, signer, '/existing/work', {
 });
 const repo = profile.storage.repository(rid);
 const issue = await Issues.openAs(repo, signer).create({
-  title: 'First', description: 'Root',
+  title: 'First', description: 'Root', labels: ['bug'], assignees: [profile.did],
 });
 const { entryId, snapshot } = await issue.comment('A reply');
-console.log(entryId, snapshot.comments);
+await issue.edit('Clarified title');
+await issue.editDescription('Clarified description');
+await issue.label(['triaged']);
+await issue.assign([]);
+const closed = await issue.close({ reason: 'solved' });
+await issue.reopen();
+const all = await Issues.open(repo).all();
+console.log(entryId, snapshot.comments, closed.snapshot.closeReason, all);
 ```
 
 Snapshots/result envelopes recursively freeze ordinary objects/arrays. Byte
@@ -110,7 +120,29 @@ fields are independent, mutable `Uint8Array` copies; changing one cannot alter
 storage or another snapshot. Handles cache no snapshots. A comment result pairs
 its entry ID with the post-operation snapshot built under the write lock.
 Missing `Issues.get` returns `null`; missing repositories fail at first I/O.
-The spike intentionally exposes only a subset of the planned v0 fields/methods.
+This alpha intentionally exposes only a subset of the planned v0 fields/methods.
+
+### Issue contract
+
+- `all()` eagerly returns an ID-sorted, frozen array of detached issue snapshots.
+  A store/item error rejects the whole call; missing `get(id)` returns `null`.
+- Snapshots include `author` (DID), sorted `labels`/`assignees`, and optional
+  `closeReason: 'solved' | 'unspecified'` (absent when open), plus discussion.
+- `create({ title, description, labels?, assignees? })` returns a handle.
+  `label()` and `assign()` **replace** their entire sets; `[]` clears them and
+  duplicates are deduplicated upstream. Assignees must be DIDs, not node IDs.
+- `editDescription()` edits the root comment, preserving its ID and comment count.
+  `comment()` defaults to replying to that root; `replyTo` can target another comment.
+- All issue mutations return `{ entryId, snapshot }` under the repository/signing
+  locks. These are operation entries, not necessarily comment IDs. `close()` uses
+  `unspecified` by default; `close({ reason: 'solved' })` selects the other reason.
+  Even repeated lifecycle calls use upstream transactions/entry IDs, not a
+  `changed` boolean. Reopening clears the close reason.
+- `Issues.open()` is read-only: `create/getMut` reject `READ_ONLY`. Invalid titles,
+  labels, DIDs and reasons reject as `TypeError` (`ERR_INVALID_ARG_VALUE`); wrong
+  input types use `ERR_INVALID_ARG_TYPE`. Upstream COB failures reject `COB`.
+  Issue listing/get/reload coordinate with issue writes; no cached snapshot is
+  reused by a later mutation.
 
 ## Concurrency and environment boundaries
 

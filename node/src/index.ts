@@ -1,5 +1,5 @@
 import * as raw from '../dist/native.cjs';
-export type { Comment, Commit, HeadInfo, ProjectDoc, Issue, IssueChange, InitOptions, CreateIssueOptions } from '../dist/native.cjs';
+export type { Comment, Commit, HeadInfo, ProjectDoc, Issue, IssueChange, InitOptions, CreateIssueOptions, CloseIssueOptions } from '../dist/native.cjs';
 
 import { run, sync } from './bridge.js';
 export { RadicleError } from './bridge.js';
@@ -77,6 +77,8 @@ export class Issues {
   }
   async getMut(id: string): Promise<IssueMut> { return new IssueMut(await run(() => this.#raw.getMut(id))); }
   get(id: string): Promise<raw.Issue | null> { return run(() => this.#raw.get(id)); }
+  /** Eager, ID-sorted detached snapshots; no mutable snapshot cache. */
+  all(): Promise<ReadonlyArray<raw.Issue>> { return run(() => this.#raw.all()); }
 }
 export class IssueMut {
   readonly #raw: raw.NativeIssueMut;
@@ -87,4 +89,17 @@ export class IssueMut {
   comment(body: string, options: { replyTo?: string } = {}): Promise<raw.IssueChange> {
     return run(() => this.#raw.comment(body, options.replyTo));
   }
+  edit(title: string): Promise<raw.IssueChange> { return run(() => this.#raw.edit(title)); }
+  /** Edit the root comment; does not add a discussion comment. */
+  editDescription(description: string): Promise<raw.IssueChange> {
+    return run(() => this.#raw.editDescription(description));
+  }
+  /** Replace the entire label set; [] clears it. */
+  label(labels: ReadonlyArray<string>): Promise<raw.IssueChange> { return run(() => this.#raw.label(labels)); }
+  /** Replace the entire assignee DID set; [] clears it. */
+  assign(assignees: ReadonlyArray<string>): Promise<raw.IssueChange> { return run(() => this.#raw.assign(assignees)); }
+  close(options: raw.CloseIssueOptions = {}): Promise<raw.IssueChange> {
+    return run(() => this.#raw.close(options));
+  }
+  reopen(): Promise<raw.IssueChange> { return run(() => this.#raw.reopen()); }
 }

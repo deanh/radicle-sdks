@@ -25,11 +25,25 @@ try {
   const head = await repo.head();
   assert.equal((await repo.identity()).visibility, 'public');
   assert.ok((await repo.commit(head.oid)).message instanceof Uint8Array);
-  const issue = await Issues.openAs(repo, signer).create({ title: 'Installed', description: 'Root' });
+  const issue = await Issues.openAs(repo, signer).create({ title: 'Installed', description: 'Root',
+    labels: ['alpha'], assignees: [profile.did] });
   const result = await issue.comment('reply');
   assert.equal(result.snapshot.comments.length, 2);
   assert.ok(Object.isFrozen(result.snapshot.comments));
   assert.ok(result.snapshot.comments.some(c => c.id === result.entryId));
+  assert.equal((await issue.edit('Edited')).snapshot.title, 'Edited');
+  assert.equal((await issue.editDescription('Edited root')).snapshot.description, 'Edited root');
+  assert.deepEqual((await issue.label(['installed'])).snapshot.labels, ['installed']);
+  assert.deepEqual((await issue.assign([])).snapshot.assignees, []);
+  assert.equal((await issue.close({ reason: 'solved' })).snapshot.closeReason, 'solved');
+  const reopened = await issue.reopen();
+  assert.equal(reopened.snapshot.state, 'open');
+  assert.equal(reopened.snapshot.closeReason, undefined);
+  assert.equal(reopened.snapshot.author, profile.did);
+  const listed = await Issues.open(repo).all();
+  assert.deepEqual(listed, [reopened.snapshot]);
+  assert.ok(Object.isFrozen(listed));
+  assert.deepEqual(result.snapshot.labels, ['alpha']); // prior snapshots stay detached
   await assert.rejects(Issues.open(repo).create({ title: 'no', description: '' }), e => e instanceof RadicleError && e.code === 'READ_ONLY');
   await forkProject(profile.storage, signer, rid);
   const checkout = join(root, 'checkout');

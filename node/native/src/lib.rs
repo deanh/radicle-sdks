@@ -1,4 +1,4 @@
-//! Isolated T0 spike. No shared-core extraction or Python changes.
+//! Isolated Node binding. No shared-core extraction or Python changes.
 #[cfg(not(panic = "unwind"))]
 compile_error!("radicle-sdk requires panic=unwind to contain worker task panics");
 use napi::{
@@ -8,9 +8,9 @@ use napi::{
 use napi_derive::napi;
 use radicle::{
     cob::{
-        ObjectId, Title,
+        Label, ObjectId, Title,
         cache::NoCache,
-        issue::{Issue as RawIssue, Issues as RawIssues},
+        issue::{self, Issue as RawIssue, Issues as RawIssues},
         store::access::{ReadOnly, WriteAs},
     },
     crypto::Signer as _,
@@ -99,6 +99,15 @@ pub struct InitOptions {
 pub struct CreateIssueOptions {
     pub title: String,
     pub description: String,
+    #[napi(ts_type = "ReadonlyArray<string>")]
+    pub labels: Option<Vec<String>>,
+    #[napi(ts_type = "ReadonlyArray<string>")]
+    pub assignees: Option<Vec<String>>,
+}
+#[napi(object)]
+pub struct CloseIssueOptions {
+    #[napi(ts_type = "'solved' | 'unspecified'")]
+    pub reason: Option<String>,
 }
 #[napi(object)]
 pub struct HeadInfo {
@@ -156,6 +165,14 @@ pub struct Issue {
     pub title: String,
     #[napi(readonly)]
     pub description: String,
+    #[napi(readonly)]
+    pub author: String,
+    #[napi(readonly, ts_type = "'solved' | 'unspecified'")]
+    pub close_reason: Option<String>,
+    #[napi(readonly, ts_type = "ReadonlyArray<string>")]
+    pub labels: Vec<String>,
+    #[napi(readonly, ts_type = "ReadonlyArray<string>")]
+    pub assignees: Vec<String>,
     #[napi(readonly, ts_type = "'open' | 'closed'")]
     pub state: String,
     #[napi(readonly, ts_type = "ReadonlyArray<Comment>")]
@@ -168,11 +185,34 @@ pub struct IssueChange {
     #[napi(readonly)]
     pub snapshot: Issue,
 }
+fn parse_labels(values: Vec<String>) -> Result<Vec<Label>> {
+    values
+        .into_iter()
+        .map(|v| Label::new(v).map_err(|e| err("ARG_VALUE", e)))
+        .collect()
+}
+fn parse_dids(values: Vec<String>) -> Result<Vec<Did>> {
+    values
+        .into_iter()
+        .map(|v| v.parse().map_err(|e| err("ARG_VALUE", e)))
+        .collect()
+}
 fn snapshot(id: &ObjectId, issue: &RawIssue) -> Result<Issue> {
+    let mut labels: Vec<_> = issue.labels().map(|v| v.name().to_owned()).collect();
+    let mut assignees: Vec<_> = issue.assignees().map(ToString::to_string).collect();
+    labels.sort();
+    assignees.sort();
     Ok(Issue {
         id: id.to_string(),
         title: issue.title().to_string(),
         description: issue.description().to_owned(),
+        author: issue.author().id().to_string(),
+        close_reason: match issue.state() {
+            issue::State::Open => None,
+            issue::State::Closed { reason } => Some(reason.to_string()),
+        },
+        labels,
+        assignees,
         state: if matches!(issue.state(), radicle::cob::issue::State::Open) {
             "open"
         } else {
@@ -507,6 +547,8 @@ impl NativeIssues {
                 .signer
                 .ok_or_else(|| err("READ_ONLY", "issue store is read-only"))?;
             let title = Title::new(&opts.title).map_err(|e| err("ARG_VALUE", e))?;
+            let labels = parse_labels(opts.labels.unwrap_or_default())?;
+            let assignees = parse_dids(opts.assignees.unwrap_or_default())?;
             let lock = repo_lock(&me.repo)?;
             let _guard = lock.lock().map_err(|e| err("INTERNAL", e))?;
             let repo = me.repo.open()?;
@@ -515,7 +557,7 @@ impl NativeIssues {
                 RawIssues::open(&repo, WriteAs::new(&*sg)).map_err(|e| err("COB", e))?;
             let mut cache = NoCache;
             let issue = store
-                .create(title, opts.description, &[], &[], [], &mut cache)
+                .create(title, opts.description, &labels, &assignees, [], &mut cache)
                 .map_err(|e| err("COB", e))?;
             Ok(NativeIssueMut {
                 repo: me.repo,
@@ -540,11 +582,31 @@ impl NativeIssues {
             Ok(handle)
         })
     }
+    /// Eager, ID-sorted snapshots; a store/item error rejects the whole listing.
+    #[napi(catch_unwind, ts_return_type = "Promise<ReadonlyArray<Issue>>")]
+    pub fn all(&self) -> AsyncTask<Work<Vec<Issue>>> {
+        let me = self.clone();
+        work(move || {
+            let lock = repo_lock(&me.repo)?;
+            let _guard = lock.lock().map_err(|e| err("INTERNAL", e))?;
+            let repo = me.repo.open()?;
+            let store = RawIssues::open(&repo, ReadOnly).map_err(|e| err("COB", e))?;
+            let mut out = Vec::new();
+            for item in store.all().map_err(|e| err("COB", e))? {
+                let (id, issue) = item.map_err(|e| err("COB", e))?;
+                out.push(snapshot(&id, &issue)?);
+            }
+            out.sort_by(|a, b| a.id.cmp(&b.id));
+            Ok(out)
+        })
+    }
     #[napi(catch_unwind, ts_return_type = "Promise<Issue | null>")]
     pub fn get(&self, id: String) -> AsyncTask<Work<Option<Issue>>> {
         let me = self.clone();
         work(move || {
             let id = oid(&id)?;
+            let lock = repo_lock(&me.repo)?;
+            let _guard = lock.lock().map_err(|e| err("INTERNAL", e))?;
             let repo = me.repo.open()?;
             let store = RawIssues::open(&repo, ReadOnly).map_err(|e| err("COB", e))?;
             store
@@ -562,8 +624,20 @@ pub struct NativeIssueMut {
     signer: NativeSigner,
     id: ObjectId,
 }
+// Issue-local dispatch keeps the lock/load/commit/snapshot boundary identical
+// for every operation without introducing a shared core or transaction framework.
+enum IssueOperation {
+    Comment(String, Option<radicle::git::Oid>),
+    Edit(Title),
+    EditDescription(String),
+    Label(Vec<Label>),
+    Assign(Vec<Did>),
+    Lifecycle(issue::State),
+}
 impl NativeIssueMut {
     fn read(&self) -> Result<Issue> {
+        let lock = repo_lock(&self.repo)?;
+        let _guard = lock.lock().map_err(|e| err("INTERNAL", e))?;
         let repo = self.repo.open()?;
         let store = RawIssues::open(&repo, ReadOnly).map_err(|e| err("COB", e))?;
         let issue = store
@@ -571,6 +645,35 @@ impl NativeIssueMut {
             .map_err(|e| err("COB", e))?
             .ok_or_else(|| err("COB", "issue not found"))?;
         snapshot(&self.id, &issue)
+    }
+    fn change(&self, operation: IssueOperation) -> Result<IssueChange> {
+        let lock = repo_lock(&self.repo)?;
+        let _guard = lock.lock().map_err(|e| err("INTERNAL", e))?;
+        let repo = self.repo.open()?;
+        let sg = self.signer.inner.lock().map_err(|e| err("INTERNAL", e))?;
+        let mut store = RawIssues::open(&repo, WriteAs::new(&*sg)).map_err(|e| err("COB", e))?;
+        let mut cache = NoCache;
+        let mut issue = store
+            .get_mut(&self.id, &mut cache)
+            .map_err(|e| err("COB", e))?;
+        let entry = match operation {
+            IssueOperation::Comment(body, reply) => {
+                let reply = reply
+                    .or_else(|| issue.comments().next().map(|(id, _)| *id))
+                    .ok_or_else(|| err("COB", "no root comment"))?;
+                issue.comment(body, reply, [])
+            }
+            IssueOperation::Edit(title) => issue.edit(title),
+            IssueOperation::EditDescription(description) => issue.edit_description(description, []),
+            IssueOperation::Label(labels) => issue.label(labels),
+            IssueOperation::Assign(assignees) => issue.assign(assignees),
+            IssueOperation::Lifecycle(state) => issue.lifecycle(state),
+        }
+        .map_err(|e| err("COB", e))?;
+        Ok(IssueChange {
+            entry_id: entry.to_string(),
+            snapshot: snapshot(&self.id, &issue)?,
+        })
     }
 }
 #[napi]
@@ -594,25 +697,54 @@ impl NativeIssueMut {
                         .map_err(|e| err("ARG_VALUE", e))
                 })
                 .transpose()?;
-            let lock = repo_lock(&me.repo)?;
-            let _guard = lock.lock().map_err(|e| err("INTERNAL", e))?;
-            let repo = me.repo.open()?;
-            let sg = me.signer.inner.lock().map_err(|e| err("INTERNAL", e))?;
-            let mut store =
-                RawIssues::open(&repo, WriteAs::new(&*sg)).map_err(|e| err("COB", e))?;
-            let mut cache = NoCache;
-            let mut issue = store
-                .get_mut(&me.id, &mut cache)
-                .map_err(|e| err("COB", e))?;
-            let reply = reply
-                .or_else(|| issue.comments().next().map(|(id, _)| *id))
-                .ok_or_else(|| err("COB", "no root comment"))?;
-            let entry = issue.comment(body, reply, []).map_err(|e| err("COB", e))?;
-            Ok(IssueChange {
-                entry_id: entry.to_string(),
-                snapshot: snapshot(&me.id, &issue)?,
-            })
+            me.change(IssueOperation::Comment(body, reply))
         })
+    }
+    #[napi(catch_unwind, ts_return_type = "Promise<IssueChange>")]
+    pub fn edit(&self, title: String) -> AsyncTask<Work<IssueChange>> {
+        let me = self.clone();
+        work(move || {
+            let title = Title::new(&title).map_err(|e| err("ARG_VALUE", e))?;
+            me.change(IssueOperation::Edit(title))
+        })
+    }
+    #[napi(catch_unwind, ts_return_type = "Promise<IssueChange>")]
+    pub fn edit_description(&self, description: String) -> AsyncTask<Work<IssueChange>> {
+        let me = self.clone();
+        work(move || me.change(IssueOperation::EditDescription(description)))
+    }
+    #[napi(catch_unwind, ts_return_type = "Promise<IssueChange>")]
+    pub fn label(
+        &self,
+        #[napi(ts_arg_type = "ReadonlyArray<string>")] labels: Vec<String>,
+    ) -> AsyncTask<Work<IssueChange>> {
+        let me = self.clone();
+        work(move || me.change(IssueOperation::Label(parse_labels(labels)?)))
+    }
+    #[napi(catch_unwind, ts_return_type = "Promise<IssueChange>")]
+    pub fn assign(
+        &self,
+        #[napi(ts_arg_type = "ReadonlyArray<string>")] assignees: Vec<String>,
+    ) -> AsyncTask<Work<IssueChange>> {
+        let me = self.clone();
+        work(move || me.change(IssueOperation::Assign(parse_dids(assignees)?)))
+    }
+    #[napi(catch_unwind, ts_return_type = "Promise<IssueChange>")]
+    pub fn close(&self, options: CloseIssueOptions) -> AsyncTask<Work<IssueChange>> {
+        let me = self.clone();
+        work(move || {
+            let reason = match options.reason.as_deref().unwrap_or("unspecified") {
+                "solved" => issue::CloseReason::Solved,
+                "unspecified" => issue::CloseReason::Other,
+                _ => return Err(err("ARG_VALUE", "reason must be 'solved' or 'unspecified'")),
+            };
+            me.change(IssueOperation::Lifecycle(issue::State::Closed { reason }))
+        })
+    }
+    #[napi(catch_unwind, ts_return_type = "Promise<IssueChange>")]
+    pub fn reopen(&self) -> AsyncTask<Work<IssueChange>> {
+        let me = self.clone();
+        work(move || me.change(IssueOperation::Lifecycle(issue::State::Open)))
     }
 }
 

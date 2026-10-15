@@ -1,5 +1,5 @@
 // Compile-only consumer checks against generated Rust DTOs and TS wrapper declarations.
-import { Profile, Signer, Issues, initProject, forkProject, checkoutProject, type Issue, type Commit, type IssueChange } from '../../node/dist/index.js';
+import { Profile, Signer, Issues, initProject, forkProject, checkoutProject, type Issue, type Commit, type IssueChange, type CloseIssueOptions } from '../../node/dist/index.js';
 
 const loadProfile: () => Profile = Profile.load;
 void loadProfile;
@@ -22,11 +22,39 @@ async function usage(home: string): Promise<void> {
   commit.message = new Uint8Array();
   // @ts-expect-error delegates are readonly collections
   doc.delegates.push('another');
-  const issue = await Issues.openAs(repo, signer).create({ title: 'title', description: 'body' });
+  const labels = ['bug'] as const;
+  const assignees = [profile.did] as const;
+  const store = Issues.openAs(repo, signer);
+  const issue = await store.create({ title: 'title', description: 'body', labels, assignees });
+  const listed: ReadonlyArray<Issue> = await Issues.open(repo).all();
+  // @ts-expect-error eager listing is asynchronous
+  const directList: ReadonlyArray<Issue> = store.all();
+  // @ts-expect-error immutable listing
+  listed.push(listed[0]);
+  void directList;
+  const closedOptions: CloseIssueOptions = { reason: 'solved' };
+  const mutations: ReadonlyArray<IssueChange> = await Promise.all([
+    issue.edit('new title'), issue.editDescription('new root'), issue.label(labels), issue.assign(assignees),
+    issue.close(closedOptions), issue.close(), issue.reopen(),
+  ]);
+  const reason: 'solved' | 'unspecified' | undefined = mutations[0].snapshot.closeReason;
+  const author: string = mutations[0].snapshot.author;
+  console.log(reason, author);
+  // @ts-expect-error invalid close reason
+  await issue.close({ reason: 'done' });
   const result: IssueChange = await issue.comment('reply');
   const snapshot: Issue = result.snapshot;
   const state: 'open' | 'closed' = snapshot.state;
   console.log(state, result.entryId);
+  // @ts-expect-error readonly labels
+  snapshot.labels.push('bad');
+  // @ts-expect-error readonly assignees
+  snapshot.assignees[0] = profile.did;
+  // @ts-expect-error readonly close reason
+  snapshot.closeReason = 'solved';
+  // @ts-expect-error closed reason does not widen to arbitrary string
+  const badReason: 'other' = snapshot.closeReason;
+  void badReason;
   // @ts-expect-error readonly envelope
   result.entryId = 'another';
   // @ts-expect-error readonly nested snapshot

@@ -19,7 +19,9 @@ function translate(error: unknown): Error {
   if (match?.[1] === 'ARG_RANGE') {
     return Object.assign(new RangeError(match[2], { cause: error }), { code: 'ERR_OUT_OF_RANGE' });
   }
-  if (error instanceof Error && 'code' in error && typeof error.code === 'string' && (error.code === 'InvalidArg' || error.code.endsWith('Expected'))) {
+  // Object conversion (eg. null options) can throw a JS TypeError without a
+  // napi status code. Keep argument errors out of the INTERNAL error category.
+  if (error instanceof TypeError || (error instanceof Error && 'code' in error && typeof error.code === 'string' && (error.code === 'InvalidArg' || error.code.endsWith('Expected')))) {
     return Object.assign(new TypeError(message, { cause: error }), { code: 'ERR_INVALID_ARG_TYPE' });
   }
   if (match && codes.has(match[1])) {

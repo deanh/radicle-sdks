@@ -362,6 +362,14 @@ Other conditions:
 
 ## 7. Plan
 
+**Post-T0 decision:** proceed with bounded TypeScript v0 increments in the
+isolated native crate, **without T1/shared-core extraction**. Patch 1 completes
+issues (listing, creation metadata, edits, labels/assignment, close/reopen), using
+upstream transactions and locked `{ entryId, snapshot }` results. Patch workflows
+and supporting repository reads remain separate follow-ups, not part of patch 1.
+No Python restructuring, scheduler, networking or publication work is authorized
+by this increment. Current implemented surface and contracts: `node/README.md`.
+
 | Phase | Work | Exit criteria |
 |---|---|---|
 | **T0 spike** (~3–4 days, throwaway branch) | napi-rs addon on `radicle =0.25.1`. **Workflow 1 end to end** (`Profile.init` → `initProject` → `head()`/`identity()` → `forkProject` → `checkoutProject`), plus a `commit()` read to exercise byte fields and issue create/comment, as Promises on Node 26.12.0; `Profile.load()`/`signer()` are synchronous setup exceptions. Comment result envelopes and detached snapshot/byte-copy tests. Signer crossing to worker tasks. §5 lock contract and tests. Timestamp boundary tests (upstream max values, overflow, out-of-`Date`-range rejection). Check generated `.d.ts` against §4 (literal unions, readonly, Promise signatures, `Uint8Array`) and runtime behaviour (frozen object/array containers, mutable independent byte copies, `RadicleError` instances/codes, `TypeError`/`RangeError`). **Alpha install command:** from a clean project, `npm install "git+${SDK_GIT_URL}#<commit>"` (the seed URL form the Python README uses) builds and loads the addon; pnpm (build-script opt-in documented) and Bun best effort | All of the listed operations pass on Linux. A FINDINGS file records the reproducible Send/Sync assertions, concurrency results, generated types and installation results |
