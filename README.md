@@ -145,6 +145,10 @@ SSH-agent integration is not verified by the alpha suite.
 uv sync --dev --locked
 uv run maturin develop --uv --features test-helpers
 uv run pytest -q
+uv run python -m mypy.stubtest radiclepy --allowlist tests/stubtest-allowlist.txt
+uv run mypy --strict tests/typing/usage.py
+uv run pyright tests/typing/usage.py
+uv run pyright --verifytypes radiclepy --ignoreexternal
 cargo clippy --all-targets --locked --features test-helpers -- -D warnings
 cargo clippy --all-targets --locked -- -D warnings
 
@@ -153,6 +157,13 @@ uv run maturin develop --uv
 uv run pytest -q
 uv run python tests/workflow_smoke.py
 ```
+
+The README quick start is executed directly by pytest. Stubtest checks the
+installed exports/signatures, with two documented extension-introspection
+exceptions; behavioral tests check Literal domains and snapshot semantics.
+Mypy/pyright check consumer examples; `--verifytypes` checks annotation
+completeness, not semantic correctness. Stubs mark non-subclassable extension
+classes as final and keep identifier aliases compatible with Python 3.9.
 
 CI builds Linux manylinux_2_28 x86_64/aarch64 and macOS universal2 artifacts,
 checks the source distribution, and executes installed-artifact workflow

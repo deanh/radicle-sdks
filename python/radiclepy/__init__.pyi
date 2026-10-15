@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Literal, Sequence, Iterator as _Iterator
+from typing import Literal, Sequence, Iterator as _Iterator, final as _final
 from os import PathLike as _PathLike
 
 from ._types import Alias, Did, NodeId, ObjectId, Oid, RepoId
@@ -95,10 +95,11 @@ def checkout_project(storage: Storage, repo_id: RepoId, remote: NodeId, path: st
 
 # ── Handles ──────────────────────────────────────────────────────────────────
 
+@_final
 class Home:
     """Filesystem home for a Radicle profile (`RAD_HOME` / `~/.radicle`)."""
 
-    def __init__(self, path: str | _PathLike[str]) -> None: ...
+    def __new__(cls, path: str | _PathLike[str]) -> Home: ...
     @classmethod
     def load(cls, path: str | _PathLike[str]) -> Home: ...
     @classmethod
@@ -109,6 +110,7 @@ class Home:
     def path(self) -> str: ...
     def __repr__(self) -> str: ...
 
+@_final
 class Aliases:
     """Lookup facade over the profile's alias stores — NOT a collection.
 
@@ -120,6 +122,7 @@ class Aliases:
     def reverse_lookup(self, alias: Alias) -> dict[str, list[NodeId]]: ...
     def __repr__(self) -> str: ...
 
+@_final
 class Signer:
     """Radicle signer: unencrypted keystore, `RAD_PASSPHRASE`, or ssh-agent."""
 
@@ -129,6 +132,7 @@ class Signer:
     def node_id(self) -> NodeId: ...
     def __repr__(self) -> str: ...
 
+@_final
 class Profile:
     """A local Radicle profile (keys, config, storage)."""
 
@@ -166,6 +170,7 @@ class Profile:
 
 # ── Storage & repository (Phase 2) ───────────────────────────────────────────
 
+@_final
 class Storage:
     """Repository storage for a Radicle home (upstream `radicle::Storage`)."""
 
@@ -187,12 +192,13 @@ class Storage:
         """Open a repository for reading (raises `RepositoryError` if absent)."""
         ...
     def contains(self, rid: RepoId) -> bool: ...
-    def __contains__(self, rid: RepoId) -> bool: ...
+    def __contains__(self, rid: RepoId, /) -> bool: ...
     def repositories(self) -> list[RepoId]:
         """Raises `StorageError` on storage failures (not an empty list)."""
         ...
     def __repr__(self) -> str: ...
 
+@_final
 class Repository:
     """Read-only repository handle; reopens storage per operation.
 
@@ -240,6 +246,7 @@ class Repository:
 
 # ── Value classes (immutable; bytes-first fields) ────────────────────────────
 
+@_final
 class HeadInfo:
     """Repository head: qualified ref name + OID."""
 
@@ -249,6 +256,7 @@ class HeadInfo:
     def oid(self) -> Oid: ...
     def __repr__(self) -> str: ...
 
+@_final
 class Commit:
     """A git commit. Bytes-first identity/message fields; `*_str` is lossy."""
 
@@ -290,6 +298,7 @@ class Commit:
     def encoding(self) -> str | None: ...
     def __repr__(self) -> str: ...
 
+@_final
 class TreeEntry:
     """One tree entry. Ordering: canonical git order (never re-sorted)."""
 
@@ -307,6 +316,7 @@ class TreeEntry:
     def oid(self) -> Oid: ...
     def __repr__(self) -> str: ...
 
+@_final
 class Tree:
     """A git tree; `entries` is in canonical git tree order."""
 
@@ -318,6 +328,7 @@ class Tree:
     def __len__(self) -> int: ...
     def __repr__(self) -> str: ...
 
+@_final
 class TagInfo:
     """Tag with explicit raw/peeled distinction.
 
@@ -339,6 +350,7 @@ class TagInfo:
         ...
     def __repr__(self) -> str: ...
 
+@_final
 class SetHead:
     """Output of `Repository.set_default_branch_to_canonical_head`."""
 
@@ -349,6 +361,7 @@ class SetHead:
     def is_updated(self) -> bool: ...
     def __repr__(self) -> str: ...
 
+@_final
 class SignedRefs:
     """Output of `Repository.sign_refs` (the signature itself is not surfaced)."""
 
@@ -363,6 +376,7 @@ class SignedRefs:
     def refs(self) -> dict[str, Oid]: ...
     def __repr__(self) -> str: ...
 
+@_final
 class RemoteInfo:
     """A remote tracked by the repository (upstream signed refs)."""
 
@@ -372,6 +386,7 @@ class RemoteInfo:
     def heads(self) -> list[str]: ...
     def __repr__(self) -> str: ...
 
+@_final
 class ProjectDoc:
     """Canonical project identity document (verified at load)."""
 
@@ -395,6 +410,7 @@ class ProjectDoc:
     def blob(self) -> Oid: ...
     def __repr__(self) -> str: ...
 
+@_final
 class HistoryPage:
     """One page of commit history (libgit2 default revwalk order)."""
 
@@ -414,6 +430,7 @@ class HistoryPage:
 
 # ── Policy & routing (Phase 3) ───────────────────────────────────────────────
 
+@_final
 class PolicyStore:
     """Follow/seed policy store (upstream `node::policy::Store`).
 
@@ -452,6 +469,7 @@ class PolicyStore:
         ...
     def __repr__(self) -> str: ...
 
+@_final
 class RoutingStore:
     """Read-only routing table (upstream `node::routing::Store` on the node db)."""
 
@@ -471,6 +489,7 @@ class RoutingStore:
     def is_empty(self) -> bool: ...
     def __repr__(self) -> str: ...
 
+@_final
 class FollowPolicyInfo:
     """A node follow policy (upstream `policy::FollowPolicy`)."""
 
@@ -482,6 +501,7 @@ class FollowPolicyInfo:
     def policy(self) -> Literal['allow', 'block']: ...
     def __repr__(self) -> str: ...
 
+@_final
 class SeedPolicyInfo:
     """A repo seed policy; `scope` present only when policy is `"allow"`."""
 
@@ -493,6 +513,7 @@ class SeedPolicyInfo:
     def scope(self) -> Literal['all', 'followed'] | None: ...
     def __repr__(self) -> str: ...
 
+@_final
 class RoutingEntry:
     """One routing-table entry (timestamp: unix epoch **milliseconds**)."""
 
@@ -506,6 +527,7 @@ class RoutingEntry:
 
 # ── COB: typed + raw (Phase 4) ───────────────────────────────────────────────
 
+@_final
 class Issue:
     """Materialized issue (read-only snapshot of `cob::issue::Issue`)."""
 
@@ -533,6 +555,7 @@ class Issue:
     def comments(self) -> list[Comment]: ...
     def __repr__(self) -> str: ...
 
+@_final
 class Issues:
     """Typed issue store. `open()` is read-only; `open_as()` enables writes
     (the signer is fixed at open — mutating methods take none)."""
@@ -551,6 +574,7 @@ class Issues:
     def get_mut(self, id: ObjectId) -> IssueMut: ...
     def __repr__(self) -> str: ...
 
+@_final
 class IssueMut:
     """Mutable issue handle; each method commits one COB transaction."""
 
@@ -569,6 +593,7 @@ class IssueMut:
     def lifecycle(self, state: Literal['open', 'closed'], reason: Literal['unspecified', 'solved'] | None = None) -> Oid: ...
     def __repr__(self) -> str: ...
 
+@_final
 class Patch:
     """Materialized patch (read-only snapshot of `cob::patch::Patch`)."""
 
@@ -613,6 +638,7 @@ class Patch:
     def merged_commit(self) -> Oid | None: ...
     def __repr__(self) -> str: ...
 
+@_final
 class Patches:
     """Typed patch store. `open()` is read-only; `open_as()` enables writes."""
 
@@ -631,6 +657,7 @@ class Patches:
     def get_mut(self, id: ObjectId) -> PatchMut: ...
     def __repr__(self) -> str: ...
 
+@_final
 class PatchMut:
     """Mutable patch handle; each mutation is an upstream transaction."""
 
@@ -652,6 +679,7 @@ class PatchMut:
     def merge(self, revision: Oid, commit: Oid) -> Oid: ...
     def __repr__(self) -> str: ...
 
+@_final
 class Comment:
     """Non-redacted comment; timestamp is original creation, epoch milliseconds."""
     @property
@@ -666,6 +694,7 @@ class Comment:
     def reply_to(self) -> Oid | None: ...
     def __repr__(self) -> str: ...
 
+@_final
 class Review:
     @property
     def id(self) -> Oid: ...
@@ -679,6 +708,7 @@ class Review:
     def timestamp(self) -> int: ...
     def __repr__(self) -> str: ...
 
+@_final
 class Revision:
     @property
     def id(self) -> Oid: ...
@@ -698,6 +728,7 @@ class Revision:
     def reviews(self) -> list[Review]: ...
     def __repr__(self) -> str: ...
 
+@_final
 class CobRef:
     """A COB git ref pointing at a change commit."""
 
@@ -707,6 +738,7 @@ class CobRef:
     def target(self) -> Oid: ...
     def __repr__(self) -> str: ...
 
+@_final
 class CobManifest:
     """Change-entry manifest: COB typename + schema version."""
 
@@ -716,6 +748,7 @@ class CobManifest:
     def version(self) -> int: ...
     def __repr__(self) -> str: ...
 
+@_final
 class RawOp:
     """One raw COB operation (change entry) with a non-empty action tuple."""
 
@@ -743,6 +776,7 @@ class RawOp:
         ...
     def __repr__(self) -> str: ...
 
+@_final
 class Raw:
     """Raw COB inspection — runtime-generic, no domain type."""
 

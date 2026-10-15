@@ -25,6 +25,8 @@ classifiers = [
 dev = [
     "maturin>=1.7,<2.0",
     "pytest>=8",
+    "mypy>=1.15,<3",
+    "pyright>=1.1.400,<2",
 ]
 
 [tool.maturin]

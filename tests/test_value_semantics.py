@@ -81,9 +81,16 @@ def test_changed_and_nested_snapshots_are_not_equal(tmp_path):
     assert before.revisions[0].reviews == []
 
 
-def test_handles_keep_identity_semantics(tmp_path):
-    profile, _, storage, repo, _, _, _ = project_fixture(tmp_path)
-    pairs = [(profile.storage, profile.storage),
+def test_handles_keep_identity_semantics(tmp_path, monkeypatch):
+    profile, _, storage, repo, _, _, base = project_fixture(tmp_path)
+    monkeypatch.setenv("RAD_HOME", profile.home.path)
+    issues = rad.Issues.open_as(repo, profile.signer())
+    issue = issues.create("t", "d")
+    patches = rad.Patches.open_as(repo, profile.signer())
+    patch = patches.create("t", "d", base=base, head=base)
+    pairs = [(profile, rad.Profile.load()), (profile.aliases, profile.aliases),
+             (issue, issues.get_mut(issue.id)), (patch, patches.get_mut(patch.id)),
+             (profile.storage, profile.storage),
              (storage.repository(repo.rid), storage.repository(repo.rid)),
              (profile.home, profile.home), (profile.signer(), profile.signer()),
              (profile.policy_store(), profile.policy_store()),

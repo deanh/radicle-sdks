@@ -2,7 +2,7 @@
 
 Identifiers are strings at the boundary. These aliases exist for typed
 callers and documentation; they are ``str`` at runtime. The paired
-``_types.pyi`` carries the precise ``TypeAlias`` declarations for static
+``_types.pyi`` carries the type-alias declarations for static
 analysis.
 """
 

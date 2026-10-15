@@ -1,5 +1,6 @@
 """Public-only Python UX contract tests (also runnable on release installs)."""
 import ast
+import os
 from pathlib import Path
 
 import pytest
@@ -56,6 +57,15 @@ def test_bytes_paths_rejected(tmp_path, convert):
         with pytest.raises(TypeError):
             call()
     assert not (tmp_path / "rejected").exists()
+
+
+@pytest.mark.skipif(os.name != "posix", reason="Unix non-UTF-8 filesystem paths")
+def test_non_utf8_home_paths_are_not_lossy(tmp_path):
+    path = os.fsdecode(os.fsencode(tmp_path) + b"/home-\xff")
+    home = rad.Home(Path(path))
+    assert os.path.isdir(os.fsencode(path))
+    with pytest.raises(ValueError, match="not valid UTF-8"):
+        _ = home.path
 
 
 def test_storage_tree_and_lifecycle_sugar(project):

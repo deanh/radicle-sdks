@@ -1,0 +1,7 @@
+# PyO3 0.23 renders the Rust DEFAULT_HISTORY_LIMIT constant as Ellipsis in
+# __text_signature__. The real default is 100; behavioral history tests cover it.
+radiclepy.Repository.history
+
+# Private native implementation module; the supported surface is its re-exports
+# in radiclepy/__init__.pyi, which stubtest checks normally.
+radiclepy.radiclepy

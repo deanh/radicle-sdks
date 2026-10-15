@@ -6,22 +6,22 @@ documentation and typed callers, not as a runtime class hierarchy.
 
 from __future__ import annotations
 
-from typing import TypeAlias
+__all__ = ["RepoId", "Did", "NodeId", "Oid", "ObjectId", "Alias"]
 
 #: Canonical repository id, e.g. ``"rad:z…"``.
-RepoId: TypeAlias = str
+RepoId = str
 
 #: W3C DID key form, e.g. ``"did:key:z6Mk…"``.
-Did: TypeAlias = str
+Did = str
 
 #: Node id / public key, e.g. ``"z6Mk…"``.
-NodeId: TypeAlias = str
+NodeId = str
 
 #: Git object id, lowercase 40-char hex.
-Oid: TypeAlias = str
+Oid = str
 
 #: COB object id, lowercase 40-char hex.
-ObjectId: TypeAlias = str
+ObjectId = str
 
 #: Node alias, e.g. ``"alice"``.
-Alias: TypeAlias = str
+Alias = str

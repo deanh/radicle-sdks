@@ -11,7 +11,18 @@ Execution record:
   unrelated types, copied collections and identity handles.
 - Patch 5 implemented: keyword-only metadata/revision bounds and uniform
   ReadOnlyError, with updated callers and migration notes. Helper build:
-  190 tests passed. Supporting tooling is next; 3 and 4 remain consumer-triggered.
+  190 tests passed.
+- Supporting Patch 6 tooling implemented: stubtest with two narrow documented
+  exceptions, mypy/pyright consumer checks, 100% annotation completeness and a
+  pytest-executed README quick start. CI checks helper and installed-wheel
+  surfaces, including oldest-Python typing.
+- Final validation: 192 helper-build tests; clean release-wheel installations on
+  Python 3.9 and 3.14 each pass 79 tests (113 legacy-fixture skips), release
+  smokes, stubtest, consumer typing and annotation completeness. Clippy passes
+  in both feature states. Local wheel is manylinux_2_39 x86_64, not a substitute
+  for native manylinux_2_28/macOS CI; Rust 1.88 and live SSH remain unverified.
+- Patches 3 and 4 remain consumer-triggered; no datetime views or store-close
+  protocol were added. No Radicle submission/merge has been performed.
 
 Original scope follows. Scope: remove concrete
 friction from the *existing* alpha surface. "Pythonic" is not a completeness

@@ -15,6 +15,10 @@ All notable changes to `radicle-py` are documented here.
 - Narrow finite string domains in stubs with `Literal`; runtime validation is
   unchanged, but dynamic `str` variables may require type-checker narrowing.
 
+- Add installed-surface stubtest checks, mypy/pyright consumer examples,
+  annotation-completeness checks and a pytest-executed README quick start.
+  Correct Python 3.9 identifier stubs and mark non-subclassable classes final.
+
 ### Migration from the alpha RC
 
 | Old usage | Replacement |
