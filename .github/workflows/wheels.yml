@@ -23,7 +23,7 @@ name: wheels
 
 on:
   push:
-    branches: [main, alpha-rc, pythonic-ux]
+    branches: [main, alpha-rc]
     tags: ["v*"]
   pull_request:
   workflow_dispatch:
