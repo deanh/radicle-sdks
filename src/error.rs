@@ -18,6 +18,7 @@ create_exception!(radiclepy, IdentityError, Error);
 create_exception!(radiclepy, SignerError, Error);
 create_exception!(radiclepy, PolicyError, Error);
 create_exception!(radiclepy, CobError, Error);
+create_exception!(radiclepy, ReadOnlyError, Error);
 
 /// Our own syntactic validators (`parse_*`, seed length, …).
 pub(crate) fn value_err(message: impl Into<String>) -> PyErr {
@@ -80,14 +81,14 @@ pub(crate) fn database_err(err: impl std::fmt::Display) -> PyErr {
     DatabaseError::new_err(err.to_string())
 }
 
-/// `StorageError` from a plain message (e.g. operating on a read-only
-/// handle) — distinct from upstream-error mapping.
-pub(crate) fn storage_err_msg(message: impl Into<String>) -> PyErr {
-    StorageError::new_err(message.into())
+/// Writes through any read-only handle (binding access-mode validation).
+pub(crate) fn read_only_err(message: impl Into<String>) -> PyErr {
+    ReadOnlyError::new_err(message.into())
 }
 
 pub fn register(py: Python<'_>, m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add("Error", py.get_type::<Error>())?;
+    m.add("ReadOnlyError", py.get_type::<ReadOnlyError>())?;
     m.add("StorageError", py.get_type::<StorageError>())?;
     m.add("RepositoryError", py.get_type::<RepositoryError>())?;
     m.add("GitError", py.get_type::<GitError>())?;

@@ -81,7 +81,7 @@ impl Backend {
     fn write_store(&mut self) -> PyResult<&mut RawStore> {
         match self {
             Self::Rw(store) => Ok(store),
-            Self::Ro(_) => Err(error::storage_err_msg(
+            Self::Ro(_) => Err(error::read_only_err(
                 "policy store is read-only; open with PolicyStore.from_profile / PolicyStore.open",
             )),
         }
@@ -127,7 +127,7 @@ impl PyPolicyStore {
     }
 
     /// Read-only handle on the same path (upstream `Store::reader`: no
-    /// locking, many concurrent readers). Write methods raise `StorageError`.
+    /// locking, many concurrent readers). Write methods raise `ReadOnlyError`.
     #[classmethod]
     fn reader(_cls: &Bound<'_, PyType>, profile: PyRef<'_, PyProfile>) -> PyResult<Self> {
         let path = profile.inner.node().join(node_mod::POLICIES_DB_FILE);

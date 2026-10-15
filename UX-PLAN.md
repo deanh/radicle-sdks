@@ -9,7 +9,9 @@ Execution record:
 - Patch 2 implemented: all 21 snapshot classes have structural equality/hash;
   tests cover independent loads, nested-only differences, same-ID changes,
   unrelated types, copied collections and identity handles.
-- Patch 5 and supporting tooling are next; 3 and 4 remain consumer-triggered.
+- Patch 5 implemented: keyword-only metadata/revision bounds and uniform
+  ReadOnlyError, with updated callers and migration notes. Helper build:
+  190 tests passed. Supporting tooling is next; 3 and 4 remain consumer-triggered.
 
 Original scope follows. Scope: remove concrete
 friction from the *existing* alpha surface. "Pythonic" is not a completeness

@@ -15,6 +15,19 @@ All notable changes to `radicle-py` are documented here.
 - Narrow finite string domains in stubs with `Literal`; runtime validation is
   unchanged, but dynamic `str` variables may require type-checker narrowing.
 
+### Migration from the alpha RC
+
+| Old usage | Replacement |
+|---|---|
+| `init_project(s, signer, path, name, description, branch)` | `init_project(s, signer, path, name=name, description=description, default_branch=branch)` |
+| `patches.create/draft(title, description, target, base, head)` | `patches.create/draft(title, description, base=base, head=head, target=target)`; target defaults to `"delegates"` |
+| `patch.update(description, base, head)` | `patch.update(description, base=base, head=head)` |
+| Catch `ValueError` for read-only COB writes or `StorageError` for read-only policy writes | Catch `ReadOnlyError` (inherits `Error`); unrelated validator/storage errors are unchanged |
+| Identity-based value comparisons/dict keys | Snapshots compare/hash structurally; compare `.id`/`.oid` explicitly for entity identity |
+
+Legacy positional call forms raise `TypeError`. No path-return changes,
+accessor removals, or missing-object exception hierarchy were introduced.
+
 ## Alpha-RC — Git-distributed core MVP (`0.1.0`, commit-pinned)
 
 - Review fixes: init refuses existing `rad` remotes before destructive

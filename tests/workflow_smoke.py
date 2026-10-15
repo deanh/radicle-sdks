@@ -40,7 +40,7 @@ def project_fixture(root):
     git(work, "add", "hello.txt")
     git(work, "commit", "-m", "initial")
     base = git(work, "rev-parse", "HEAD")
-    rid = rad.init_project(storage, profile.signer(), str(work), "sdk-test", "SDK fixture", "main")
+    rid = rad.init_project(storage, profile.signer(), work, name="sdk-test", description="SDK fixture", default_branch="main")
     stored = Path(storage.path) / rid.removeprefix("rad:")
     return profile, peer, storage, storage.repository(rid), work, stored, base
 
@@ -92,7 +92,7 @@ def run_workflows(root):
 
     head = add_commit(work, stored, signer, "revision one\n")
     patches = rad.Patches.open_as(repo, signer)
-    patch = patches.draft("change", "first", "delegates", base, head)
+    patch = patches.draft("change", "first", base=base, head=head)
     assert patch.patch.base != patch.patch.head
     assert patch.ready() and not patch.ready()
     assert patch.unready() and patch.ready()
@@ -101,7 +101,7 @@ def run_workflows(root):
     patch.label(["ready"])
     assert patch.archive() and patch.unarchive() and not patch.unarchive()
     newer = add_commit(work, stored, signer, "revision two\n")
-    revision = patch.update("second", base, newer)
+    revision = patch.update("second", base=base, head=newer)
     other = rad.Patches.open_as(storage.repository(repo.rid), peer.signer()).get_mut(patch.id)
     comment = other.comment(revision, "looks good")
     other.comment(revision, "reply", comment)

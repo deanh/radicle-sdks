@@ -17,18 +17,18 @@ def test_core_workflows(tmp_path):
 def test_local_project_failures(project, tmp_path, monkeypatch):
     profile, peer, storage, repo, work, stored, base = project
     with pytest.raises(ValueError):
-        rad.init_project(storage, profile.signer(), str(work), "bad/name", "d", "main")
+        rad.init_project(storage, profile.signer(), str(work), name="bad/name", description="d", default_branch="main")
     for branch in ("", "bad..branch", "refs/heads/main"):
         with pytest.raises(ValueError):
-            rad.init_project(storage, profile.signer(), str(work), "ok", "d", branch)
+            rad.init_project(storage, profile.signer(), str(work), name="ok", description="d", default_branch=branch)
     with pytest.raises(ValueError):
-        rad.init_project(storage, profile.signer(), str(work), "ok", "d", "main", visibility="invalid")
+        rad.init_project(storage, profile.signer(), str(work), name="ok", description="d", default_branch="main", visibility="invalid")
     config_before = git(work, "config", "--local", "--list")
     refs_before = git(work, "for-each-ref", "refs/remotes/rad/")
     assert refs_before
     for description in ("d", "corrected description"):
         with pytest.raises(rad.Error, match="already has a 'rad' remote"):
-            rad.init_project(storage, profile.signer(), str(work), "ok", description, "main")
+            rad.init_project(storage, profile.signer(), str(work), name="ok", description=description, default_branch="main")
         assert git(work, "remote") == "rad"
         assert git(work, "config", "--local", "--list") == config_before
         assert git(work, "for-each-ref", "refs/remotes/rad/") == refs_before
@@ -51,14 +51,14 @@ def test_local_project_failures(project, tmp_path, monkeypatch):
     git(fresh, "init", "--initial-branch=main")
     git(fresh, "commit", "--allow-empty", "-m", "initial")
     with pytest.raises(rad.GitError):
-        rad.init_project(storage, profile.signer(), str(fresh), "ok", "d", "absent")
+        rad.init_project(storage, profile.signer(), str(fresh), name="ok", description="d", default_branch="absent")
     assert git(fresh, "remote") == ""
     with monkeypatch.context() as env:
         env.setenv("PATH", "")
         with pytest.raises(rad.Error):
             rad.checkout_project(storage, repo.rid, profile.node_id, str(tmp_path / "no-git"))
         with pytest.raises(rad.Error):
-            rad.init_project(storage, profile.signer(), str(fresh), "no-git", "d", "main")
+            rad.init_project(storage, profile.signer(), str(fresh), name="no-git", description="d", default_branch="main")
     assert git(fresh, "remote") == ""
     assert storage.repositories() == [repo.rid]
 
@@ -70,7 +70,7 @@ def test_private_project(tmp_path):
     work.mkdir()
     git(work, "init", "--initial-branch=main")
     git(work, "commit", "--allow-empty", "-m", "initial")
-    rid = rad.init_project(storage, profile.signer(), str(work), "private", "d", "main", visibility="private")
+    rid = rad.init_project(storage, profile.signer(), str(work), name="private", description="d", default_branch="main", visibility="private")
     assert storage.repository(rid).identity().visibility == "private"
 
 
@@ -78,9 +78,9 @@ def test_patch_validation_and_authorization(project):
     profile, peer, storage, repo, work, stored, base = project
     head = add_commit(work, stored, profile.signer(), "patch\n")
     writer = rad.Patches.open_as(repo, profile.signer())
-    patch = writer.create("title", "desc", "delegates", base, head)
+    patch = writer.create("title", "desc", base=base, head=head)
     revision = patch.patch.latest_revision
-    with pytest.raises(ValueError, match="read-only"):
+    with pytest.raises(rad.ReadOnlyError, match="read-only"):
         rad.Patches.open(repo).get_mut(patch.id)
     with pytest.raises(rad.CobError):
         writer.get_mut("0" * 40)
@@ -93,9 +93,9 @@ def test_patch_validation_and_authorization(project):
     with pytest.raises(ValueError):
         patch.comment("invalid", "x")
     with pytest.raises(ValueError):
-        patch.update("x", "invalid", head)
+        patch.update("x", base="invalid", head=head)
     with pytest.raises(rad.CobError):
-        patch.update("x", base, "0" * 40)
+        patch.update("x", base=base, head="0" * 40)
     with pytest.raises(rad.CobError):
         patch.comment("0" * 40, "x")
     with pytest.raises(rad.CobError):
@@ -137,7 +137,7 @@ def test_snapshots_and_clearing(project):
     comments.clear()
     assert len(snapshot.comments) == 1
     patches = rad.Patches.open_as(repo, profile.signer())
-    patch = patches.create("t", "d", "delegates", base, base)
+    patch = patches.create("t", "d", base=base, head=base)
     patch.assign([peer.did])
     patch.assign([])
     patch.label(["bug"])
@@ -150,7 +150,7 @@ def test_snapshots_and_clearing(project):
     author_revision = patch.patch.latest_revision
     peer_head = add_commit(work, stored, peer.signer(), "peer changes\n")
     peer_patch = rad.Patches.open_as(repo, peer.signer()).get_mut(patch.id)
-    peer_revision = peer_patch.update("peer revision", base, peer_head)
+    peer_revision = peer_patch.update("peer revision", base=base, head=peer_head)
     refreshed = patch.reload()
     assert refreshed.revisions[-1].id == peer_revision
     assert refreshed.revisions[-1].author == peer.did

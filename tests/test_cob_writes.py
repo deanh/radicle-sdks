@@ -28,11 +28,11 @@ class TestStoreModes:
     def test_open_is_read_only(self, repo):
         issues = rad.Issues.open(repo)
         assert "read-only" in repr(issues)
-        with pytest.raises(ValueError, match="read-only"):
+        with pytest.raises(rad.ReadOnlyError, match="read-only"):
             issues.create("t", "d")
         patches = rad.Patches.open(repo)
-        with pytest.raises(ValueError, match="read-only"):
-            patches.create("t", "d", "delegates", repo.head.oid, repo.head.oid)
+        with pytest.raises(rad.ReadOnlyError, match="read-only"):
+            patches.create("t", "d", base=repo.head.oid, head=repo.head.oid)
 
     def test_open_as_is_write(self, repo, profile):
         issues = rad.Issues.open_as(repo, profile.signer())
@@ -150,7 +150,7 @@ class TestIssueWrites:
 class TestPatchWrites:
     def test_create_open_patch(self, patches_w, repo):
         pm = patches_w.create(
-            "patch A", "d", "delegates", repo.head.oid, repo.head.oid, labels=["x"]
+            "patch A", "d", base=repo.head.oid, head=repo.head.oid, labels=["x"]
         )
         assert HEX40.match(pm.id)
         assert pm.patch.state == "open"
@@ -161,7 +161,7 @@ class TestPatchWrites:
 
     def test_draft_with_branch_target_roundtrips(self, patches_w, repo):
         pm = patches_w.draft(
-            "patch B", "d", "branch:release", repo.head.oid, repo.head.oid
+            "patch B", "d", target="branch:release", base=repo.head.oid, head=repo.head.oid
         )
         assert pm.patch.state == "draft"
         # input "branch:<name>" ⇢ stored refs/heads/<name> ⇢ output "branch:<name>"
@@ -174,27 +174,27 @@ class TestPatchWrites:
         # repeated-prefix branches keep their inner prefix (bare-name
         # canonical form).
         pm = patches_w.draft(
-            "q", "d", "branch:refs/heads/foo", repo.head.oid, repo.head.oid
+            "q", "d", target="branch:refs/heads/foo", base=repo.head.oid, head=repo.head.oid
         )
         assert pm.patch.target == "branch:foo"  # canonical bare
         pm2 = patches_w.draft(
             "r",
             "d",
-            "branch:refs/heads/refs/heads/nested",
-            repo.head.oid,
-            repo.head.oid,
+            target="branch:refs/heads/refs/heads/nested",
+            base=repo.head.oid,
+            head=repo.head.oid,
         )
         # One prefix removed only — trim_start_matches would have eaten both.
         assert pm2.patch.target == "branch:refs/heads/nested"
 
     def test_created_patches_are_readable(self, patches_w, repo):
-        pm = patches_w.create("p", "d", "delegates", repo.head.oid, repo.head.oid)
+        pm = patches_w.create("p", "d", base=repo.head.oid, head=repo.head.oid)
         got = rad.Patches.open(repo).get(pm.id)
         assert got is not None and got.title == "p" and got.state == "open"
         assert pm.id in [x.id for x in rad.Patches.open(repo).all()]
 
     def test_invalid_target_and_oids(self, patches_w, repo):
         with pytest.raises(ValueError, match="delegates.*branch"):
-            patches_w.draft("t", "d", "bogus", repo.head.oid, repo.head.oid)
+            patches_w.draft("t", "d", target="bogus", base=repo.head.oid, head=repo.head.oid)
         with pytest.raises(ValueError, match="invalid git OID"):
-            patches_w.draft("t", "d", "delegates", "zz", repo.head.oid)
+            patches_w.draft("t", "d", base="zz", head=repo.head.oid)

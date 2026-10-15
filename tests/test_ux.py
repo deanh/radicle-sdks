@@ -85,6 +85,39 @@ def test_storage_tree_and_lifecycle_sugar(project):
     assert len(raw.history("xyz.radicle.issue", issue.id)) == count + 3
 
 
+def test_keyword_only_migration_and_readonly_errors(project):
+    profile, _, storage, repo, work, _, base = project
+    patches = rad.Patches.open_as(repo, profile.signer())
+    patch = patches.create("t", "d", base=base, head=base)
+    assert patch.patch.target == "delegates"
+    for legacy in (
+        lambda: rad.init_project(storage, profile.signer(), work, "name", "d", "main"),
+        lambda: patches.create("t", "d", "delegates", base, base),
+        lambda: patches.draft("t", "d", "delegates", base, base),
+        lambda: patch.update("d", base, base),
+    ):
+        with pytest.raises(TypeError, match="positional"):
+            legacy()
+    issues_ro = rad.Issues.open(repo)
+    patches_ro = rad.Patches.open(repo)
+    policy_ro = rad.PolicyStore.reader(profile)
+    for write in (
+        lambda: issues_ro.create("t", "d"), lambda: issues_ro.get_mut(patch.id),
+        lambda: patches_ro.create("t", "d", base=base, head=base),
+        lambda: patches_ro.draft("t", "d", base=base, head=base),
+        lambda: patches_ro.get_mut(patch.id),
+        lambda: policy_ro.follow(profile.node_id), lambda: policy_ro.unfollow(profile.node_id),
+        lambda: policy_ro.seed(repo.rid), lambda: policy_ro.unseed(repo.rid),
+        lambda: policy_ro.set_follow_policy(profile.node_id, "allow"),
+        lambda: policy_ro.set_seed_policy(repo.rid, "allow"),
+        lambda: policy_ro.unblock_rid(repo.rid), lambda: policy_ro.unblock_nid(profile.node_id),
+    ):
+        with pytest.raises(rad.ReadOnlyError) as raised:
+            write()
+        assert isinstance(raised.value, rad.Error)
+        assert not isinstance(raised.value, (ValueError, rad.StorageError))
+
+
 def test_reprs_and_runtime_literals(project):
     profile, _, _, repo, _, stored, base = project
     issue = rad.Issues.open_as(repo, profile.signer()).create("title", "private body")

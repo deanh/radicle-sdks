@@ -343,7 +343,7 @@ pub struct PyIssues {
 impl PyIssues {
     fn write_signer(&self) -> PyResult<PySigner> {
         self.signer.clone().ok_or_else(|| {
-            error::value_err(
+            error::read_only_err(
                 "issue store is read-only; open with Issues.open_as(repository, signer)",
             )
         })
@@ -674,7 +674,7 @@ pub struct PyPatches {
 impl PyPatches {
     fn write_signer(&self) -> PyResult<PySigner> {
         self.signer.clone().ok_or_else(|| {
-            error::value_err(
+            error::read_only_err(
                 "patch store is read-only; open with Patches.open_as(repository, signer)",
             )
         })
@@ -800,14 +800,14 @@ impl PyPatches {
     /// Create an **open** patch (upstream `Patches::create`). `target` is
     /// `"delegates"` or `"branch:<name>"`; `base`/`head` are git commit OIDs
     /// that must exist in the repository.
-    #[pyo3(signature = (title, description, target, base, head, labels=None))]
+    #[pyo3(signature = (title, description, *, base, head, target="delegates", labels=None))]
     fn create(
         &self,
         title: &str,
         description: &str,
-        target: &str,
         base: &str,
         head: &str,
+        target: &str,
         labels: Option<Vec<String>>,
     ) -> PyResult<PyPatchMut> {
         self._create_or_draft(title, description, target, base, head, labels, false)
@@ -815,14 +815,14 @@ impl PyPatches {
 
     /// Create a **draft** patch (upstream `Patches::draft`); use ready()
     /// on the returned handle to promote it.
-    #[pyo3(signature = (title, description, target, base, head, labels=None))]
+    #[pyo3(signature = (title, description, *, base, head, target="delegates", labels=None))]
     fn draft(
         &self,
         title: &str,
         description: &str,
-        target: &str,
         base: &str,
         head: &str,
+        target: &str,
         labels: Option<Vec<String>>,
     ) -> PyResult<PyPatchMut> {
         self._create_or_draft(title, description, target, base, head, labels, true)
@@ -913,6 +913,7 @@ impl PyPatchMut {
             .map(|id| id.to_string())
             .map_err(cob_err))
     }
+    #[pyo3(signature = (description, *, base, head))]
     fn update(&mut self, description: &str, base: &str, head: &str) -> PyResult<String> {
         let base = crate::write::parse_git_oid(base)?;
         let head = crate::write::parse_git_oid(head)?;

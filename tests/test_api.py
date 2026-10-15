@@ -24,7 +24,7 @@ TOP_LEVEL = {
     "functions": ["parse_repo_id", "parse_did", "parse_node_id", "parse_oid", "parse_object_id",
                   "init_project", "fork_project", "checkout_project"],
     "exceptions": [
-        "Error", "StorageError", "RepositoryError", "GitError",
+        "Error", "ReadOnlyError", "StorageError", "RepositoryError", "GitError",
         "DatabaseError", "IdentityError", "SignerError", "PolicyError", "CobError",
     ],
     "classes": [

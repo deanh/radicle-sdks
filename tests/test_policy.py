@@ -34,7 +34,7 @@ class TestConstruction:
         from radiclepy import _test
 
         reader = rad.PolicyStore.reader(profile)
-        with pytest.raises(rad.StorageError):
+        with pytest.raises(rad.ReadOnlyError):
             reader.follow(_test.local_remote_id(profile))
 
     def test_open_lowlevel(self, tmp_path):

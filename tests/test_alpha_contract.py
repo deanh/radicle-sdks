@@ -45,7 +45,7 @@ def test_lazy_stores_and_value_types(tmp_path):
     assert isinstance(issue.issue, rad.Issue)
     assert isinstance(issue.issue.comments[0], rad.Comment)
     patches = rad.Patches.open_as(repo, profile.signer())
-    patch = patches.create("t", "d", "delegates", repo.head.oid, repo.head.oid)
+    patch = patches.create("t", "d", base=repo.head.oid, head=repo.head.oid)
     rev = patch.patch.revisions[0]
     assert isinstance(patch, rad.PatchMut) and isinstance(rev, rad.Revision)
     patch.review(rev.id, "reject", "reason")

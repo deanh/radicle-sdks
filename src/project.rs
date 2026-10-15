@@ -14,7 +14,7 @@ fn rid(value: &str) -> PyResult<RepoId> {
 }
 
 #[pyfunction]
-#[pyo3(signature = (storage, signer, path, name, description, default_branch, *, visibility="public"))]
+#[pyo3(signature = (storage, signer, path, *, name, description, default_branch, visibility="public"))]
 pub fn init_project(
     storage: &PyStorage,
     signer: &PySigner,

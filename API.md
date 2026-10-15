@@ -43,6 +43,7 @@ Raises `ValueError`.
 |---|---|---|
 | `Error` | `Exception` | base; profile load/init and io failures today |
 | `StorageError` | `Error` | (registered; used from Phase 2) |
+| `ReadOnlyError` | `Error` | writes through read-only COB/policy handles |
 | `RepositoryError` | `Error` | (registered; used from Phase 2) |
 | `GitError` | `Error` | (registered; used from Phase 2) |
 | `DatabaseError` | `Error` | (registered; used from Phase 3) |
@@ -324,7 +325,7 @@ Primary constructor (read-write). Also available as `profile.policy_store()`.
 
 ##### `PolicyStore.reader(profile: Profile) -> PolicyStore` (classmethod)
 Read-only handle (upstream `Store::reader`: concurrent readers, no locking).
-Write methods raise `StorageError`.
+Write methods raise `ReadOnlyError`.
 
 ##### `PolicyStore.open(path: str) -> PolicyStore` (classmethod)
 Low-level read-write constructor at an explicit path.
@@ -580,7 +581,7 @@ m = issues.create("Title", "desc", labels=["bug"])
 m.comment("looks good")                                # reply_to defaults to root
 m.lifecycle("closed", "solved")
 patches = rad.Patches.open_as(repo, profile.signer())
-pm = patches.draft("WIP", "d", "branch:release", base, head)
+pm = patches.draft("WIP", "d", base=base, head=head, target="branch:release")
 ```
 
 Stores opened with plain `open()` raise `ValueError` on write attempts.
@@ -620,11 +621,11 @@ Each mutator commits **one COB transaction** and returns the new change-entry
 
 ##### `Patches.open_as(repository: Repository, signer: Signer) -> Patches` (classmethod)
 
-##### `patches.create(title, description, target, base, head, labels=None) -> PatchMut` (method) — open patch; `target` `"delegates"` or `"branch:<name>"` (bare name accepted; a fully-qualified `branch:refs/heads/<name>` is accepted too and **canonicalizes to bare output**); `base`/`head` git commit Oids that exist in the repository
+##### `patches.create(title, description, *, base, head, target="delegates", labels=None) -> PatchMut` (method) — open patch; `target` `"delegates"` or `"branch:<name>"` (bare name accepted; a fully-qualified `branch:refs/heads/<name>` is accepted too and **canonicalizes to bare output**); `base`/`head` git commit Oids that exist in the repository
 
 ##### `patches.draft(...) -> PatchMut` (method) — same signature as `create`, created in `draft` state.
 
-##### `patches.get_mut(id: ObjectId) -> PatchMut` (method) — write stores only; `ValueError` for malformed IDs or read-only access, `CobError` if absent.
+##### `patches.get_mut(id: ObjectId) -> PatchMut` (method) — write stores only; `ValueError` for malformed IDs, `ReadOnlyError` for read-only access, `CobError` if absent.
 
 #### `PatchMut` (mutable handle)
 
@@ -645,7 +646,7 @@ No atomic multi-call transaction or automatic Git branch movement is promised.
 
 ##### `patch_mut.assign(assignees: Sequence[Did]) -> Oid` (method) — replaces the assignee set
 
-##### `patch_mut.update(description: str, base: Oid, head: Oid) -> Oid` (method) — add a revision; commits must exist in storage, returns revision ID
+##### `patch_mut.update(description: str, *, base: Oid, head: Oid) -> Oid` (method) — add a revision; commits must exist in storage, returns revision ID
 
 ##### `patch_mut.ready() -> bool` (method) — false unless draft
 
@@ -672,7 +673,7 @@ are the only non-round-tripping case.
 
 These are **non-interactive crate adapters**, not calls to the interactive `rad init` CLI. All required metadata is explicit. No node daemon or `rad` executable is needed. Upstream init/checkout invoke the **Git executable** (`git` on PATH). These synchronous operations retain the GIL, including during upstream subprocess calls.
 
-#### `init_project(storage: Storage, signer: Signer, path: str, name: str, description: str, default_branch: str, *, visibility: str = "public") -> RepoId`
+#### `init_project(storage: Storage, signer: Signer, path: str, *, name: str, description: str, default_branch: str, visibility: str = "public") -> RepoId`
 
 Convert an existing Git repository with a committed, short-named default branch into a Radicle project. Visibility is `public` or `private` (empty explicit allow list; advanced access administration is excluded). Sets up the `rad` remote and local storage, and signs refs. Returns the new project ID. Binding name/branch/visibility validation raises `ValueError`; absent repository/branch/commit raises `GitError`; upstream project-payload and multi-step failures raise `Error`. An existing `rad` remote is refused before upstream init (`Error`), preserving its configuration and tracking refs; init is not a metadata-update API. For new initialization, cleanup follows upstream and is not a rollback guarantee.
 
@@ -703,6 +704,15 @@ These typed timestamps come from `cob::common::Timestamp`; **RawOp.timestamp rem
 ## Quick start
 
 See [README.md](./README.md) for a complete runnable, non-interactive temporary-project example and Git-URI installation.
+
+## Keyword-only metadata and read-only errors
+
+Project metadata after `path` is keyword-only. Patch creation/drafting accepts
+`title, description, *, base, head, target="delegates", labels=None`;
+patch updates accept `description, *, base, head`. Legacy positional forms
+raise `TypeError`. All writes through read-only COB/policy handles raise
+`radiclepy.ReadOnlyError`, a direct subclass of `Error`. Input-validation
+errors remain distinct; no generalized missing-object exception was added.
 
 ## Snapshot equality and hashing
 

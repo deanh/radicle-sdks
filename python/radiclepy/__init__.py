@@ -48,6 +48,7 @@ from .radiclepy import (  # type: ignore[attr-defined]
     SignedRefs,
     Repository,
     RepositoryError,
+    ReadOnlyError,
     Signer,
     SignerError,
     Storage,
@@ -80,6 +81,7 @@ __all__ = [
     "IdentityError",
     "PolicyError",
     "RepositoryError",
+    "ReadOnlyError",
     "SignerError",
     "StorageError",
     # identity & profile
