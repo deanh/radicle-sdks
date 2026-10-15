@@ -6,6 +6,7 @@
 
 use std::collections::BTreeMap;
 use std::str::FromStr;
+use std::path::PathBuf;
 use std::sync::Arc;
 
 use pyo3::prelude::*;
@@ -29,7 +30,7 @@ pub struct PyHome {
 impl PyHome {
     /// Create a home handle at `path`, creating directories if needed.
     #[new]
-    fn new(path: &str) -> PyResult<Self> {
+    fn new(path: PathBuf) -> PyResult<Self> {
         Ok(Self {
             inner: RawHome::new(path).map_err(error::io_err)?,
         })
@@ -37,7 +38,7 @@ impl PyHome {
 
     /// Load an existing home from `path` (validates the layout).
     #[classmethod]
-    fn load(_cls: &Bound<'_, PyType>, path: &str) -> PyResult<Self> {
+    fn load(_cls: &Bound<'_, PyType>, path: PathBuf) -> PyResult<Self> {
         Ok(Self {
             inner: RawHome::load(path).map_err(error::io_err)?,
         })
@@ -150,7 +151,7 @@ fn secure_seed() -> PyResult<[u8; 32]> {
 /// Input order is deliberate: the alias is validated BEFORE the home is
 /// created, so a rejected call leaves no filesystem state behind.
 fn init_with_seed(
-    home_path: &str,
+    home_path: PathBuf,
     alias: &str,
     passphrase: Option<&str>,
     seed: [u8; 32],
@@ -186,7 +187,7 @@ impl PyProfile {
     #[pyo3(signature = (home_path, alias, passphrase = None))]
     fn init(
         _cls: &Bound<'_, PyType>,
-        home_path: &str,
+        home_path: PathBuf,
         alias: &str,
         passphrase: Option<&str>,
     ) -> PyResult<Self> {
@@ -202,7 +203,7 @@ impl PyProfile {
     #[pyo3(signature = (home_path, alias, seed, passphrase = None))]
     fn _from_seed(
         _cls: &Bound<'_, PyType>,
-        home_path: &str,
+        home_path: PathBuf,
         alias: &str,
         seed: &[u8],
         passphrase: Option<&str>,
@@ -231,6 +232,12 @@ impl PyProfile {
         PyHome {
             inner: self.inner.home().clone(),
         }
+    }
+
+    /// Storage owned by this profile (same backing storage as from_profile).
+    #[getter]
+    fn storage(&self) -> crate::storage::PyStorage {
+        crate::storage::PyStorage::from_profile_ref(&self.inner)
     }
 
     /// Alias lookup facade (not a collection — see API.md).

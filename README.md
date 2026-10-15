@@ -73,10 +73,11 @@ with tempfile.TemporaryDirectory() as directory:
     git("add", "README.md")
     git("commit", "-m", "initial commit")
 
-    profile = rad.Profile.init(str(root / "rad-home"), "alice")
-    storage = rad.Storage.from_profile(profile)
+    profile = rad.Profile.init(root / "rad-home", "alice")
+    storage = profile.storage
     signer = profile.signer()
-    rid = rad.init_project(storage, signer, str(work), "hello", "Demo", "main")
+    rid = rad.init_project(storage, signer, work,
+                           name="hello", description="Demo", default_branch="main")
     repo = storage.repository(rid)
     print(rid, repo.commit(repo.head.oid).message_str)
 
@@ -85,7 +86,7 @@ with tempfile.TemporaryDirectory() as directory:
     issue.comment("A reply")
     for comment in issue.reload().comments:
         print(comment.author, comment.body)
-    issue.lifecycle("closed", "solved")
+    issue.close("solved")
 
     rad.fork_project(storage, signer, rid)
     rad.checkout_project(storage, rid, signer.node_id, str(root / "checkout"))
@@ -110,7 +111,8 @@ SSH-agent integration is not verified by the alpha suite.
   on use. `Issues.open`/`Patches.open` are lazy; failures occur on operations.
 - Signers and write-store/mutable handles are thread-affine; no async API or
   cross-thread guarantee. Init/checkout retain the GIL during upstream Git
-  subprocess calls. Paths currently accept strings, not `PathLike`.
+  subprocess calls. Path inputs accept `str` and `os.PathLike[str]`; byte
+  paths are rejected. Path returns remain strings.
 - Init refuses an existing `rad` remote without altering its configuration
   or tracking refs. Checkout uses canonical heads; its `remote` parameter
   selects the push namespace, not a peer's branch to check out.

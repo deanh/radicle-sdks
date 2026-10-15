@@ -14,6 +14,11 @@ pub struct Comment {
     pub reply_to: Option<String>,
 }
 
+#[pymethods]
+impl Comment {
+    fn __repr__(&self) -> String { format!("Comment({}, {})", self.id, self.author) }
+}
+
 pub fn comment<L>(id: &thread::CommentId, c: &thread::Comment<L>) -> Comment {
     Comment {
         id: id.to_string(),
@@ -34,6 +39,11 @@ pub struct Review {
     pub timestamp: u64,
 }
 
+#[pymethods]
+impl Review {
+    fn __repr__(&self) -> String { format!("Review({}, {}, {:?})", self.id, self.author, self.verdict) }
+}
+
 #[pyclass(name = "Revision", module = "radiclepy", get_all, frozen)]
 #[derive(Clone)]
 pub struct Revision {
@@ -45,6 +55,11 @@ pub struct Revision {
     pub timestamp: u64,
     pub comments: Vec<Comment>,
     pub reviews: Vec<Review>,
+}
+
+#[pymethods]
+impl Revision {
+    fn __repr__(&self) -> String { format!("Revision({}, {})", self.id, self.head) }
 }
 
 pub fn revision(r: &patch::Revision) -> Revision {

@@ -2,6 +2,16 @@
 
 All notable changes to `radicle-py` are documented here.
 
+## Post-alpha Python UX (unreleased)
+
+- Accept `str | os.PathLike[str]` on filesystem inputs; bytes paths remain
+  unsupported and path returns remain strings.
+- Add `Profile.storage`, `rid in storage`, iteration over copied tree entries,
+  issue `close`/`reopen` sugar (one lifecycle operation), and bounded
+  collaboration reprs without discussion text.
+- Narrow finite string domains in stubs with `Literal`; runtime validation is
+  unchanged, but dynamic `str` variables may require type-checker narrowing.
+
 ## Alpha-RC — Git-distributed core MVP (`0.1.0`, commit-pinned)
 
 - Review fixes: init refuses existing `rad` remotes before destructive

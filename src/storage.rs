@@ -5,6 +5,7 @@
 //! borrow-lifetime pressure across the GIL.
 
 use std::str::FromStr;
+use std::path::PathBuf;
 use std::sync::Arc;
 
 use pyo3::prelude::*;
@@ -57,17 +58,19 @@ pub struct PyStorage {
     pub(crate) inner: Arc<StorageInner>,
 }
 
+impl PyStorage {
+    pub(crate) fn from_profile_ref(profile: &radicle::Profile) -> Self {
+        Self { inner: Arc::new(StorageInner { raw: profile.storage.clone() }) }
+    }
+}
+
 #[pymethods]
 impl PyStorage {
     /// Open storage for a profile (primary constructor — UserInfo comes from
     /// the profile, matching `profile.storage`).
     #[classmethod]
     fn from_profile(_cls: &Bound<'_, PyType>, profile: PyRef<'_, PyProfile>) -> Self {
-        Self {
-            inner: Arc::new(StorageInner {
-                raw: profile.inner.storage.clone(),
-            }),
-        }
+        Self::from_profile_ref(&profile.inner)
     }
 
     /// Low-level constructor: open (or create) storage at `path` with an
@@ -75,7 +78,7 @@ impl PyStorage {
     #[classmethod]
     fn open(
         _cls: &Bound<'_, PyType>,
-        path: &str,
+        path: PathBuf,
         alias: &str,
         node_id: &str,
     ) -> PyResult<Self> {
@@ -122,6 +125,10 @@ impl PyStorage {
         let rid = RepoId::from_str(rid)
             .map_err(|err| error::value_err(format!("invalid RepoId: {err}")))?;
         self.inner.raw.contains(&rid).map_err(error::repository_err)
+    }
+
+    fn __contains__(&self, rid: &str) -> PyResult<bool> {
+        self.contains(rid)
     }
 
     /// Repository ids present in this storage (unsorted; storage order).

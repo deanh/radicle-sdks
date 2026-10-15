@@ -704,6 +704,28 @@ These typed timestamps come from `cob::common::Timestamp`; **RawOp.timestamp rem
 
 See [README.md](./README.md) for a complete runnable, non-interactive temporary-project example and Git-URI installation.
 
+## Python convenience surface
+
+All public filesystem inputs (`path` and `home_path`) accept
+`str | os.PathLike[str]`, including custom `__fspath__` implementations.
+Bytes and `PathLike[bytes]` are rejected with `TypeError`. Path returns remain
+strings; existing non-UTF-8 path-property errors are unchanged (no lossy
+conversion is introduced).
+
+- `profile.storage -> Storage` is equivalent to `Storage.from_profile(profile)`.
+- `rid in storage` delegates to `storage.contains(rid)`, including its errors
+  and filesystem access. It does not make storage iterable or change truthiness.
+- `iter(tree)` iterates a copied entry list in canonical Git order; it performs
+  no I/O and holds no repository handle open.
+- `issue_mut.close(reason="unspecified") -> Oid` and
+  `issue_mut.reopen() -> Oid` each perform exactly one upstream lifecycle write.
+  The original `lifecycle` API remains available.
+- Collaboration reprs show bounded IDs/metadata, not discussion bodies.
+- Stubs narrow finite states/kinds/policies/scopes to `Literal` annotations.
+  Runtime validation is unchanged; dynamically typed `str` callers may need
+  explicit narrowing for static type checking. Patch targets remain `str`
+  because `branch:<name>` is an open-ended domain.
+
 ## Layout notes
 
 - Extension module: `radiclepy.radiclepy` (compiled); the package

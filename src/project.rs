@@ -1,6 +1,7 @@
 //! Non-interactive local project workflows. The crate (not `rad init` CLI)
 //! performs the work; upstream init/checkout invoke the Git executable.
 use pyo3::prelude::*;
+use std::path::PathBuf;
 use radicle::git;
 use radicle::identity::{RepoId, Visibility};
 
@@ -17,7 +18,7 @@ fn rid(value: &str) -> PyResult<RepoId> {
 pub fn init_project(
     storage: &PyStorage,
     signer: &PySigner,
-    path: &str,
+    path: PathBuf,
     name: &str,
     description: &str,
     default_branch: &str,
@@ -44,7 +45,7 @@ pub fn init_project(
         "private" => Visibility::private([]),
         _ => return Err(error::value_err("visibility must be 'public' or 'private'")),
     };
-    let repo = git::raw::Repository::open(path).map_err(error::git_err)?;
+    let repo = git::raw::Repository::open(&path).map_err(error::git_err)?;
     // Upstream init cleanup deletes `rad` on failure, even if it predates
     // this call. Match the CLI's preflight to preserve existing configuration
     // and remote-tracking refs before any upstream side effects.
@@ -88,15 +89,15 @@ pub fn checkout_project(
     storage: &PyStorage,
     repo_id: &str,
     remote: &str,
-    path: &str,
+    path: PathBuf,
     bare: bool,
-) -> PyResult<String> {
+) -> PyResult<PathBuf> {
     let remote = remote
         .parse()
         .map_err(|e| error::value_err(format!("invalid NodeId: {e}")))?;
-    radicle::rad::checkout(rid(repo_id)?, &remote, path, &storage.inner.raw, bare)
+    radicle::rad::checkout(rid(repo_id)?, &remote, &path, &storage.inner.raw, bare)
         .map_err(|e| error::op_err(format!("checkout project: {e}")))?;
-    Ok(path.to_owned())
+    Ok(path)
 }
 
 pub fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {

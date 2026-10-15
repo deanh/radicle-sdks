@@ -582,6 +582,15 @@ impl PyIssueMut {
             Ok(entry.to_string())
         })
     }
+    #[pyo3(signature = (reason="unspecified"))]
+    fn close(&mut self, reason: &str) -> PyResult<String> {
+        self.lifecycle("closed", Some(reason))
+    }
+
+    fn reopen(&mut self) -> PyResult<String> {
+        self.lifecycle("open", None)
+    }
+
     /// Open/close the issue; returns the new change-entry id.
     /// `state` is `"open"` or `"closed"`; `reason` (when closing) is
     /// `"unspecified"` (default) or `"solved"` (upstream `CloseReason`).

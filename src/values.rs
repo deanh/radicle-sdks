@@ -244,6 +244,10 @@ impl Tree {
         self.entries.len()
     }
 
+    fn __iter__(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
+        Ok(self.entries.clone().into_pyobject(py)?.call_method0("__iter__")?.unbind())
+    }
+
     fn __repr__(&self) -> String {
         format!("Tree({}, {} entries)", self.oid, self.entries.len())
     }

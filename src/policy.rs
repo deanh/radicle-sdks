@@ -140,11 +140,11 @@ impl PyPolicyStore {
 
     /// Low-level constructor: read-write store at an explicit path.
     #[classmethod]
-    fn open(_cls: &Bound<'_, PyType>, path: &str) -> PyResult<Self> {
-        let store = RawStore::open(path).map_err(policy_err)?;
+    fn open(_cls: &Bound<'_, PyType>, path: PathBuf) -> PyResult<Self> {
+        let store = RawStore::open(&path).map_err(policy_err)?;
         Ok(Self {
             backend: Backend::Rw(store),
-            path: PathBuf::from(path),
+            path,
         })
     }
 

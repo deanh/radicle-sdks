@@ -67,7 +67,7 @@ TOP_LEVEL = {
 
 MEMBERS = {
     "Profile": {
-        "attrs": ["did", "node_id", "home", "aliases"],
+        "attrs": ["did", "node_id", "home", "aliases", "storage"],
         "methods": ["signer", "policy_store", "routing_store"],
         "classmethods": ["load", "init"],
     },
@@ -76,7 +76,7 @@ MEMBERS = {
     "Signer": {"attrs": ["did", "node_id"], "methods": [], "classmethods": []},
     "Storage": {
         "attrs": ["path"],
-        "methods": ["repository", "contains", "repositories"],
+        "methods": ["repository", "contains", "repositories", "__contains__"],
         "classmethods": ["from_profile", "open"],
     },
     "Repository": {
@@ -135,7 +135,7 @@ MEMBERS = {
         "methods": [],
         "classmethods": [],
     },
-    "Tree": {"attrs": ["oid", "entries"], "methods": [], "classmethods": []},
+    "Tree": {"attrs": ["oid", "entries"], "methods": ["__iter__"], "classmethods": []},
     "TreeEntry": {
         "attrs": ["name", "name_str", "kind", "mode", "oid"],
         "methods": [],
@@ -217,7 +217,7 @@ MEMBERS = {
         "attrs": ["id", "issue"],
         "methods": [
             "reload", "comment", "edit", "edit_description", "label",
-            "assign", "lifecycle",
+            "assign", "lifecycle", "close", "reopen",
         ],
         "classmethods": [],
     },
