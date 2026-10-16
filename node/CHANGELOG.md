@@ -20,12 +20,16 @@ Rust >=1.91, and Git/C build tools. Other native platforms are not yet validated
 - Exact-commit npm 11/npm 12/pnpm install gates. Bun Git prepare remains best effort
   and is known to fail to install the development build tools.
 
-### Still pending for alpha polish
+- Private handle constructors, no public native conversion factories, and direct
+  JavaScript construction guards; positive/negative consumer declaration tests.
+- `initProject` supports `visibility: 'private'` (empty upstream allowlist),
+  retaining public initialization by default and rejecting invalid visibility.
+- A self-contained README quick start covering all three workflows, extracted
+  from the actual fence and executed through local and Git-installed exports.
+- Installed consumer typing gates; requirement-only Node wording and an explicit
+  warning that first-time native release compilation can take minutes.
 
-- Public handle constructor cleanup and negative consumer typing tests.
-- Private project initialization and a self-contained, executable README example.
-
-These are a separate follow-up patch. Bare checkout, additional Python APIs,
-publication/prebuilt distribution, and additional supported platforms are deferred.
+Bare checkout, additional Python APIs, publication/prebuilt distribution, and
+additional supported platforms remain deferred.
 Historical T0 evidence remains in the repository's `FINDINGS-TS-T0.md`; debug-build
 results there do not establish optimized-build behavior or performance.

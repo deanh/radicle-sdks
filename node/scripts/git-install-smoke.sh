@@ -38,6 +38,11 @@ case "$manager" in
 esac
 cp "$root/node/test/install-smoke.mjs" smoke.mjs
 node smoke.mjs
+cp "$root/node/test/readme-consumer.mjs" readme.mjs
+node readme.mjs
+cp "$root/node/test/handle-types.ts" handle-types.ts
+npm exec --yes --package typescript@5.9.3 -- tsc --strict --noEmit --target ES2023 --module NodeNext --moduleResolution NodeNext handle-types.ts
+printf 'Installed consumer handle types OK\n'
 if [ "$manager" = bun ]; then
   npm exec --yes --package bun@1.4.3 -- bun smoke.mjs
 fi

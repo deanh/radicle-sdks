@@ -11,6 +11,9 @@ connections and daemon control are outside this alpha. Policy writes change
 persisted local policy; they do not perform networking. APIs may change during
 alpha; pin installations to a reviewed Git commit.
 
+For Node.js/TypeScript, see the [radicle-sdk alpha guide](node/README.md),
+including source installation and a runnable local quick start.
+
 ## Install from Git
 
 The alpha is distributed from Git, **not PyPI**. Requires CPython ≥ 3.9,

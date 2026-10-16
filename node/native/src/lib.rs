@@ -106,6 +106,8 @@ pub struct InitOptions {
     pub name: String,
     pub description: String,
     pub default_branch: String,
+    #[napi(ts_type = "'public' | 'private'")]
+    pub visibility: Option<String>,
 }
 #[napi(object)]
 pub struct CreateIssueOptions {
@@ -634,6 +636,11 @@ pub fn init_project(
     let storage = storage.inner.clone();
     let signer = signer.inner.clone();
     work(move || {
+        let visibility = match opts.visibility.as_deref().unwrap_or("public") {
+            "public" => radicle::identity::Visibility::Public,
+            "private" => radicle::identity::Visibility::private([]),
+            _ => return Err(err("ARG_VALUE", "visibility must be 'public' or 'private'")),
+        };
         let name = opts.name.try_into().map_err(|e| err("ARG_VALUE", e))?;
         let b = &opts.default_branch;
         if b.is_empty()
@@ -669,7 +676,7 @@ pub fn init_project(
             name,
             &opts.description,
             branch,
-            radicle::identity::Visibility::Public,
+            visibility,
             &*signer,
             &storage,
         )

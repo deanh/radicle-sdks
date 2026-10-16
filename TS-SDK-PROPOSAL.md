@@ -1,7 +1,8 @@
 # TypeScript SDK proposal
 
 Status: **bounded v0 workflows and supporting repository operations merged;
-alpha release polish proceeds as two reviewable patches under issue `fdcfc02`**. Goal: a
+alpha release polish A merged at `6ec6555`; B implements public-surface cleanup,
+private initialization and executable docs under issue `fdcfc02`**. Goal: a
 programmatic TypeScript interface to the same core local Radicle workflows
 radicle-py covers, wrapping the `radicle` crate. The default answer to any extra
 feature is "not until a workflow needs it". rad-pi (the pi extension for
@@ -14,9 +15,10 @@ core extraction** (§7). T0 evidence remains in
 [`node/README.md`](./node/README.md). The measured Rust minimum is 1.91. Bun's
 Git prepare fails while its runtime can use the Node-built addon. These are
 local Linux results, not broad platform or remote-CI claims. Release polish keeps
-the native crate isolated: Patch A adds release builds, 0.1.0 naming/changelog and
-an explicit Linux x86_64 (GNU/glibc)-only claim; Patch B follows after A lands with
-public constructor cleanup, private initialization and an executable README.
+the native crate isolated. Patch A (`753d025`, head `6ec6555`) landed with release
+builds, 0.1.0 naming/changelog and a Linux x86_64 (GNU/glibc)-only claim. Patch B
+builds on A with private handle constructors and consumer declaration tests,
+private initialization, and an actual README fence executed through installed exports.
 Shared core, networking, publication and broader Python parity remain separate.
 
 ### Selected package and runtime
@@ -389,10 +391,10 @@ No Python restructuring, scheduler, networking or publication is included.
 **Landing history/gate:** baseline patch `66702b1` landed as the single squashed
 commit `e284b66`, whose tree matches reviewed T0 head `adeb55c`. Issue patch
 `15cd0e4` then landed on that baseline at `a7d6bda`; abandoned intermediate T0
-history was not imported. Release polish A starts from merged `main` (`399d6c4`)
-and requires its own review and explicit landing authorization. Land A before
-implementing/validating B against the optimized build. Version is `0.1.0`, with
-the exact Git commit identifying each alpha candidate. Bare checkout remains deferred.
+history was not imported. Release polish A landed after review at `6ec6555`;
+B starts there and requires its own review and explicit landing authorization.
+Its README and consumer gates use A's optimized build. Version stays `0.1.0`,
+with the exact Git commit identifying each candidate. Bare checkout remains deferred.
 
 | Phase | Work | Exit criteria |
 |---|---|---|
