@@ -27,7 +27,8 @@ def short(oid: str) -> str:
 
 
 def by_title(items):
-    # Plain string comparison, matching the TypeScript port's `<` ordering.
+    # Unicode code-point order (Python's string order). The TypeScript port
+    # compares UTF-8 bytes to get the same order; JS `<` would not.
     return sorted(items, key=lambda item: (item.title, item.id))
 
 

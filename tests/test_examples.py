@@ -2,7 +2,8 @@
 
 The Python output is checked for exact content; the TypeScript port must then
 print byte-identical output for the same storage (skipped when the Node build is
-absent, e.g. in Python-only environments).
+absent, e.g. in Python-only environments; set RADICLE_REQUIRE_CROSS_SDK=1 to make
+that a failure instead, as CI does).
 """
 import os
 from pathlib import Path
@@ -42,6 +43,19 @@ def digest_home(tmp_path_factory):
     reviewed.assign([profile.did])
     theirs.get_mut(reviewed.id).review(reviewed.patch.latest_revision, "accept", "LGTM")
 
+    # A peer's patch I reviewed on its latest revision: no flag.
+    peer_head2 = add_commit(work, stored, bob, "peer typo fix\n")
+    i_reviewed = theirs.create("Fix typo", "Typo.", base=base, head=peer_head2)
+    mine.get_mut(i_reviewed.id).review(i_reviewed.patch.latest_revision, "accept", "Thanks")
+
+    # A peer's patch I reviewed, then the author pushed a newer revision: my old
+    # review must not suppress the flag on the new latest revision.
+    peer_head3 = add_commit(work, stored, bob, "paging rework v1\n")
+    stale = theirs.create("Rework paging", "v1.", base=base, head=peer_head3)
+    mine.get_mut(stale.id).review(stale.patch.latest_revision, "reject", "Needs tests")
+    peer_head4 = add_commit(work, stored, bob, "paging rework v2\n")
+    stale.update("v2 with tests", base=base, head=peer_head4)
+
     draft = mine.draft("WIP: release notes", "Draft.", base=base, head=my_head)
     archived = mine.create("Abandoned idea", "Old.", base=base, head=my_head)
     archived.archive()
@@ -57,7 +71,8 @@ def digest_home(tmp_path_factory):
 
     short = {name: oid[:7] for name, oid in {
         "merged": merged.id, "merged_head": merged_head, "needs_review": needs_review.id,
-        "reviewed": reviewed.id, "draft": draft.id, "archived": archived.id,
+        "reviewed": reviewed.id, "i_reviewed": i_reviewed.id, "stale": stale.id,
+        "draft": draft.id, "archived": archived.id,
         "bug": bug.id, "docs": docs.id, "question": question.id}.items()}
     return {"home": profile.home.path, "me": profile.did, "peer": peer.did[-8:],
             "rid": repo.rid, "id": short}
@@ -81,6 +96,12 @@ def test_python_digest_content(digest_home):
         "1 revision(s); latest revision verdicts: none yet. **Needs your review.**",
         f"- **Document visibility** `{s['reviewed']}` (open), by you, 1 revision(s); "
         f"latest revision verdicts: accept from did:key:...{d['peer']}.",
+        # Reviewed by me on its latest revision: no flag.
+        f"- **Fix typo** `{s['i_reviewed']}` (open), by did:key:...{d['peer']}, 1 revision(s); "
+        "latest revision verdicts: accept from you.",
+        # My reject was on revision 1; the new latest revision needs review again.
+        f"- **Rework paging** `{s['stale']}` (open), by did:key:...{d['peer']}, 2 revision(s); "
+        "latest revision verdicts: none yet. **Needs your review.**",
         f"- **WIP: release notes** `{s['draft']}` (draft), by you, 1 revision(s); "
         "latest revision verdicts: none yet.",
     ]
@@ -105,12 +126,34 @@ def test_python_digest_content(digest_home):
                         f"- patch **Document visibility** `{s['reviewed']}`\n")
 
 
-@pytest.mark.skipif(shutil.which("node") is None or not NODE_SDK.exists(),
-                    reason="TypeScript SDK not built (npm run build)")
+def require_typescript():
+    if shutil.which("node") is None or not NODE_SDK.exists():
+        if os.environ.get("RADICLE_REQUIRE_CROSS_SDK") == "1":
+            pytest.fail("RADICLE_REQUIRE_CROSS_SDK=1 but the TypeScript SDK is not built")
+        pytest.skip("TypeScript SDK not built (npm run build)")
+
+
 def test_typescript_digest_matches_python(digest_home):
+    require_typescript()
     python = run_digest([sys.executable, "examples/digest.py"], digest_home["home"])
     typescript = run_digest(["node", "examples/digest.mjs"], digest_home["home"])
     assert typescript == python
+
+
+def test_unicode_ordering_matches_across_sdks(tmp_path):
+    # Code-point order puts U+FF21 (BMP) before U+1F600 (supplementary). JS `<`
+    # compares UTF-16 code units and would put the emoji (0xD83D...) first.
+    profile, _, _, repo, _, _, _ = project_fixture(tmp_path)
+    issues = rad.Issues.open_as(repo, profile.signer())
+    for title, label in [("\U0001F600 emoji", "\U0001F600"), ("\uFF21lpha", "\uFF21"), ("Zebra", "z")]:
+        issues.create(title, "", labels=[label])
+    out = run_digest([sys.executable, "examples/digest.py"], profile.home.path)
+    titles = [line.split("**")[1] for line in out.splitlines() if line.startswith("- **")]
+    assert titles == ["Zebra", "\uFF21lpha", "\U0001F600 emoji"]
+    headings = [line[5:] for line in out.splitlines() if line.startswith("#### ")]
+    assert headings == ["z", "\uFF21", "\U0001F600"]
+    require_typescript()
+    assert run_digest(["node", "examples/digest.mjs"], profile.home.path) == out
 
 
 def test_digest_with_explicit_rids_and_an_unreadable_repository(digest_home):

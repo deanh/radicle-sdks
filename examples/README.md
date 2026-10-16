@@ -36,6 +36,10 @@ node examples/digest.mjs rad:z...
 
 Both read the profile from `RAD_HOME` (default `~/.radicle`) and print identical
 output; `tests/test_examples.py` builds one fixture and checks that byte for byte.
+Lists are sorted by Unicode code point, independent of locale (the TypeScript port
+compares UTF-8 bytes, since JavaScript's `<` compares UTF-16 code units). The
+cross-SDK checks skip without a Node build unless `RADICLE_REQUIRE_CROSS_SDK=1`,
+which the TypeScript CI workflow sets.
 A repository that can't be read is reported as such rather than aborting the run.
 
 Sample output (abridged):

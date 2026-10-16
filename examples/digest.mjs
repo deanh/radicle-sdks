@@ -17,8 +17,11 @@
 import { Profile, Issues, Patches, RadicleError } from 'radicle-sdk';
 
 const short = oid => oid.slice(0, 7);
-// Plain string comparison, matching the Python port's sort order.
-const compare = (a, b) => (a < b ? -1 : a > b ? 1 : 0);
+// Locale-independent Unicode code-point order, matching Python's string order.
+// JS `<` compares UTF-16 code units, which misorders characters above U+FFFF
+// (e.g. an emoji sorts before U+FF21). UTF-8 byte order equals code-point order
+// for valid Unicode, which SDK strings always are (they come from Rust).
+const compare = (a, b) => Buffer.compare(Buffer.from(a, 'utf8'), Buffer.from(b, 'utf8'));
 const byTitle = items => [...items].sort((a, b) => compare(a.title, b.title) || compare(a.id, b.id));
 
 class Digest {
