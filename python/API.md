@@ -1,15 +1,22 @@
 # `radiclepy` Python API
 
-Status: pre-alpha, Phase 1. This document is the contract: every public
-name, its kind (class / attribute / method / function), and its failure
-modes. `tests/test_api.py` checks that documented names exist.
+Status: **experimental alpha, version 0.1.0**, pinned to Radicle `=0.25.1`.
+The full reviewed Git SHA identifies a candidate. This Python-only reference
+covers public names, their kinds (class / attribute / method / function),
+conversions and failure modes. API tests check exported names/kinds; behavioral
+and installed-package tests establish the guarantees those checks cannot prove.
+See the [Python guide](README.md) for installation and a runnable example, and
+[SDK differences](../docs/sdk-differences.md) for comparison with TypeScript.
 
-Identifier convention (plan §5.1): identifiers are **strings** at the
-boundary; stubs expose aliases (`RepoId`, `Did`, `NodeId`, `Oid`,
-`ObjectId`, `Alias`) via `radiclepy._types` for typed callers.
+Identifiers are **strings** at the boundary; stubs expose aliases (`RepoId`,
+`Did`, `NodeId`, `Oid`, `ObjectId`, `Alias`) via `radiclepy._types` for typed
+callers. Filesystem inputs accept `str | os.PathLike[str]`; abbreviated `str`
+signatures below also accept these PathLike values. See the
+[conversion rules](#python-convenience-surface).
 
-Error convention (plan §5.8): our own syntactic validators raise
-`ValueError`; operational failures raise subclasses of `radiclepy.Error`.
+Our syntactic validators raise `ValueError`; operational failures raise
+`radiclepy.Error` or its subclasses. Python argument conversion can raise
+`TypeError` or `OverflowError` before a validator runs.
 
 ---
 
@@ -41,16 +48,16 @@ Raises `ValueError`.
 
 | Name | Parent | Raised on |
 |---|---|---|
-| `Error` | `Exception` | base; profile load/init and io failures today |
-| `StorageError` | `Error` | (registered; used from Phase 2) |
+| `Error` | `Exception` | base; profile/home I/O, init RNG and project workflow failures |
+| `StorageError` | `Error` | storage opening and listing failures |
 | `ReadOnlyError` | `Error` | writes through read-only COB/policy handles |
-| `RepositoryError` | `Error` | (registered; used from Phase 2) |
-| `GitError` | `Error` | (registered; used from Phase 2) |
-| `DatabaseError` | `Error` | (registered; used from Phase 3) |
-| `IdentityError` | `Error` | (registered; used from Phase 2) |
+| `RepositoryError` | `Error` | repository opening, existence checks and canonical-ref/signing failures |
+| `GitError` | `Error` | Git object/ref/revision/history failures and project Git preflight failures |
+| `DatabaseError` | `Error` | routing database opening and query failures |
+| `IdentityError` | `Error` | canonical identity loading, verification and payload failures |
 | `SignerError` | `Error` | `Profile.signer()` failures |
-| `PolicyError` | `Error` | (registered; used from Phase 3) |
-| `CobError` | `Error` | (registered; used from Phase 4) |
+| `PolicyError` | `Error` | policy database opening, reads and writes |
+| `CobError` | `Error` | typed/raw COB store, decoding, authorization and transaction failures |
 
 All are catchable as `radiclepy.Error`.
 
@@ -90,6 +97,9 @@ The filesystem home backing this profile.
 
 ##### `profile.aliases -> Aliases` (attribute)
 Alias **lookup facade** — not a collection (upstream cannot enumerate).
+
+##### `profile.storage -> Storage` (attribute)
+Equivalent to `Storage.from_profile(profile)`.
 
 ##### `profile.signer() -> Signer` (method)
 Load the signer: unencrypted keystore, `RAD_PASSPHRASE`, or ssh-agent
@@ -148,7 +158,7 @@ Node id / public key for this signer.
 
 ---
 
-### Storage & repository (Phase 2)
+### Storage & repository
 
 #### `Storage`
 
@@ -166,8 +176,9 @@ user identity. Raises `ValueError` for invalid `alias`/`node_id`,
 Filesystem path of this storage.
 
 ##### `storage.repository(rid: RepoId) -> Repository` (method)
-Open a repository for **reading**. Raises `RepositoryError` if absent,
-`ValueError` for a malformed `rid`.
+Open a repository handle, validating existence immediately. Raises
+`RepositoryError` if absent, `ValueError` for a malformed `rid`. The handle
+supports the reads and explicit writes documented below.
 
 ##### `storage.contains(rid: RepoId) -> bool` (method)
 Whether the repository exists in this storage.
@@ -177,9 +188,11 @@ All repository ids in this storage (unsorted).
 
 #### `Repository`
 
-A **read-only handle**: reopens the underlying storage per operation, so it
-holds no live git handles and is safe to pass between threads. Mutations
-arrive only via explicit write APIs in later phases.
+A repository handle for inspection and explicit upstream-shaped writes. It
+reopens the underlying storage per operation, holding no live Git handles.
+The repository handle can pass between threads; signer-taking operations still
+require a thread-affine signer. No cross-call transaction or coordination with
+external Git/CLI processes is promised. See [repository writes](#repository-writes).
 
 ##### `repository.rid -> RepoId` (attribute)
 Repository id.
@@ -225,7 +238,10 @@ Bounded commit-history page. Binding-validated pagination (`ValueError`):
 `1 <= limit <= 1000` (larger limits clamped to 1000; `limit < 1` raises,
 including negatives — never silently adjusted) and `offset >= 0`.
 Ordering: libgit2 revwalk default order (the pinned upstream exposes no
-explicit sorting — see FINDINGS-02 S7).
+explicit sorting). Revspec/walk failures raise `GitError`, including errors
+encountered inside the skipped range before the requested page. A corrupt
+history must not masquerade as an empty final page. One extra result is read
+to determine `has_more`; valid history is unaffected by the skipped-error check.
 
 ##### `repository.remotes() -> list[RemoteInfo]` (method)
 Remotes tracked by this repository (sorted by fetcher).
@@ -309,7 +325,7 @@ Canonical project identity document (verified at load).
 
 ---
 
-### Policy & routing (Phase 3)
+### Policy & routing
 
 #### `PolicyStore`
 
@@ -356,7 +372,7 @@ node database). Raises `DatabaseError` if the node database does **not
 exist** (the read-only open creates nothing; freshly-initialized profiles do
 have a migrated `node.db`, so they open with an empty table). Timestamps are
 **unix epoch milliseconds** (upstream `node::Timestamp` is a millis `u64`
-newtype). Inventory mutations are writes — Phase 5.
+newtype). Routing writes are not exposed by this SDK.
 
 ##### `RoutingStore.from_profile(profile: Profile) -> RoutingStore` (classmethod)
 Also `profile.routing_store()`.
@@ -369,7 +385,7 @@ Also `profile.routing_store()`.
 ##### `routing.total() -> int` (method)
 ##### `routing.is_empty() -> bool` (method)
 
-#### Value classes (Phase 3)
+#### Policy and routing value classes
 
 #### `FollowPolicyInfo`
 ##### `follow_policy_info.node_id -> NodeId` (attribute)
@@ -388,16 +404,17 @@ Also `profile.routing_store()`.
 
 ---
 
-## COB: typed readers & raw inspection (Phase 4)
+## COB: typed readers & raw inspection
 
-Read-only. Typed stores materialize upstream `Store<T>` (`ReadOnly`
-access); writes are Phase 5. COB `String` fields surface as `str` — the
+`open()` creates a read-only typed store; `open_as()` retains a signer for the
+[typed writes](#typed-cob-writes) documented below. Raw inspection is read-only. COB `String` fields surface as `str` — the
 bytes-first policy applies to byte-typed sources (git), not to UTF-8-by-
 construction COB payloads.
 
 #### `Issues`
 
-Read-only typed issue store for one repository.
+Typed issue store for one repository; read-only via `open`, writable via
+`open_as`. Both handles open the upstream store lazily on use.
 
 ##### `Issues.open(repository: Repository) -> Issues` (classmethod) — lazy read-only handle; the upstream store is opened at each operation, so repository/store failures occur on use, not at handle construction. `Patches.open` has the same semantics; `open_as` retains a signer and is also lazy.
 
@@ -439,8 +456,9 @@ Materialized at read time; immutable.
 
 #### `Patches`
 
-Read-only typed patch store; same surface as `Issues`
+Typed patch store with the same read surface as `Issues`
 (`open`/`rid`/`all`/`get`/`count`/`is_empty`), materializing `Patch`.
+Use `open_as` for the separately documented write extensions.
 
 #### `Patch` (value class)
 
@@ -532,11 +550,11 @@ One change entry; one op carries a **non-empty tuple** of actions.
 
 ##### `cob_ref.target -> Oid` (attribute) — change commit the ref points at
 
-## Writes (Phase 5)
+## Writes
 
-Narrow, upstream-shaped writes (PLAN §3). The three canonical-ref writes take
-**no signer** because upstream takes none; `sign_refs` is the ONLY
-signer-taking write. No hidden write-then-sign composition — sequencing is
+Narrow, upstream-shaped writes. The three canonical-ref writes take **no
+signer** because upstream takes none; `sign_refs` is the only signer-taking
+repository write in this group. No hidden write-then-sign composition — sequencing is
 the caller's explicit choice. For COB stores the signer is fixed at
 store-open time (`open_as`, upstream `WriteAs(signer)`); mutating methods
 themselves take none.
@@ -594,7 +612,7 @@ Stores opened with plain `open()` raise `ReadOnlyError` on write attempts.
 
 ##### `issues.get_mut(id: ObjectId) -> IssueMut` (method) — write stores only; `CobError` if absent
 
-#### `IssueMut` (value class)
+#### `IssueMut` (mutable handle)
 
 Each mutator commits **one COB transaction** and returns the new change-entry
 `Oid`; the `issue` snapshot refreshes after each call.
@@ -743,7 +761,7 @@ These typed timestamps come from `cob::common::Timestamp`; **RawOp.timestamp rem
 
 ## Quick start
 
-See [README.md](../README.md) for a complete runnable, non-interactive temporary-project example and Git-URI installation.
+See the [Python guide](README.md) for a complete runnable, non-interactive temporary-project example and Git-URI installation.
 
 ## Keyword-only metadata and read-only errors
 

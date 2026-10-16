@@ -6,7 +6,7 @@ build-backend = "maturin"
 name = "radicle-py"
 version = "0.1.0"
 description = "Python bindings for the radicle crate"
-readme = "README.md"
+readme = "python/README.md"
 license = { text = "MIT OR Apache-2.0" }
 requires-python = ">=3.9"
 classifiers = [
@@ -34,6 +34,10 @@ features = ["pyo3/extension-module"]
 python-source = "python"
 strip = true
 include = [
+    { path = "python/README.md", format = "sdist" },
+    { path = "python/API.md", format = "sdist" },
+    { path = "python/CHANGELOG.md", format = "sdist" },
+    { path = "docs/**/*.md", format = "sdist" },
     { path = "python/radiclepy/py.typed", format = ["sdist", "wheel"] },
     { path = "python/radiclepy/__init__.pyi", format = ["sdist", "wheel"] },
     { path = "python/radiclepy/_types.pyi", format = ["sdist", "wheel"] },

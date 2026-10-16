@@ -1,5 +1,12 @@
 # radicle-sdk changelog
 
+## Documentation ownership (unreleased)
+
+- Split the public contract into the shipped `node/API.md`; keep installation and
+  the unchanged executable quick start in `node/README.md`.
+- Shared architecture, workflow semantics, SDK differences and development gates
+  now live under repository `docs/`. No public API or native build changes.
+
 ## 0.1.0 — alpha (release preparation)
 
 Exact-commit Git installation identifies alpha candidates; this is not an npm

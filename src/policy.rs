@@ -8,7 +8,7 @@
 //! * Upstream `Profile::policies()` returns a *config-combining* reader
 //!   (`policy::config::Config<Read>`); this binding deliberately mirrors the
 //!   **raw `Store` trait surface** instead — every method maps 1:1, with no
-//!   implicit file-policy fallbacks (documented in docs/API.md).
+//!   implicit file-policy fallbacks (documented in python/API.md).
 //! * `nodes_by_alias` is a **fuzzy** (substring, case-insensitive) lookup
 //!   upstream — preserved, documented.
 

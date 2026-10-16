@@ -5,7 +5,15 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { execFileSync } from 'node:child_process';
 
-const readme = await readFile(new URL('../README.md', import.meta.resolve('radicle-sdk')), 'utf8');
+const entry = import.meta.resolve('radicle-sdk');
+const readme = await readFile(new URL('../README.md', entry), 'utf8');
+const api = await readFile(new URL('../API.md', entry), 'utf8');
+const changelog = await readFile(new URL('../CHANGELOG.md', entry), 'utf8');
+assert.ok(api.startsWith('# radicle-sdk: TypeScript API contract'));
+assert.ok(api.includes('## Concurrency and environment boundaries'));
+assert.ok(api.includes('## Timestamp conversion'));
+assert.ok(changelog.startsWith('# radicle-sdk changelog'));
+assert.ok(readme.includes('[API reference](API.md)'));
 const heading = '## Runnable local quick start\n';
 assert.equal(readme.split(heading).length, 2, 'one runnable quick-start section');
 const section = readme.split(heading)[1].split('\n## ')[0];

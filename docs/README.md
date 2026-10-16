@@ -1,15 +1,22 @@
 # Documentation
 
-## Current guides and contracts
+## Shared documentation
 
-- [Repository overview and installation](../README.md): Python and TypeScript
-  entry points, source-install requirements and scope.
-- [Python API](API.md): public API, conversion rules and upstream semantics.
-- [Python changelog](../CHANGELOG.md).
-- [TypeScript guide](../node/README.md): installation, executable quick start,
-  public contract, concurrency and environment boundaries.
-- [TypeScript changelog](../node/CHANGELOG.md).
+- [Project overview](../README.md): SDK scope and language entry points.
+- [Architecture](architecture.md): current layers, ownership and migration boundaries.
+- [Workflow semantics](semantics.md): signing, Git/COB writes, revisions and merges.
+- [SDK differences](sdk-differences.md): intentional API/conversion/concurrency differences.
+- [Development and validation](development.md): commands, artifacts and evidence gates.
 - [Examples](../examples/README.md): the read-only digest in both SDKs.
+
+## Language guides and contracts
+
+Each SDK owns its guide, reference and release history in its language directory.
+
+- Python: [guide](../python/README.md), [API](../python/API.md),
+  [changelog](../python/CHANGELOG.md).
+- TypeScript: [guide](../node/README.md), [API](../node/API.md),
+  [changelog](../node/CHANGELOG.md).
 
 ## Historical plans, reviews and findings
 

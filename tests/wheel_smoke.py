@@ -12,7 +12,7 @@ only the built artifact installed).
 import os
 import sys
 import tempfile
-from importlib.metadata import version as dist_version
+from importlib.metadata import metadata, version as dist_version
 
 
 def main() -> int:
@@ -27,6 +27,13 @@ def main() -> int:
     tag = os.environ.get("RELEASE_TAG", "")
     if tag:
         assert tag == f"v{pkg}", f"git tag {tag} != packaged version v{pkg}"
+
+    # -- Python-owned package description ----------------------------------
+    info = metadata("radicle-py")
+    assert info["Description-Content-Type"].startswith("text/markdown")
+    description = info.get_payload()
+    assert description.startswith("# radicle-py "), "package description is not the Python guide"
+    assert "import radiclepy as rad" in description, "Python quick start missing from metadata"
 
     # -- release purity (plan §5.7) -----------------------------------------
     # Deterministic seeding is compile-time gated and must be absent.

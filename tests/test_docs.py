@@ -5,9 +5,10 @@ from urllib.parse import unquote, urlsplit
 
 
 ROOT = Path(__file__).resolve().parents[1]
-PAGES = [ROOT / "README.md", ROOT / "CHANGELOG.md",
-         ROOT / "node" / "README.md", ROOT / "node" / "CHANGELOG.md",
-         ROOT / "examples" / "README.md", *sorted((ROOT / "docs").rglob("*.md"))]
+PAGES = [ROOT / "README.md", ROOT / "examples" / "README.md",
+         *sorted((ROOT / "python").glob("*.md")),
+         *sorted((ROOT / "node").glob("*.md")),
+         *sorted((ROOT / "docs").rglob("*.md"))]
 
 
 def anchors(page: Path) -> set[str]:
@@ -46,6 +47,16 @@ def test_documentation_local_links_and_anchors():
             elif url.fragment and target.suffix == ".md" and unquote(url.fragment) not in anchors(target):
                 missing.append(f"{page.relative_to(ROOT)}: {link} (no such heading)")
     assert not missing, "Broken local documentation links:\n" + "\n".join(missing)
+
+
+def test_language_guides_and_references_are_checked():
+    for language in ("python", "node"):
+        for name in ("README.md", "API.md", "CHANGELOG.md"):
+            assert ROOT / language / name in PAGES
+    assert 'readme = "python/README.md"' in (ROOT / "pyproject.toml").read_text()
+    overview = (ROOT / "README.md").read_text()
+    assert "```python" not in overview and "```js" not in overview
+    assert not (ROOT / "CHANGELOG.md").exists()
 
 
 def test_anchor_slugs_follow_github_rules(tmp_path):

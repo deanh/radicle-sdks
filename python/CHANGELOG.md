@@ -2,6 +2,16 @@
 
 All notable changes to `radicle-py` are documented here.
 
+## Documentation ownership (unreleased)
+
+- Python installation and the executed quick start now live in `python/README.md`,
+  also used as the package long description. The API reference is `python/API.md`
+  and this changelog is Python-owned; there is no duplicated root changelog.
+- Refresh the API's alpha status, operational exception descriptions, repository
+  write scope and checked skipped-history errors. Document shared architecture,
+  semantics, SDK differences and validation separately under `docs/`.
+- No public API or Rust/test-layout changes in this documentation step.
+
 ## Post-alpha Python UX (unreleased)
 
 - Docs: the Python API reference moved from `API.md` to `docs/API.md`;
