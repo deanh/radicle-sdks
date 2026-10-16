@@ -222,6 +222,8 @@ jobs:
           cargo fetch --locked
           python3 -m venv .venv-sdist
           .venv-sdist/bin/pip install 'maturin>=1.7,<2'
+          # The no-isolation backend invokes the maturin executable by name.
+          export PATH="$PWD/.venv-sdist/bin:$PATH"
           interpreter="$PWD/.venv-sdist/bin/python"
           source_dir=$(mktemp -d)
           tar -xf dist/*.tar.gz -C "$source_dir"
