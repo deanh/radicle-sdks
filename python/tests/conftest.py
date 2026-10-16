@@ -10,6 +10,8 @@ Strategy:
 
 from __future__ import annotations
 
+import os
+
 import pytest
 
 import radiclepy as rad
@@ -23,10 +25,17 @@ SEEDS: dict[str, bytes] = {
 
 def _profile(tmp_path, alias: str) -> rad.Profile:
     if not hasattr(rad.Profile, "_from_seed"):
-        pytest.skip(
-            "deterministic fixtures require the test build: "
-            "maturin develop --features test-helpers"
+        # A plain `uv run pytest` can re-sync the project and rebuild the
+        # extension without the feature, which would turn these into silent
+        # skips. CI sets RADICLE_REQUIRE_TEST_HELPERS=1 to fail instead.
+        message = (
+            "deterministic fixtures require the test build: run "
+            "`uv run maturin develop --uv --features test-helpers`, then "
+            "`uv run --no-sync pytest` so uv does not rebuild without it"
         )
+        if os.environ.get("RADICLE_REQUIRE_TEST_HELPERS") == "1":
+            pytest.fail(message)
+        pytest.skip(message)
     home = tmp_path / f"rad-{alias}"
     return rad.Profile._from_seed(str(home), alias, SEEDS[alias])
 

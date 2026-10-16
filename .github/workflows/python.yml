@@ -58,15 +58,19 @@ jobs:
       - name: Build extension (test-helpers for deterministic fixtures)
         run: uv run maturin develop --uv --features test-helpers
 
+      # `--no-sync`: a plain `uv run` may re-sync and rebuild the extension
+      # without `test-helpers`; the fixtures would then skip silently.
       - name: Run tests
-        run: uv run pytest -q
+        env:
+          RADICLE_REQUIRE_TEST_HELPERS: "1"
+        run: uv run --no-sync pytest -q -rs
 
       - name: Validate installed Python typing surface
         run: |
-          uv run python -m mypy.stubtest radiclepy --allowlist python/tests/stubtest-allowlist.txt
-          uv run mypy --strict python/tests/typing/usage.py
-          uv run pyright python/tests/typing/usage.py
-          uv run pyright --verifytypes radiclepy --ignoreexternal
+          uv run --no-sync python -m mypy.stubtest radiclepy --allowlist python/tests/stubtest-allowlist.txt
+          uv run --no-sync mypy --strict python/tests/typing/usage.py
+          uv run --no-sync pyright python/tests/typing/usage.py
+          uv run --no-sync pyright --verifytypes radiclepy --ignoreexternal
 
       - name: Clippy (feature state used by tests)
         run: cargo clippy -p radicle-py --all-targets --locked --features test-helpers -- -D warnings

@@ -17,18 +17,23 @@ tools through the committed uv lock:
 ```sh
 uv sync --dev --locked
 uv run maturin develop --uv --features test-helpers
-uv run pytest -q
-uv run python -m mypy.stubtest radiclepy --allowlist python/tests/stubtest-allowlist.txt
-uv run mypy --strict python/tests/typing/usage.py
-uv run pyright python/tests/typing/usage.py
-uv run pyright --verifytypes radiclepy --ignoreexternal
+RADICLE_REQUIRE_TEST_HELPERS=1 uv run --no-sync pytest -q -rs
+uv run --no-sync python -m mypy.stubtest radiclepy --allowlist python/tests/stubtest-allowlist.txt
+uv run --no-sync mypy --strict python/tests/typing/usage.py
+uv run --no-sync pyright python/tests/typing/usage.py
+uv run --no-sync pyright --verifytypes radiclepy --ignoreexternal
 cargo clippy -p radicle-py --all-targets --locked --features test-helpers -- -D warnings
 cargo clippy -p radicle-py --all-targets --locked -- -D warnings
 ```
 
 `test-helpers` enables deterministic legacy fixtures. Never enable it in release
-artifacts. Helper-free builds still execute public workflow tests; fixtures that
-require deterministic seeding intentionally skip:
+artifacts. Pass `--no-sync` to every `uv run` after the helper build: a plain
+`uv run` syncs the project first and, whenever uv considers the installed package
+stale, rebuilds the extension *without* the feature. The deterministic fixtures
+would then skip and the run would still pass. `RADICLE_REQUIRE_TEST_HELPERS=1`
+turns that skip into a failure; CI sets it. Helper-free builds still execute
+public workflow tests; fixtures that require deterministic seeding intentionally
+skip:
 
 ```sh
 uv run maturin develop --uv
