@@ -12,7 +12,8 @@ persisted local policy; they do not perform networking. APIs may change during
 alpha; pin installations to a reviewed Git commit.
 
 For Node.js/TypeScript, see the [radicle-sdk alpha guide](node/README.md),
-including source installation and a runnable local quick start.
+including source installation and a runnable local quick start. For programs
+using either SDK, see [`examples/`](examples/README.md).
 
 ## Install from Git
 
