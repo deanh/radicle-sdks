@@ -19,7 +19,6 @@ Rust >=1.91, and Git/C build tools. Other native platforms are not yet validated
   both versioned 0.1.0; renamed TypeScript alpha CI workflow.
 - Exact-commit npm 11/npm 12/pnpm install gates. Bun Git prepare remains best effort
   and is known to fail to install the development build tools.
-
 - Private handle constructors, no public native conversion factories, and direct
   JavaScript construction guards; positive/negative consumer declaration tests.
 - `initProject` supports `visibility: 'private'` (empty upstream allowlist),
@@ -31,5 +30,6 @@ Rust >=1.91, and Git/C build tools. Other native platforms are not yet validated
 
 Bare checkout, additional Python APIs, publication/prebuilt distribution, and
 additional supported platforms remain deferred.
-Historical T0 evidence remains in the repository's `FINDINGS-TS-T0.md`; debug-build
-results there do not establish optimized-build behavior or performance.
+Historical T0 evidence remains in `docs/archive/FINDINGS-TS-T0.md` in the
+repository; debug-build results there do not establish optimized-build behavior
+or performance.

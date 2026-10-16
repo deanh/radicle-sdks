@@ -1,7 +1,7 @@
 //! `RoutingStore` — named after upstream `radicle::node::routing::Store`
 //! (Phase 3).
 //!
-//! Upstream facts (verified against `=0.25.1`, see FINDINGS-03.md):
+//! Upstream facts (verified against `=0.25.1`, see docs/archive/FINDINGS-03.md):
 //! * `Profile::routing(config)` is *literally* `Home::database(config)` — the
 //!   routing table lives in the node database (`<home>/node/node.db`), and
 //!   `node::Database` implements `routing::Store`. We therefore hold the
@@ -14,7 +14,7 @@
 //! * The trait's `entries()` yields only `(RepoId, NodeId)` pairs; the
 //!   per-entry timestamp requires `entry(rid, node)`. `entries()` here is an
 //!   eager list that performs that lookup per pair (N+1 queries on a local
-//!   sqlite file — documented in API.md).
+//!   sqlite file — documented in docs/API.md).
 //! * Inventory mutations (`add_inventory` / `remove_inventory`) need the
 //!   mutable database; they are deferred to Phase 5 (writes).
 

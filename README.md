@@ -8,7 +8,7 @@ issue discussions and common writes, and patch revisions/reviews/lifecycle.
 
 | SDK | Package / import | Runtime | Guide |
 | --- | --- | --- | --- |
-| Python | `radicle-py` / `radiclepy` | CPython ≥ 3.9 (abi3) | [Installation below](#python-installation), [API](API.md) |
+| Python | `radicle-py` / `radiclepy` | CPython ≥ 3.9 (abi3) | [Installation below](#python-installation), [API](docs/API.md) |
 | TypeScript | `radicle-sdk` | Node.js ≥ 26.12.0 | [Installation, quick start and contract](node/README.md) |
 
 These are **experimental, source-installed alphas**, not nodes or network
@@ -175,7 +175,8 @@ SSH-agent integration is not verified by the alpha suite.
   to update an existing patch, use
   `git push rad HEAD:refs/heads/patches/<id>` (needs `git-remote-rad`).
   `Patches.create`, `draft` and `update` are for commits already in storage
-  and need an explicit `base`; see API.md for how they differ from the push path.
+  and need an explicit `base`; see the [Python API](docs/API.md) for how they
+  differ from the push path.
 - Deferred: node control/network fetch/announce, identity governance/private
   access administration, address-store management, routing writes, inline
   review machinery, reactions, attachments and edit/redaction history APIs.
@@ -185,11 +186,10 @@ SSH-agent integration is not verified by the alpha suite.
 - [`node/README.md`](./node/README.md): TypeScript installation, runnable example and public contract.
 - [`node/CHANGELOG.md`](./node/CHANGELOG.md): TypeScript alpha changes.
 - [`examples/README.md`](./examples/README.md): cross-SDK programs and usage.
-- [`API.md`](./API.md): Python public API contract.
-- [`ALPHA-PLAN.md`](./ALPHA-PLAN.md): Python alpha/MVP scope and completion record.
+- [`docs/API.md`](./docs/API.md): Python public API contract.
 - [`CHANGELOG.md`](./CHANGELOG.md): Python release changes.
-- [`PLAN.md`](./PLAN.md): historical phased implementation design; not the
-  current release checklist. `FINDINGS-*.md` retain phase evidence.
+- [`docs/README.md`](./docs/README.md): documentation index, including archived
+  plans, reviews and implementation findings in `docs/archive/`.
 - `spike/` and `wheel-probe/`: historical feasibility probes, not the SDK.
 
 ## Development and validation

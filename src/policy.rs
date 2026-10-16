@@ -1,6 +1,6 @@
 //! `PolicyStore` — named after upstream `radicle::node::policy::Store` (Phase 3).
 //!
-//! Upstream facts (verified against `=0.25.1`, see FINDINGS-03.md):
+//! Upstream facts (verified against `=0.25.1`, see docs/archive/FINDINGS-03.md):
 //! * The policy store is its **own sqlite file** (`<home>/node/policies.db`),
 //!   separate from the node database.
 //! * `Store<Read>` opens read-only (multiple concurrent readers, upstream
@@ -8,7 +8,7 @@
 //! * Upstream `Profile::policies()` returns a *config-combining* reader
 //!   (`policy::config::Config<Read>`); this binding deliberately mirrors the
 //!   **raw `Store` trait surface** instead — every method maps 1:1, with no
-//!   implicit file-policy fallbacks (documented in API.md).
+//!   implicit file-policy fallbacks (documented in docs/API.md).
 //! * `nodes_by_alias` is a **fuzzy** (substring, case-insensitive) lookup
 //!   upstream — preserved, documented.
 

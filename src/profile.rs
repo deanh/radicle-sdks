@@ -240,7 +240,7 @@ impl PyProfile {
         crate::storage::PyStorage::from_profile_ref(&self.inner)
     }
 
-    /// Alias lookup facade (not a collection — see API.md).
+    /// Alias lookup facade (not a collection — see docs/API.md).
     #[getter]
     fn aliases(&self) -> PyAliases {
         PyAliases {

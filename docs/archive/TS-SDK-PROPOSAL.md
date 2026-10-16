@@ -12,7 +12,7 @@ not a reason to add features.
 Decision: proceed through reviewable local workflow increments **without shared
 core extraction** (§7). T0 evidence remains in
 [`FINDINGS-TS-T0.md`](./FINDINGS-TS-T0.md); current contracts are in
-[`node/README.md`](./node/README.md). The measured Rust minimum is 1.91. Bun's
+[`node/README.md`](../../node/README.md). The measured Rust minimum is 1.91. Bun's
 Git prepare fails while its runtime can use the Node-built addon. These are
 local Linux results, not broad platform or remote-CI claims. Release polish keeps
 the native crate isolated. Patch A (`753d025`, head `6ec6555`) landed with release

@@ -6,7 +6,7 @@ publish = false
 description = "Phase 0A feasibility spikes for radicle-py — throwaway code, NOT the binding"
 
 [dependencies]
-# The authoritative target for the binding (plan: PLAN.md header).
+# The authoritative target for the binding (plan: docs/archive/PLAN.md header).
 radicle = "=0.25.1"
 anyhow = "1"
 tempfile = "3"

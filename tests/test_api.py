@@ -17,7 +17,8 @@ import pytest
 
 import radiclepy as rad
 
-API_MD = Path(__file__).resolve().parent.parent / "API.md"
+ROOT = Path(__file__).resolve().parent.parent
+API_MD = ROOT / "docs" / "API.md"
 
 # Documented top-level members and their kinds (mirrors API.md headings).
 TOP_LEVEL = {
@@ -348,7 +349,7 @@ def test_stub_runtime_all_parity():
     """`__init__.pyi.__all__` must exactly match the runtime `__all__`."""
     import ast
 
-    stub = API_MD.parent / "python" / "radiclepy" / "__init__.pyi"
+    stub = ROOT / "python" / "radiclepy" / "__init__.pyi"
     tree = ast.parse(stub.read_text())
     stub_all = None
     for node in tree.body:
@@ -366,7 +367,7 @@ def test_stub_classes_exist():
     """Every class declared in the stub exists at runtime (kind: class)."""
     import ast
 
-    stub = API_MD.parent / "python" / "radiclepy" / "__init__.pyi"
+    stub = ROOT / "python" / "radiclepy" / "__init__.pyi"
     tree = ast.parse(stub.read_text())
     for node in tree.body:
         if isinstance(node, ast.ClassDef):

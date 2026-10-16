@@ -16,7 +16,8 @@ validation on those platforms; no multi-platform binary distribution is promised
 
 Requires Node **26.12.0+** (tested baseline: 26.12.0), **Rust ≥ 1.91**, a C
 compiler, and Git. The pinned radicle 0.25.1 declares Rust 1.88.0 but doesn't
-compile on 1.88–1.90; see `FINDINGS-TS-T0.md`. There is no Node upper-version cap.
+compile on 1.88–1.90; see `docs/archive/FINDINGS-TS-T0.md` in the repository.
+There is no Node upper-version cap.
 npm publication and prebuilt platform packages are deferred.
 The working package name is `radicle-sdk`; registry availability isn't assumed.
 

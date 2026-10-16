@@ -743,7 +743,7 @@ These typed timestamps come from `cob::common::Timestamp`; **RawOp.timestamp rem
 
 ## Quick start
 
-See [README.md](./README.md) for a complete runnable, non-interactive temporary-project example and Git-URI installation.
+See [README.md](../README.md) for a complete runnable, non-interactive temporary-project example and Git-URI installation.
 
 ## Keyword-only metadata and read-only errors
 

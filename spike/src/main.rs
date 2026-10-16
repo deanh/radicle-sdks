@@ -2,7 +2,7 @@
 //!
 //! Run: `cargo run` (prints evidence per spike; exits non-zero on failure).
 //!
-//! Spike goals (see PLAN.md §7, Phase 0A):
+//! Spike goals (see docs/archive/PLAN.md §7, Phase 0A):
 //!   S2: deterministic temp profile — explicit seed → Profile::init; determinism check;
 //!       getrandom fill (for Profile.init()'s secure seed path).
 //!   S3: create a project (public `rad::init`), read head, hand-convert one commit + one

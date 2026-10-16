@@ -14,7 +14,7 @@ crate-type = ["cdylib"]
 [dependencies]
 pyo3 = { version = "0.23", features = ["extension-module", "abi3-py39"] }
 # Exact pin: the binding is source-coupled to the published 0.25.1 API
-# (see PLAN.md header — crates.io source is authoritative).
+# (see docs/archive/PLAN.md header — crates.io source is authoritative).
 radicle = "=0.25.1"
 # OS RNG for Profile.init()'s secure seed (PLAN §5.7; no upstream Seed::generate()).
 getrandom = "0.3"
