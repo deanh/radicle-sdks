@@ -372,12 +372,13 @@ and supporting repository reads remain separate follow-ups, not part of patch 1.
 No Python restructuring, scheduler, networking or publication work is authorized
 by this increment. Current implemented surface and contracts: `node/README.md`.
 
-**Landing gate:** issue patch `15cd0e4` is stacked on the unmerged T0 head
-`adeb55c13a0ebecb4a457252c03e46a822c1c11c`. Review and merge the T0 baseline
-separately before merging this increment. Its explicit diff base does not make
-it standalone: merging its head into main also brings in the T0 ancestry. Do not
-implicitly import the spike/history through the issue patch. No merge is authorized
-by this review-fix increment.
+**Landing gate:** T0 lands as one squashed baseline commit, Radicle patch
+`66702b1` (commit `e284b66`), whose tree is byte-identical to the reviewed T0
+head `adeb55c13a0ebecb4a457252c03e46a822c1c11c`. Issue patch `15cd0e4` is
+rebased onto that baseline commit. Review and merge the baseline first; merge it
+as-is (fast-forward), otherwise rebase `15cd0e4` again. The intermediate T0
+history is not imported; it stays reachable through `15cd0e4`'s earlier
+revisions. No merge is authorized by this increment.
 
 | Phase | Work | Exit criteria |
 |---|---|---|
