@@ -1,7 +1,6 @@
 [workspace]
 members = ["python/native", "node/native"]
 default-members = ["python/native"]
-exclude = ["spike", "wheel-probe"]
 resolver = "3"
 
 [workspace.dependencies]

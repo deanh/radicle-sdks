@@ -1,6 +1,6 @@
 # Phase 2 — Storage & read-only repository: spike findings
 
-Date: 2026-07-28 · Spikes: [`spike/src/bin/phase2.rs`](../../spike/src/bin/phase2.rs) (throwaway) · Plan: [`PLAN.md`](./PLAN.md) §7 Phase 2
+Date: 2026-07-28 · Spikes: `spike/src/bin/phase2.rs` (throwaway; [historical source retrieval](PROBES.md)) · Plan: [`PLAN.md`](./PLAN.md) §7 Phase 2
 
 Answers the schema questions Phase 0A deferred (tree ordering, tag peeling) and
 settles the read-only surface against the published `radicle = "=0.25.1"`.

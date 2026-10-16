@@ -110,6 +110,7 @@ Send/Sync bounds on Python signers or introduce custom environment/agent adapter
 
 [Archived plans and findings](README.md#historical-plans-reviews-and-findings)
 record earlier decisions, test counts and support evidence. They are not current
-release checklists. `spike/` and `wheel-probe/` remain historical source until the
-separate cleanup records exact retrieval commits and removes them. They are
-explicitly excluded from the maintained workspace.
+release checklists. The obsolete `spike/` and `wheel-probe/` source was removed
+in a distinct cleanup commit. [Probe retrieval](archive/PROBES.md) records the
+exact last-containing commit and commands to inspect or recover both directories;
+they are not maintained workspace members.
