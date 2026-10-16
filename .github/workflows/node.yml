@@ -27,6 +27,7 @@ jobs:
       - run: npm ci --ignore-scripts
       - run: npm run build
       - run: npm run check
+      - run: npm run format:check
       - run: npm test
       - name: Packed consumer (npm 11; runtime, docs and types; no Rust sources)
         run: npm exec --yes --package npm@11.20.0 -- bash node/scripts/tarball-install-smoke.sh

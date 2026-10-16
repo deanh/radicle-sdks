@@ -8,7 +8,7 @@ import { fileURLToPath } from 'node:url';
 import { Profile, Patches, RadicleError } from '../dist/index.js';
 import { fixture, git } from './helpers.mjs';
 
-const stored = f => join(f.home, 'storage', f.rid.slice(4));
+const stored = (f) => join(f.home, 'storage', f.rid.slice(4));
 async function addCommit(f, text, nodeId = f.profile.nodeId, branch = 'main') {
   await writeFile(join(f.work, 'README.md'), text);
   git(f.work, 'commit', '-am', text.trim());
@@ -29,20 +29,31 @@ function entry(change, id) {
   assert.equal('changed' in change, false);
   return change.snapshot;
 }
-function revision(p, id) { return p.revisions.find(r => r.id === id); }
+function revision(p, id) {
+  return p.revisions.find((r) => r.id === id);
+}
 function cobTip(f, id, nodeId = f.profile.nodeId) {
   return git(stored(f), 'rev-parse', `refs/namespaces/${nodeId}/refs/cobs/xyz.radicle.patch/${id}`);
 }
-const invalid = e => e instanceof TypeError && e.code === 'ERR_INVALID_ARG_VALUE';
-const category = code => e => e instanceof RadicleError && e.code === code && e.cause instanceof Error;
+const invalid = (e) => e instanceof TypeError && e.code === 'ERR_INVALID_ARG_VALUE';
+const category = (code) => (e) =>
+  e instanceof RadicleError && e.code === code && e.cause instanceof Error;
 
-test('patch workflow: draft/ready, metadata, revision, discussion/review, merge record and signed refs', async t => {
-  const f = await fixture(t), base = (await f.repo.head()).oid;
+test('patch workflow: draft/ready, metadata, revision, discussion/review, merge record and signed refs', async (t) => {
+  const f = await fixture(t),
+    base = (await f.repo.head()).oid;
   const head = await addCommit(f, 'first patch\n');
-  const store = Patches.openAs(f.repo, f.signer), read = Patches.open(f.repo);
+  const store = Patches.openAs(f.repo, f.signer),
+    read = Patches.open(f.repo);
   assert.deepEqual(await read.all(), []);
   const bob = await Profile.init(join(f.root, 'bob'), 'bob');
-  const p = await store.draft({ title: 'Change', description: 'First', base, head, labels: ['z', 'a', 'a'] });
+  const p = await store.draft({
+    title: 'Change',
+    description: 'First',
+    base,
+    head,
+    labels: ['z', 'a', 'a'],
+  });
   const before = await p.reload();
   frozen(before);
   assert.equal(before.state, 'draft');
@@ -68,7 +79,10 @@ test('patch workflow: draft/ready, metadata, revision, discussion/review, merge 
   assert.equal((await p.unready()).changed, false);
   assert.equal(cobTip(f, p.id), draftTip);
   await p.ready();
-  assert.equal(entry(await p.edit({ title: 'Edited', target: 'branch:refs/heads/main' }), p.id).target, 'branch:main');
+  assert.equal(
+    entry(await p.edit({ title: 'Edited', target: 'branch:refs/heads/main' }), p.id).target,
+    'branch:main',
+  );
   await p.edit({ title: 'Edited', target: 'delegates' });
   assert.deepEqual(entry(await p.label(['only', 'only']), p.id).labels, ['only']);
   assert.deepEqual(entry(await p.label([]), p.id).labels, []);
@@ -104,8 +118,16 @@ test('patch workflow: draft/ready, metadata, revision, discussion/review, merge 
   assert.equal(reviews[0].author, bob.did);
   assert.equal(reviews[0].verdict, 'accept');
   assert.equal(reviews[0].summary, 'Approved');
-  const branches = () => git(stored(f), 'for-each-ref', '--format=%(refname) %(objectname)', 'refs/heads', `refs/namespaces/${f.profile.nodeId}/refs/heads`);
-  const branchRefs = branches(), workHead = git(f.work, 'rev-parse', 'HEAD');
+  const branches = () =>
+    git(
+      stored(f),
+      'for-each-ref',
+      '--format=%(refname) %(objectname)',
+      'refs/heads',
+      `refs/namespaces/${f.profile.nodeId}/refs/heads`,
+    );
+  const branchRefs = branches(),
+    workHead = git(f.work, 'rev-parse', 'HEAD');
   const merged = entry(await p.merge(updated.revisionId, head2), p.id);
   assert.equal(merged.state, 'merged');
   assert.equal(merged.mergedRevision, updated.revisionId);
@@ -121,55 +143,93 @@ test('patch workflow: draft/ready, metadata, revision, discussion/review, merge 
   frozen(all);
   assert.deepEqual(all, [merged]);
   assert.equal(await read.get('0'.repeat(40)), null);
-  const sigrefs = git(stored(f), 'show', `refs/namespaces/${f.profile.nodeId}/refs/rad/sigrefs:refs`);
-  assert.ok(sigrefs.split('\n').some(line => line.trim() === `${mergedTip} refs/cobs/xyz.radicle.patch/${p.id}`));
+  const sigrefs = git(
+    stored(f),
+    'show',
+    `refs/namespaces/${f.profile.nodeId}/refs/rad/sigrefs:refs`,
+  );
+  assert.ok(
+    sigrefs
+      .split('\n')
+      .some((line) => line.trim() === `${mergedTip} refs/cobs/xyz.radicle.patch/${p.id}`),
+  );
   assert.equal(before.state, 'draft');
   assert.equal(before.revisions.length, 1);
   assert.deepEqual(before.labels, ['a', 'z']);
   assert.equal(updated.snapshot.revisions[1].comments.length, 0);
-  assert.throws(() => { reviews[0].summary = 'changed'; }, TypeError);
+  assert.throws(() => {
+    reviews[0].summary = 'changed';
+  }, TypeError);
 });
 
-test('patch validation, readonly stores and authorization fail without poisoning later operations', async t => {
-  const f = await fixture(t), base = (await f.repo.head()).oid;
+test('patch validation, readonly stores and authorization fail without poisoning later operations', async (t) => {
+  const f = await fixture(t),
+    base = (await f.repo.head()).oid;
   const head = await addCommit(f, 'patch\n');
-  const store = Patches.openAs(f.repo, f.signer), read = Patches.open(f.repo);
+  const store = Patches.openAs(f.repo, f.signer),
+    read = Patches.open(f.repo);
   const p = await store.create({ title: 'Title', description: 'Description', base, head });
-  const before = await p.reload(), rev = before.latestRevision;
+  const before = await p.reload(),
+    rev = before.latestRevision;
   const tip = cobTip(f, p.id);
   for (const call of [
     () => store.create({ title: '', description: '', base, head }),
     () => store.draft({ title: 'x', description: '', base: 'bad', head }),
     () => store.create({ title: 'x', description: '', base, head, labels: ['bad label'] }),
     () => store.create({ title: 'x', description: '', base, head, target: 'invalid' }),
-    () => p.edit({ title: '', target: 'delegates' }), () => p.edit({ title: 'x', target: 'branch:bad..branch' }),
-    () => p.label(['bad label']), () => p.assign(['not-a-did']),
+    () => p.edit({ title: '', target: 'delegates' }),
+    () => p.edit({ title: 'x', target: 'branch:bad..branch' }),
+    () => p.label(['bad label']),
+    () => p.assign(['not-a-did']),
     () => p.update({ description: '', base, head: 'bad' }),
-    () => p.comment('bad', 'x'), () => p.comment(rev, 'x', { replyTo: 'bad' }),
-    () => p.review(rev, { verdict: 'invalid' }), () => p.merge(rev, 'bad'),
-  ]) await assert.rejects(call(), invalid);
-  for (const call of [() => p.edit(null), () => p.update(null), () => p.label([42]),
-    () => p.review(rev, null), () => p.review(rev, { verdict: 42 }), () => p.comment(rev, 'x', null)]) {
+    () => p.comment('bad', 'x'),
+    () => p.comment(rev, 'x', { replyTo: 'bad' }),
+    () => p.review(rev, { verdict: 'invalid' }),
+    () => p.merge(rev, 'bad'),
+  ])
+    await assert.rejects(call(), invalid);
+  for (const call of [
+    () => p.edit(null),
+    () => p.update(null),
+    () => p.label([42]),
+    () => p.review(rev, null),
+    () => p.review(rev, { verdict: 42 }),
+    () => p.comment(rev, 'x', null),
+  ]) {
     const pending = call();
     assert.ok(pending instanceof Promise);
-    await assert.rejects(pending, e => e instanceof TypeError && e.code === 'ERR_INVALID_ARG_TYPE');
+    await assert.rejects(
+      pending,
+      (e) => e instanceof TypeError && e.code === 'ERR_INVALID_ARG_TYPE',
+    );
   }
   assert.equal(cobTip(f, p.id), tip);
   assert.deepEqual(await p.reload(), before);
-  for (const call of [() => read.create({ title: 'No', description: '', base, head }),
-    () => read.draft({ title: 'No', description: '', base, head }), () => read.getMut(p.id)])
+  for (const call of [
+    () => read.create({ title: 'No', description: '', base, head }),
+    () => read.draft({ title: 'No', description: '', base, head }),
+    () => read.getMut(p.id),
+  ])
     await assert.rejects(call(), category('READ_ONLY'));
   await assert.rejects(store.getMut('0'.repeat(40)), category('COB'));
   await assert.rejects(read.get('bad'), invalid);
   await assert.rejects(store.getMut('bad'), invalid);
   const bob = await Profile.init(join(f.root, 'bob'), 'bob');
   const peer = await Patches.openAs(f.repo, bob.signer()).getMut(p.id);
-  for (const call of [() => peer.edit({ title: 'Unauthorized', target: 'delegates' }),
-    () => peer.assign([bob.did]), () => peer.merge(rev, head)]) await assert.rejects(call(), category('COB'));
-  for (const call of [() => p.review(rev), () => p.comment('0'.repeat(40), 'missing'),
+  for (const call of [
+    () => peer.edit({ title: 'Unauthorized', target: 'delegates' }),
+    () => peer.assign([bob.did]),
+    () => peer.merge(rev, head),
+  ])
+    await assert.rejects(call(), category('COB'));
+  for (const call of [
+    () => p.review(rev),
+    () => p.comment('0'.repeat(40), 'missing'),
     () => p.comment(rev, 'missing reply', { replyTo: 'f'.repeat(40) }),
     () => p.update({ description: 'missing commit', base, head: '0'.repeat(40) }),
-    () => p.merge(rev, '0'.repeat(40))]) await assert.rejects(call(), category('COB'));
+    () => p.merge(rev, '0'.repeat(40)),
+  ])
+    await assert.rejects(call(), category('COB'));
   assert.equal((await p.reload()).title, 'Title');
   const summary = entry(await peer.review(rev, { summary: 'Comment-only review' }), p.id);
   assert.equal(revision(summary, rev).reviews[0].verdict, undefined);
@@ -178,7 +238,10 @@ test('patch validation, readonly stores and authorization fail without poisoning
   assert.equal(unchangedReview.verdict, undefined); // upstream first review per actor wins
   assert.notEqual(unchangedReview.id, repeated.entryId); // operation recorded, action ignored
   const reject = entry(await p.review(rev, { verdict: 'reject' }), p.id);
-  assert.equal(revision(reject, rev).reviews.find(r => r.author === f.profile.did).verdict, 'reject');
+  assert.equal(
+    revision(reject, rev).reviews.find((r) => r.author === f.profile.did).verdict,
+    'reject',
+  );
   assert.equal(entry(await p.label(['after-failure']), p.id).labels[0], 'after-failure');
   // A merge record may be accepted but ignored: commit is not on target branch.
   const offTarget = await addCommit(f, 'off target\n', f.profile.nodeId, 'feature');
@@ -187,10 +250,16 @@ test('patch validation, readonly stores and authorization fail without poisoning
   assert.equal(ignored.mergedCommit, undefined);
 });
 
-test('latestRevision follows the patch author, not the last revision or version index; upstream branch parsing', async t => {
-  const f = await fixture(t), base = (await f.repo.head()).oid;
+test('latestRevision follows the patch author, not the last revision or version index; upstream branch parsing', async (t) => {
+  const f = await fixture(t),
+    base = (await f.repo.head()).oid;
   const store = Patches.openAs(f.repo, f.signer);
-  const p = await store.create({ title: 'Empty diff allowed', description: 'Author revision', base, head: base });
+  const p = await store.create({
+    title: 'Empty diff allowed',
+    description: 'Author revision',
+    base,
+    head: base,
+  });
   const before = await p.reload();
   const bob = await Profile.init(join(f.root, 'bob'), 'bob');
   const peerHead = await addCommit(f, 'peer revision\n', bob.nodeId);
@@ -204,31 +273,50 @@ test('latestRevision follows the patch author, not the last revision or version 
   assert.equal(update.snapshot.description, 'Author revision');
   const latest = revision(update.snapshot, update.snapshot.latestRevision);
   assert.equal(latest.base, update.snapshot.base);
-  assert.notEqual(update.snapshot.revisions[update.snapshot.version].id, update.snapshot.latestRevision);
+  assert.notEqual(
+    update.snapshot.revisions[update.snapshot.version].id,
+    update.snapshot.latestRevision,
+  );
   for (const [target, expected] of [
-    ['branch:main', 'branch:main'], ['branch:refs/heads/main', 'branch:main'],
+    ['branch:main', 'branch:main'],
+    ['branch:refs/heads/main', 'branch:main'],
     ['branch:refs/heads/refs/heads/nested', 'branch:refs/heads/nested'],
-  ]) assert.equal(entry(await p.edit({ title: 'Target', target }), p.id).target, expected);
-  const another = await store.draft({ title: 'Another', description: '', target: 'branch:refs/heads/main', base, head: base });
+  ])
+    assert.equal(entry(await p.edit({ title: 'Target', target }), p.id).target, expected);
+  const another = await store.draft({
+    title: 'Another',
+    description: '',
+    target: 'branch:refs/heads/main',
+    base,
+    head: base,
+  });
   assert.equal((await another.reload()).target, 'branch:main');
   const all = await store.all();
-  assert.deepEqual(all.map(p => p.id), [p.id, another.id].sort());
+  assert.deepEqual(
+    all.map((p) => p.id),
+    [p.id, another.id].sort(),
+  );
   assert.equal(before.revisions.length, 1);
 });
 
-test('mixed patch writes across handles/signers return their own snapshots without lost fields', async t => {
-  const f = await fixture(t), base = (await f.repo.head()).oid;
+test('mixed patch writes across handles/signers return their own snapshots without lost fields', async (t) => {
+  const f = await fixture(t),
+    base = (await f.repo.head()).oid;
   const head = await addCommit(f, 'first\n');
   const store = Patches.openAs(f.repo, f.signer);
   const a = await store.create({ title: 'Before', description: 'Before', base, head });
   const b = await Patches.openAs(f.storage.repository(f.rid), f.profile.signer()).getMut(a.id);
   const c = await Patches.openAs(f.storage.repository(f.rid), f.profile.signer()).getMut(a.id);
-  const before = await a.reload(), rev = before.latestRevision;
+  const before = await a.reload(),
+    rev = before.latestRevision;
   const head2 = await addCommit(f, 'second\n');
   const results = await Promise.all([
-    a.update({ description: 'Concurrent revision', base, head: head2 }), b.label(['b', 'a']),
-    c.assign([f.profile.did]), a.edit({ title: 'Concurrent title', target: 'delegates' }),
-    b.comment(rev, 'Concurrent comment'), c.review(rev, { verdict: 'accept', summary: 'Concurrent review' }),
+    a.update({ description: 'Concurrent revision', base, head: head2 }),
+    b.label(['b', 'a']),
+    c.assign([f.profile.did]),
+    a.edit({ title: 'Concurrent title', target: 'delegates' }),
+    b.comment(rev, 'Concurrent comment'),
+    c.review(rev, { verdict: 'accept', summary: 'Concurrent review' }),
   ]);
   for (const r of results) frozen(r);
   assert.ok(revision(results[0].snapshot, results[0].revisionId));
@@ -236,8 +324,8 @@ test('mixed patch writes across handles/signers return their own snapshots witho
   assert.deepEqual(results[1].snapshot.labels, ['a', 'b']);
   assert.deepEqual(results[2].snapshot.assignees, [f.profile.did]);
   assert.equal(results[3].snapshot.title, 'Concurrent title');
-  assert.ok(revision(results[4].snapshot, rev).comments.some(c => c.id === results[4].entryId));
-  assert.ok(revision(results[5].snapshot, rev).reviews.some(r => r.id === results[5].entryId));
+  assert.ok(revision(results[4].snapshot, rev).comments.some((c) => c.id === results[4].entryId));
+  assert.ok(revision(results[5].snapshot, rev).reviews.some((r) => r.id === results[5].entryId));
   const final = await a.reload();
   assert.equal(final.title, 'Concurrent title');
   assert.equal(final.latestRevision, results[0].revisionId);
@@ -250,17 +338,33 @@ test('mixed patch writes across handles/signers return their own snapshots witho
   assert.equal(before.revisions.length, 1);
 });
 
-test('patch comments serialize across three independently loaded worker realms', { timeout: 60000 }, async t => {
-  const f = await fixture(t), base = (await f.repo.head()).oid;
-  const p = await Patches.openAs(f.repo, f.signer).create({ title: 'Workers', description: '', base, head: base });
-  const rev = (await p.reload()).latestRevision;
-  const { stdout } = await promisify(execFile)(process.execPath, [
-    fileURLToPath(new URL('./patch-workers.mjs', import.meta.url)), f.rid, p.id, rev,
-  ], { env: { ...process.env, RAD_HOME: f.home }, timeout: 50000, maxBuffer: 1024 * 1024 });
-  const results = JSON.parse(stdout);
-  assert.equal(results.length, 12);
-  assert.equal(new Set(results.map(r => r.entryId)).size, 12);
-  assert.deepEqual(results.map(r => revision(r.snapshot, rev).comments.length).sort((a,b) => a-b), Array.from({ length: 12 }, (_, i) => i + 1));
-  for (const result of results) assert.ok(revision(result.snapshot, rev).comments.some(c => c.id === result.entryId));
-  assert.equal(revision(await p.reload(), rev).comments.length, 12);
-});
+test(
+  'patch comments serialize across three independently loaded worker realms',
+  { timeout: 60000 },
+  async (t) => {
+    const f = await fixture(t),
+      base = (await f.repo.head()).oid;
+    const p = await Patches.openAs(f.repo, f.signer).create({
+      title: 'Workers',
+      description: '',
+      base,
+      head: base,
+    });
+    const rev = (await p.reload()).latestRevision;
+    const { stdout } = await promisify(execFile)(
+      process.execPath,
+      [fileURLToPath(new URL('./patch-workers.mjs', import.meta.url)), f.rid, p.id, rev],
+      { env: { ...process.env, RAD_HOME: f.home }, timeout: 50000, maxBuffer: 1024 * 1024 },
+    );
+    const results = JSON.parse(stdout);
+    assert.equal(results.length, 12);
+    assert.equal(new Set(results.map((r) => r.entryId)).size, 12);
+    assert.deepEqual(
+      results.map((r) => revision(r.snapshot, rev).comments.length).sort((a, b) => a - b),
+      Array.from({ length: 12 }, (_, i) => i + 1),
+    );
+    for (const result of results)
+      assert.ok(revision(result.snapshot, rev).comments.some((c) => c.id === result.entryId));
+    assert.equal(revision(await p.reload(), rev).comments.length, 12);
+  },
+);

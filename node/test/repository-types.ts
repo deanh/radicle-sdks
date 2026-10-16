@@ -1,5 +1,13 @@
-import { type Repository, type Storage, type Signer, type Tree, type TreeEntry,
-  type HistoryPage, type HistoryOptions, type SignedRefs } from '../dist/index.js';
+import {
+  type Repository,
+  type Storage,
+  type Signer,
+  type Tree,
+  type TreeEntry,
+  type HistoryPage,
+  type HistoryOptions,
+  type SignedRefs,
+} from '../dist/index.js';
 async function usage(storage: Storage, repo: Repository, signer: Signer): Promise<void> {
   const ids: ReadonlyArray<string> = await storage.repositories();
   const present: boolean = await storage.contains(repo.rid);
@@ -35,6 +43,18 @@ async function usage(storage: Storage, repo: Repository, signer: Signer): Promis
   signed.refs['refs/heads/main'] = 'oid';
   // @ts-expect-error options replace positional pagination arguments
   await repo.history('HEAD', 10);
-  console.log(present, branches, branch, parentIds, kind, name, blob, feature, parent, time, immediate);
+  console.log(
+    present,
+    branches,
+    branch,
+    parentIds,
+    kind,
+    name,
+    blob,
+    feature,
+    parent,
+    time,
+    immediate,
+  );
 }
 void usage;

@@ -1,6 +1,15 @@
 // Compile-only consumer against the generated patch DTOs and public wrapper.
-import { Patches, type Repository, type Signer, type Patch, type Revision, type Review,
-  type PatchChange, type PatchRevisionChange, type PatchStateChange } from '../dist/index.js';
+import {
+  Patches,
+  type Repository,
+  type Signer,
+  type Patch,
+  type Revision,
+  type Review,
+  type PatchChange,
+  type PatchRevisionChange,
+  type PatchStateChange,
+} from '../dist/index.js';
 
 async function usage(repo: Repository, signer: Signer, base: string, head: string): Promise<void> {
   const store = Patches.openAs(repo, signer);
@@ -14,7 +23,7 @@ async function usage(repo: Repository, signer: Signer, base: string, head: strin
   const snapshot: Patch = await patch.reload();
   const state: 'draft' | 'open' | 'archived' | 'merged' = snapshot.state;
   const target: 'delegates' | `branch:${string}` = snapshot.target;
-  const revision: Revision = snapshot.revisions.find(r => r.id === snapshot.latestRevision)!;
+  const revision: Revision = snapshot.revisions.find((r) => r.id === snapshot.latestRevision)!;
   const changed: PatchRevisionChange = await patch.update({ description: 'Next', base, head });
   const revisionId: string = changed.revisionId;
   // @ts-expect-error updates return revisionId, not entryId
@@ -34,7 +43,9 @@ async function usage(repo: Repository, signer: Signer, base: string, head: strin
   await patch.edit({ title: 'Title', target: 'delegates' });
   // @ts-expect-error editing requires an explicit target, not an implicit reset
   await patch.edit({ title: 'Title' });
-  await patch.unready(); await patch.archive(); await patch.unarchive();
+  await patch.unready();
+  await patch.archive();
+  await patch.unarchive();
   const merged: PatchChange = await patch.merge(revision.id, head);
   const mergedRevision: string | undefined = merged.snapshot.mergedRevision;
   const mergedCommit: string | undefined = merged.snapshot.mergedCommit;
@@ -59,6 +70,16 @@ async function usage(repo: Repository, signer: Signer, base: string, head: strin
   // @ts-expect-error listings are frozen/readonly arrays
   list.push(snapshot);
   const missing: Patch | null = await store.get('id');
-  console.log(state, target, flag, mergedRevision, mergedCommit, verdict, revisionTime, requiredTime, missing);
+  console.log(
+    state,
+    target,
+    flag,
+    mergedRevision,
+    mergedCommit,
+    verdict,
+    revisionTime,
+    requiredTime,
+    missing,
+  );
 }
 void usage;

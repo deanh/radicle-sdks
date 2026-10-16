@@ -25,7 +25,10 @@ try {
   const example = join(dir, 'quickstart.mjs');
   await writeFile(example, blocks[0][1]);
   const stdout = execFileSync(process.execPath, [example], {
-    cwd: dir, encoding: 'utf8', timeout: 60000, stdio: ['ignore', 'pipe', 'pipe'],
+    cwd: dir,
+    encoding: 'utf8',
+    timeout: 60000,
+    stdio: ['ignore', 'pipe', 'pipe'],
   });
   assert.match(stdout, /README quick start OK rad:/);
   process.stdout.write(stdout);

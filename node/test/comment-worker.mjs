@@ -9,11 +9,18 @@ try {
   parentPort.postMessage({ ready: true });
   parentPort.once('message', async () => {
     try {
-      const pending = Array.from({ length: workerData.count }, (_, i) => handle.comment(`${workerData.prefix}-${i}`));
+      const pending = Array.from({ length: workerData.count }, (_, i) =>
+        handle.comment(`${workerData.prefix}-${i}`),
+      );
       parentPort.postMessage({ queued: true });
       const results = await Promise.all(pending);
       parentPort.postMessage({ results });
-    } catch (e) { parentPort.postMessage({ error: String(e), stack: e.stack }); }
+    } catch (e) {
+      parentPort.postMessage({ error: String(e), stack: e.stack });
+    }
     parentPort.close();
   });
-} catch (e) { parentPort.postMessage({ error: String(e), stack: e.stack }); parentPort.close(); }
+} catch (e) {
+  parentPort.postMessage({ error: String(e), stack: e.stack });
+  parentPort.close();
+}

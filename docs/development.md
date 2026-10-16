@@ -60,6 +60,7 @@ nvm use
 npm ci --ignore-scripts
 RUSTUP_TOOLCHAIN=1.91.0 npm run build
 npm run check
+npm run format:check
 npm test
 bash node/scripts/tarball-install-smoke.sh
 cargo +1.91.0 test --release -p radicle-sdk-native --locked

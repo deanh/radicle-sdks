@@ -1,6 +1,16 @@
 // Compile against emitted declarations, never implementation files.
-import { Profile, Signer, Storage, Repository, Issues, IssueMut, Patches, PatchMut,
-  initProject, type InitOptions } from 'radicle-sdk';
+import {
+  Profile,
+  Signer,
+  Storage,
+  Repository,
+  Issues,
+  IssueMut,
+  Patches,
+  PatchMut,
+  initProject,
+  type InitOptions,
+} from 'radicle-sdk';
 
 // @ts-expect-error handles have private constructors, not implicit public zero-arg ones
 new Profile();
@@ -54,7 +64,12 @@ async function useFactories(profile: Profile): Promise<void> {
   const issues: Issues = Issues.openAs(repo, signer);
   const issue: IssueMut = await issues.create({ title: 'First', description: '' });
   const patches: Patches = Patches.openAs(repo, signer);
-  const patch: PatchMut = await patches.draft({ title: 'First', description: '', base: '', head: '' });
+  const patch: PatchMut = await patches.draft({
+    title: 'First',
+    description: '',
+    base: '',
+    head: '',
+  });
   void [issue, patch, publicOptions];
 }
 void useFactories;

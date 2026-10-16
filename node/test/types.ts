@@ -1,5 +1,16 @@
 // Compile-only consumer checks against generated Rust DTOs and TS wrapper declarations.
-import { Profile, Signer, Issues, initProject, forkProject, checkoutProject, type Issue, type Commit, type IssueChange, type CloseIssueOptions } from '../../node/dist/index.js';
+import {
+  Profile,
+  Signer,
+  Issues,
+  initProject,
+  forkProject,
+  checkoutProject,
+  type Issue,
+  type Commit,
+  type IssueChange,
+  type CloseIssueOptions,
+} from '../../node/dist/index.js';
 
 const loadProfile: () => Profile = Profile.load;
 void loadProfile;
@@ -7,7 +18,11 @@ void loadProfile;
 async function usage(home: string): Promise<void> {
   const profile = await Profile.init(home, 'alice');
   const signer: Signer = profile.signer();
-  const rid = await initProject(profile.storage, signer, '/work', { name: 'demo', description: 'Demo', defaultBranch: 'main' });
+  const rid = await initProject(profile.storage, signer, '/work', {
+    name: 'demo',
+    description: 'Demo',
+    defaultBranch: 'main',
+  });
   const repo = profile.storage.repository(rid);
   const head = await repo.head();
   const doc = await repo.identity();
@@ -39,8 +54,13 @@ async function usage(home: string): Promise<void> {
   void directList;
   const closedOptions: CloseIssueOptions = { reason: 'solved' };
   const mutations: ReadonlyArray<IssueChange> = await Promise.all([
-    issue.edit('new title'), issue.editDescription('new root'), issue.label(labels), issue.assign(assignees),
-    issue.close(closedOptions), issue.close(), issue.reopen(),
+    issue.edit('new title'),
+    issue.editDescription('new root'),
+    issue.label(labels),
+    issue.assign(assignees),
+    issue.close(closedOptions),
+    issue.close(),
+    issue.reopen(),
   ]);
   const reason: 'solved' | 'unspecified' | undefined = mutations[0].snapshot.closeReason;
   const author: string = mutations[0].snapshot.author;

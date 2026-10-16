@@ -21,8 +21,13 @@ test('worker and synchronous Rust panics cannot unwind through the Node boundary
     finally { await rm(home, {recursive:true, force:true}); }
     console.log('survived');
   `;
-  const { stdout } = await promisify(execFile)(process.execPath, ['--input-type=module', '--eval', code], {
-    cwd: new URL('../..', import.meta.url), timeout: 30000,
-  });
+  const { stdout } = await promisify(execFile)(
+    process.execPath,
+    ['--input-type=module', '--eval', code],
+    {
+      cwd: new URL('../..', import.meta.url),
+      timeout: 30000,
+    },
+  );
   assert.match(stdout, /survived/);
 });

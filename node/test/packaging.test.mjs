@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFile, readdir } from 'node:fs/promises';
 
-const text = path => readFile(new URL(path, import.meta.url), 'utf8');
+const text = (path) => readFile(new URL(path, import.meta.url), 'utf8');
 
 test('alpha package/native identities agree and source prepare selects release builds', async () => {
   const pkg = JSON.parse(await text('../../package.json'));
@@ -28,10 +28,12 @@ test('alpha package/native identities agree and source prepare selects release b
   assert.equal(pkg.scripts.prepare, 'npm run build');
   assert.equal(pkg.scripts.install, undefined);
   assert.equal(pkg.scripts.postinstall, undefined);
-  assert.ok(pkg.files.every(file => !file.startsWith('node/native') && !file.includes('Cargo')));
+  assert.ok(pkg.files.every((file) => !file.startsWith('node/native') && !file.includes('Cargo')));
   assert.ok(pkg.files.includes('LICENSE-MIT') && pkg.files.includes('LICENSE-APACHE'));
   assert.match(pkg.scripts.build, /^npm run clean && /);
-  const addons = (await readdir(new URL('../dist/', import.meta.url))).filter(name => name.endsWith('.node'));
+  const addons = (await readdir(new URL('../dist/', import.meta.url))).filter((name) =>
+    name.endsWith('.node'),
+  );
   assert.deepEqual(addons, ['radicle-sdk.linux-x64-gnu.node']); // no leftover T0/debug addon
   assert.match(bindings, /radicle-sdk\.linux-x64-gnu\.node/);
   assert.ok(!bindings.includes('radicle-sdk-t0'));

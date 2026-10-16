@@ -4,12 +4,18 @@ import { isMainThread, Worker, workerData } from 'node:worker_threads';
 import { Profile, Signer, RadicleError, initProject, Issues } from '../dist/index.js';
 
 const data = isMainThread ? JSON.parse(process.argv[2]) : workerData;
-const category = code => e => e instanceof RadicleError && e.code === code && e.cause instanceof Error;
+const category = (code) => (e) =>
+  e instanceof RadicleError && e.code === code && e.cause instanceof Error;
 if (data.worker) {
   // Worker-local JS env copies must not override upstream's native OS env.
   const worker = new Worker(new URL(import.meta.url), {
-    env: { ...process.env, RAD_HOME: '/ignored-worker-home', HOME: '/ignored-worker-parent',
-      RAD_PASSPHRASE: 'wrong-worker-secret', SSH_AUTH_SOCK: '/ignored-worker-socket' },
+    env: {
+      ...process.env,
+      RAD_HOME: '/ignored-worker-home',
+      HOME: '/ignored-worker-parent',
+      RAD_PASSPHRASE: 'wrong-worker-secret',
+      SSH_AUTH_SOCK: '/ignored-worker-socket',
+    },
     workerData: { ...data, worker: false },
   });
   assert.equal((await once(worker, 'exit'))[0], 0);
@@ -27,9 +33,14 @@ if (data.worker) {
     assert.equal(signer.nodeId, data.nodeId);
     if (data.work) {
       const rid = await initProject(profile.storage, signer, data.work, {
-        name: 'agent-fixture', description: 'upstream socket', defaultBranch: 'main',
+        name: 'agent-fixture',
+        description: 'upstream socket',
+        defaultBranch: 'main',
       });
-      const issue = await Issues.openAs(profile.storage.repository(rid), signer).create({ title: 'Agent', description: 'Root' });
+      const issue = await Issues.openAs(profile.storage.repository(rid), signer).create({
+        title: 'Agent',
+        description: 'Root',
+      });
       const change = await issue.comment('Signed through upstream agent');
       assert.equal(change.snapshot.comments.length, 2);
     }
