@@ -1355,8 +1355,8 @@ dependencies = [
 ]
 
 [[package]]
-name = "radicle-sdk-t0"
-version = "0.0.0"
+name = "radicle-sdk-native"
+version = "0.1.0"
 dependencies = [
  "getrandom 0.3.4",
  "indexmap",

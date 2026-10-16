@@ -1,14 +1,19 @@
-# radicle-sdk: TypeScript alpha (in progress)
+# radicle-sdk 0.1.0: TypeScript alpha
 
-**Experimental TypeScript v0.** Builds on the isolated T0 spike;
-local issue/patch COB workflows and the planned supporting storage/repository
-operations are implemented. The repository increment is pending review.
+**Experimental, source-installed alpha.** Local issue/patch COB workflows and the
+planned supporting storage/repository operations are implemented. Version `0.1.0`
+is the alpha package version; the exact Git commit identifies each candidate.
 The Python package and its root Git-install path are unchanged. No shared core
 has been extracted.
 The native crate lives in `node/native`; the npm manifest is at repository root
 so Git dependencies can build it without unsupported subdirectory fragments.
 
 ## Build and test
+
+The initial alpha supports **Linux x86_64 (GNU/glibc) only**, tested locally.
+macOS, Windows, other architectures and musl-based Linux are not supported or
+validated yet. Support claims will expand only after source-install and workflow
+validation on those platforms; no multi-platform binary distribution is promised.
 
 Requires Node **26.12.0+** (tested baseline: 26.12.0), **Rust ≥ 1.91**, a C
 compiler, and Git. The pinned radicle 0.25.1 declares Rust 1.88.0 but doesn't
@@ -22,13 +27,17 @@ npm ci --ignore-scripts
 npm run build
 npm run check
 npm test
-cargo test --manifest-path node/native/Cargo.toml --locked
+cargo test --release --manifest-path node/native/Cargo.toml --locked
 cargo clippy --manifest-path node/native/Cargo.toml --all-targets --locked -- -D warnings
 ```
 
-`prepare` builds the Rust addon with the committed Cargo lockfile, generates
-native TypeScript declarations, then compiles the thin TS wrapper. This alpha uses a
-debug native build, not a release/performance or portable-binary claim.
+`prepare` clears generated `node/dist` output (including old T0/debug addons),
+builds the Rust addon with the committed Cargo lockfile, generates
+native TypeScript declarations, then compiles the thin TS wrapper. Native builds,
+including Git dependency `prepare`, use Cargo's optimized **release** profile.
+Release retains unwinding panic containment; abort-mode builds are rejected.
+Optimization is not a read-latency or portable-binary guarantee. Package history
+is in [`CHANGELOG.md`](./CHANGELOG.md).
 Do not regenerate the lockfiles casually: the standalone feature graph needs
 explicit `indexmap/std` for pinned radicle 0.25.1.
 
@@ -71,6 +80,7 @@ After committing, validate the actual root Git dependency in a clean project:
 
 ```sh
 bash node/scripts/git-install-smoke.sh npm    # adds Git approval for npm >=12
+bash node/scripts/git-install-smoke.sh npm11  # pinned npm 11.20.0 gate
 bash node/scripts/git-install-smoke.sh npm12  # pinned npm 12.2.0 gate
 bash node/scripts/git-install-smoke.sh pnpm
 bash node/scripts/git-install-smoke.sh bun  # best effort

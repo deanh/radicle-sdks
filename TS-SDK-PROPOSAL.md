@@ -1,7 +1,7 @@
 # TypeScript SDK proposal
 
-Status: **isolated TypeScript foundation, issue completion and local patch
-workflows merged; supporting repository increment on `ts-repository-v0`, pending review**. Goal: a
+Status: **bounded v0 workflows and supporting repository operations merged;
+alpha release polish proceeds as two reviewable patches under issue `fdcfc02`**. Goal: a
 programmatic TypeScript interface to the same core local Radicle workflows
 radicle-py covers, wrapping the `radicle` crate. The default answer to any extra
 feature is "not until a workflow needs it". rad-pi (the pi extension for
@@ -13,9 +13,11 @@ core extraction** (§7). T0 evidence remains in
 [`FINDINGS-TS-T0.md`](./FINDINGS-TS-T0.md); current contracts are in
 [`node/README.md`](./node/README.md). The measured Rust minimum is 1.91. Bun's
 Git prepare fails while its runtime can use the Node-built addon. These are
-local Linux results, not broad platform or remote-CI claims. The current authorized
-increment adds the remaining §2 repository/storage operations and `signRefs` only.
-Shared core, networking, publication and any expansion beyond §2 remain separate.
+local Linux results, not broad platform or remote-CI claims. Release polish keeps
+the native crate isolated: Patch A adds release builds, 0.1.0 naming/changelog and
+an explicit Linux x86_64 (GNU/glibc)-only claim; Patch B follows after A lands with
+public constructor cleanup, private initialization and an executable README.
+Shared core, networking, publication and broader Python parity remain separate.
 
 ### Selected package and runtime
 
@@ -376,19 +378,21 @@ issues (listing, creation metadata, edits, labels/assignment, close/reopen), usi
 upstream transactions and locked `{ entryId, snapshot }` results. The baseline
 and issue increment are now merged, as is the independent Rust 1.91 minimum
 update (`74a8aed`). Local patch workflows (`744e266`, head `662dbc5`) and the
-separate Python semantics documentation (`dc5e209`) are also merged. The authorized
-next increment, `ts-repository-v0`, completes §2 storage discovery, canonical branch
-reads, tree/blob access, bounded history and explicit ref signing. Commit metadata
-adds the fields needed for tree/parent navigation and signature inspection. No Python restructuring,
-scheduler, networking or publication work is included. Current implemented
-surface and contracts: `node/README.md`. Repository evidence and the separate
-Python history-error follow-up: `FINDINGS-TS-REPOSITORY.md`.
+separate Python semantics documentation (`dc5e209`) are also merged. The repository
+increment landed at `86bd595`; the Python history skip-error follow-up landed at
+`399d6c4`. Current implemented surface and contracts: `node/README.md`; historical
+repository evidence: `FINDINGS-TS-REPOSITORY.md`. Release polish is split under
+issue `fdcfc02`: A handles optimized builds, identity/version and platform wording;
+B handles constructor safety, private initialization and tested user-facing docs.
+No Python restructuring, scheduler, networking or publication is included.
 
 **Landing history/gate:** baseline patch `66702b1` landed as the single squashed
 commit `e284b66`, whose tree matches reviewed T0 head `adeb55c`. Issue patch
 `15cd0e4` then landed on that baseline at `a7d6bda`; abandoned intermediate T0
-history was not imported. The repository increment starts from merged `main`
-(`dc5e209`) and requires its own review and explicit landing authorization.
+history was not imported. Release polish A starts from merged `main` (`399d6c4`)
+and requires its own review and explicit landing authorization. Land A before
+implementing/validating B against the optimized build. Version is `0.1.0`, with
+the exact Git commit identifying each alpha candidate. Bare checkout remains deferred.
 
 | Phase | Work | Exit criteria |
 |---|---|---|

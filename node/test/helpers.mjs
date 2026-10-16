@@ -11,7 +11,7 @@ export function git(work, ...args) {
   }).trim();
 }
 export async function fixture(t) {
-  const root = await mkdtemp(join(tmpdir(), 'radicle-ts-t0-'));
+  const root = await mkdtemp(join(tmpdir(), 'radicle-sdk-test-'));
   t.after(() => rm(root, { recursive: true, force: true }));
   const home = join(root, 'home'), work = join(root, 'work');
   await mkdir(work);

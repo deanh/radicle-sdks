@@ -1,20 +1,21 @@
 {
   "name": "radicle-sdk",
-  "version": "0.0.0-t0",
+  "version": "0.1.0",
   "private": true,
-  "description": "Throwaway T0 spike: local Radicle workflows via Node-API",
+  "description": "TypeScript SDK for local signed Radicle project, issue and patch workflows",
   "license": "MIT OR Apache-2.0",
   "type": "module",
   "engines": { "node": ">=26.12.0" },
   "exports": { ".": { "types": "./node/dist/index.d.ts", "import": "./node/dist/index.js" } },
-  "files": ["node/dist", "node/native/Cargo.toml", "node/native/Cargo.lock", "node/native/build.rs", "node/native/src", "node/README.md"],
+  "files": ["node/dist", "node/native/Cargo.toml", "node/native/Cargo.lock", "node/native/build.rs", "node/native/src", "node/README.md", "node/CHANGELOG.md"],
   "scripts": {
-    "build:native": "napi build --platform --manifest-path node/native/Cargo.toml --output-dir node/dist --js native.cjs --dts native.d.cts -- --locked",
-    "build": "npm run build:native && tsc -p node/tsconfig.json",
+    "build:native": "napi build --release --platform --manifest-path node/native/Cargo.toml --output-dir node/dist --js native.cjs --dts native.d.cts -- --locked",
+    "clean": "node --input-type=module -e \"import { rmSync } from 'node:fs'; rmSync('node/dist', { recursive: true, force: true });\"",
+    "build": "npm run clean && npm run build:native && tsc -p node/tsconfig.json",
     "prepare": "npm run build",
     "test": "node --test node/test/*.test.mjs",
     "check": "tsc --noEmit -p node/tsconfig.test.json"
   },
   "devDependencies": { "@napi-rs/cli": "3.10.8", "typescript": "^5.9.3", "@types/node": "^26.0.0" },
-  "napi": { "binaryName": "radicle-sdk-t0", "targets": ["x86_64-unknown-linux-gnu"] }
+  "napi": { "binaryName": "radicle-sdk", "targets": ["x86_64-unknown-linux-gnu"] }
 }

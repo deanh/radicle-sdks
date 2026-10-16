@@ -1,11 +1,15 @@
 // Copied into a fresh consumer project by scripts/git-install-smoke.sh.
 import assert from 'node:assert/strict';
-import { mkdtemp, mkdir, writeFile, rm } from 'node:fs/promises';
+import { mkdtemp, mkdir, writeFile, readFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { execFileSync } from 'node:child_process';
 import { Profile, Issues, Patches, initProject, forkProject, checkoutProject, RadicleError } from 'radicle-sdk';
 
+const installed = JSON.parse(await readFile(new URL('../../package.json', import.meta.resolve('radicle-sdk')), 'utf8'));
+assert.equal(installed.version, '0.1.0');
+assert.equal(installed.napi.binaryName, 'radicle-sdk');
+assert.match(installed.scripts['build:native'], /\bnapi build --release\b/);
 const root = await mkdtemp(join(tmpdir(), 'radicle-sdk-installed-'));
 function git(work, ...args) {
   return execFileSync('git', ['-C', work, '-c', 'user.name=Alice', '-c', 'user.email=alice@example.invalid',

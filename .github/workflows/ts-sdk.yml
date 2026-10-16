@@ -1,11 +1,11 @@
-name: TypeScript T0 spike
+name: TypeScript alpha (Linux x86_64)
 
 on:
   push:
     branches: [main]
-    paths: ['node/**', 'package.json', 'package-lock.json', '.nvmrc', '.github/workflows/ts-t0.yml']
+    paths: ['node/**', 'package.json', 'package-lock.json', '.nvmrc', '.github/workflows/ts-sdk.yml']
   pull_request:
-    paths: ['node/**', 'package.json', 'package-lock.json', '.nvmrc', '.github/workflows/ts-t0.yml']
+    paths: ['node/**', 'package.json', 'package-lock.json', '.nvmrc', '.github/workflows/ts-sdk.yml']
   workflow_dispatch:
 
 jobs:
@@ -24,10 +24,17 @@ jobs:
       - run: npm run build
       - run: npm run check
       - run: npm test
-      - run: cargo test --manifest-path node/native/Cargo.toml --locked
+      - run: cargo test --release --manifest-path node/native/Cargo.toml --locked
+      - name: Abort-mode native builds remain rejected
+        run: |
+          if cargo rustc --release --manifest-path node/native/Cargo.toml --locked --lib -- -C panic=abort > "$RUNNER_TEMP/abort-build.log" 2>&1; then
+            echo 'unexpected successful panic=abort build'
+            exit 1
+          fi
+          grep -F 'radicle-sdk requires panic=unwind' "$RUNNER_TEMP/abort-build.log"
       - run: cargo clippy --manifest-path node/native/Cargo.toml --all-targets --locked -- -D warnings
-      - name: Exact-commit root Git install (npm)
-        run: bash node/scripts/git-install-smoke.sh npm "$GITHUB_SHA"
+      - name: Exact-commit root Git install (npm 11)
+        run: bash node/scripts/git-install-smoke.sh npm11 "$GITHUB_SHA"
       - name: Exact-commit root Git install (npm 12, explicit Git approval)
         run: bash node/scripts/git-install-smoke.sh npm12 "$GITHUB_SHA"
       - name: Exact-commit root Git install (pnpm, approved build scripts)

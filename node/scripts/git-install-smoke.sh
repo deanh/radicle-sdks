@@ -21,6 +21,9 @@ case "$manager" in
     if (( ${version%%.*} >= 12 )); then flags+=(--allow-git=root); fi
     npm install "${flags[@]}" "$spec"
     ;;
+  npm11)
+    npm exec --yes --package npm@11.20.0 -- npm install --foreground-scripts "$spec"
+    ;;
   npm12)
     npm exec --yes --package npm@12.2.0 -- npm install --foreground-scripts --allow-git=root "$spec"
     ;;
@@ -31,7 +34,7 @@ case "$manager" in
     npm exec --yes --package pnpm@12.11.2 -- pnpm add --store-dir "$consumer/pnpm-store" "$spec"
     ;;
   bun) npm exec --yes --package bun@1.4.3 -- bun add --trust "$spec" ;;
-  *) echo "expected npm, npm12, pnpm or bun" >&2; exit 2 ;;
+  *) echo "expected npm, npm11, npm12, pnpm or bun" >&2; exit 2 ;;
 esac
 cp "$root/node/test/install-smoke.mjs" smoke.mjs
 node smoke.mjs
