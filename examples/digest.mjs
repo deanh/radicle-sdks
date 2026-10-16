@@ -14,6 +14,7 @@
 // `examples/digest.py` is the same program for the Python SDK; the two must
 // print identical output (checked by tests/test_examples.py).
 
+import { pathToFileURL } from 'node:url';
 import { Profile, Issues, Patches, RadicleError } from 'radicle-sdk';
 
 const short = (oid) => oid.slice(0, 7);
@@ -25,7 +26,7 @@ const compare = (a, b) => Buffer.compare(Buffer.from(a, 'utf8'), Buffer.from(b, 
 const byTitle = (items) =>
   [...items].sort((a, b) => compare(a.title, b.title) || compare(a.id, b.id));
 
-class Digest {
+export class Digest {
   constructor(profile) {
     this.me = profile.did;
     this.storage = profile.storage;
@@ -90,7 +91,8 @@ class Digest {
     for (const patch of active) {
       const latest = patch.revisions.find((r) => r.id === patch.latestRevision);
       if (latest === undefined) {
-        // Only a redacted author revision can be missing from the list.
+        // Upstream picks latestRevision from the same non-redacted list, so
+        // this should not happen; report it rather than crash.
         this.emit(
           `- **${patch.title}** \`${short(patch.id)}\` (${patch.state}), ` +
             `by ${this.who(patch.author)}: latest revision unavailable.`,
@@ -177,7 +179,10 @@ class Digest {
   }
 }
 
-const profile = Profile.load();
-const args = process.argv.slice(2);
-const rids = args.length > 0 ? args : [...(await profile.storage.repositories())].sort(compare);
-process.stdout.write(await new Digest(profile).run(rids));
+// Run only as a script; tests import Digest without touching a profile.
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
+  const profile = Profile.load();
+  const args = process.argv.slice(2);
+  const rids = args.length > 0 ? args : [...(await profile.storage.repositories())].sort(compare);
+  process.stdout.write(await new Digest(profile).run(rids));
+}

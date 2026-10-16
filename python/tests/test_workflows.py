@@ -220,3 +220,39 @@ def test_encrypted_signer(tmp_path, monkeypatch):
         profile.signer()
     monkeypatch.setenv("RAD_PASSPHRASE", "correct")
     assert profile.signer().did == profile.did
+
+
+def test_reload_is_read_only_and_observes_other_writers(project):
+    profile, _, _, repo, _, stored, base = project
+    issues = rad.Issues.open_as(repo, profile.signer())
+    issue = issues.create("t", "root")
+    issues.get_mut(issue.id).comment("from another handle")
+    ref = f"refs/namespaces/{profile.node_id}/refs/cobs/xyz.radicle.issue/{issue.id}"
+    tip = git(stored, "rev-parse", ref)
+    assert issue.issue.comment_count == 1
+    assert issue.reload().comment_count == 2
+    assert git(stored, "rev-parse", ref) == tip  # reload records no operation
+    patch = rad.Patches.open_as(repo, profile.signer()).create("t", "d", base=base, head=base)
+    ref = f"refs/namespaces/{profile.node_id}/refs/cobs/xyz.radicle.patch/{patch.id}"
+    tip = git(stored, "rev-parse", ref)
+    assert patch.reload() == patch.patch
+    assert git(stored, "rev-parse", ref) == tip
+
+
+def test_failed_mutation_refreshes_a_stale_handle(project):
+    profile, peer, _, repo, _, _, base = project
+    issues = rad.Issues.open_as(repo, profile.signer())
+    stale = issues.create("before", "root")
+    issues.get_mut(stale.id).edit("after")
+    assert stale.issue.title == "before"
+    with pytest.raises(rad.CobError):
+        stale.comment("dangling reply", reply_to="0" * 40)
+    assert stale.issue.title == "after"  # refreshed from the loaded issue
+    assert stale.issue.comment_count == 1  # the failed reply was not recorded
+    patch = rad.Patches.open_as(repo, profile.signer()).create("t", "d", base=base, head=base)
+    unauthorized = rad.Patches.open_as(repo, peer.signer()).get_mut(patch.id)
+    patch.label(["bug"])
+    assert unauthorized.patch.labels == []
+    with pytest.raises(rad.CobError):
+        unauthorized.edit("unauthorized", "delegates")
+    assert unauthorized.patch.labels == ["bug"]

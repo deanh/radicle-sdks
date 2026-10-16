@@ -161,3 +161,37 @@ def test_digest_with_explicit_rids_and_an_unreadable_repository(digest_home):
     out = run_digest([sys.executable, "examples/digest.py", digest_home["rid"], missing], digest_home["home"])
     assert out.count("\n## ") == 2
     assert out.endswith(f"## {missing}\n\n_Could not read this repository._\n")
+
+
+def test_unavailable_latest_revision_is_reported_identically():
+    # A latest-revision id missing from `revisions` should not happen (upstream
+    # selects both from the same non-redacted list); if it does, both digests
+    # print the same placeholder line instead of aborting the whole report.
+    import importlib.util
+    from types import SimpleNamespace
+
+    spec = importlib.util.spec_from_file_location("digest", ROOT / "examples" / "digest.py")
+    digest = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(digest)
+    d = digest.Digest.__new__(digest.Digest)
+    d.me, d.lines = "did:key:me", []
+    d.patches_in_progress([SimpleNamespace(
+        title="Orphan", id="0123456789abcdef", state="open", author="did:key:z6MkOtherPerson",
+        revisions=[SimpleNamespace(id="r1", reviews=[])], latest_revision="r2", assignees=[])])
+    python = "\n".join(d.lines) + "\n"
+    assert python.endswith(
+        "- **Orphan** `0123456` (open), by did:key:...erPerson: latest revision unavailable.\n")
+    require_typescript()
+    script = """
+import { Digest } from './examples/digest.mjs';
+const d = Object.create(Digest.prototype);
+d.me = 'did:key:me'; d.lines = [];
+d.patchesInProgress([{ title: 'Orphan', id: '0123456789abcdef', state: 'open',
+  author: 'did:key:z6MkOtherPerson', revisions: [{ id: 'r1', reviews: [] }],
+  latestRevision: 'r2', assignees: [] }]);
+process.stdout.write(d.lines.join('\\n') + '\\n');
+"""
+    result = subprocess.run(["node", "--input-type=module", "-e", script], cwd=ROOT,
+                            capture_output=True, text=True, timeout=60)
+    assert result.returncode == 0, result.stderr
+    assert result.stdout == python

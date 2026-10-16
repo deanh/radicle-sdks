@@ -74,6 +74,7 @@ class TestIssueWrites:
         m = issues_w.create("t", "d")
         root = m.issue.comment_ids[0]
         m.comment("reply-a")
+        assert m.issue.comments[-1].reply_to == root  # default target is the root
         m.comment("reply-b", reply_to=root)
         assert m.issue.comment_count == 3
         # threaded reply chain is visible in comment ids
