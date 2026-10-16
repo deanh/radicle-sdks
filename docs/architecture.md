@@ -43,11 +43,9 @@ Python package for compatibility with root developer commands. CI selects
 packages explicitly. Both adapters inherit the exact upstream constraint and
 explicit `indexmap/std`, and share one root `Cargo.lock`.
 
-The lock consolidation required an explicit dependency alignment: 31 shared
-Python package selections moved to the existing newer Node baseline. No versions
-were selected outside the original locks. See the
-[dependency/feature evidence](archive/FINDINGS-WORKSPACE-LAYOUT.md); it is not a
-claim that moving files alone was dependency-neutral.
+Consolidating the two locks aligned 31 shared Python dependency selections to
+the Node baseline; the evidence is in the
+[workspace layout findings](archive/FINDINGS-WORKSPACE-LAYOUT.md).
 
 Root `pyproject.toml` remains the Python Git-install entry point, points to
 `python/native/Cargo.toml`, and uses the Python guide as its package description.
@@ -94,7 +92,7 @@ Snapshots live near their domains, with a small collaboration comment type in
 each adapter. Python's `hashing.rs` contains only process-local hashing,
 not another shared DTO schema. Node tasks, repository locks, Date conversion and
 native probes remain explicitly binding-specific. Python-only policy, routing
-and raw access remain independent. [Development](development.md#module-alignment-map)
+and raw access remain independent. [Migration gates](archive/MIGRATION-GATES.md#module-alignment-map)
 records the mapping. No shared Rust extraction is included in these moves.
 
 ## Shared Rust: only with a real consumer

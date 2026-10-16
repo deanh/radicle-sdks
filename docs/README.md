@@ -37,6 +37,8 @@ other local checkouts are not dependencies of this repository.
   ownership, preservation checks and fresh artifact validation.
 - [Workspace layout findings](archive/FINDINGS-WORKSPACE-LAYOUT.md): explicit
   dependency alignment, feature isolation and source-packaging evidence.
+- [Migration gates](archive/MIGRATION-GATES.md): the validation gates,
+  dependency audit and pre-alignment module map for the completed migration.
 
 ### Python
 
