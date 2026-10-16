@@ -40,9 +40,9 @@ fn commit_files(
     let sig = git::raw::Signature::now("radiclepy-fixture", "fixture@example.com")
         .map_err(|e| error::op_err(format!("signature: {e}")))?;
 
-    // Build a flat tree; nested paths use git2's blob + recursive insert via
-    // the index-free treebuilder walk below (depth-limited to one level, the
-    // fixture set only nests once).
+    // Group files by directory, write one subtree per directory, then the
+    // root tree. The fixture set nests exactly one level, so no deeper
+    // recursion is needed.
     use std::collections::BTreeMap;
     let mut dirs: BTreeMap<&str, Vec<(String, git::raw::Oid, i32)>> = BTreeMap::new();
     for (path, content) in files {

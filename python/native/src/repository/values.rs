@@ -418,10 +418,10 @@ impl HistoryPage {
 
     fn __repr__(&self) -> String {
         format!(
-            "HistoryPage({}, {} of {}, has_more={})",
+            "HistoryPage({}, offset={}, len={}, has_more={})",
             self.name,
-            self.oids.len(),
             self.offset,
+            self.oids.len(),
             self.has_more
         )
     }

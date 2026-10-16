@@ -69,10 +69,10 @@ impl ProjectDoc {
 
     fn __repr__(&self) -> String {
         format!(
-            "ProjectDoc({}, delegates={} commits to v{})",
+            "ProjectDoc({}, v{}, {} delegate(s))",
             self.name,
-            self.delegates.len(),
-            self.version
+            self.version,
+            self.delegates.len()
         )
     }
 }

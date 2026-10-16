@@ -70,7 +70,7 @@ pub fn register(_py: Python<'_>, m: &Bound<'_, PyModule>) -> PyResult<()> {
     Ok(())
 }
 
-/// ValueError for a malformed ObjectId, CobError for a store failure.
+/// Validate a COB object id; `ValueError` when malformed.
 pub(crate) fn parse_cob_id(value: &str) -> PyResult<ObjectId> {
     ObjectId::from_str(value).map_err(|err| error::value_err(format!("invalid ObjectId: {err}")))
 }

@@ -74,9 +74,48 @@ fn policy_str(policy: Policy) -> &'static str {
     }
 }
 
+fn follow_policy_info(p: policy::FollowPolicy) -> FollowPolicyInfo {
+    FollowPolicyInfo {
+        node_id: p.nid.to_string(),
+        alias: p.alias.map(|a| a.to_string()),
+        policy: policy_str(p.policy).to_owned(),
+    }
+}
+
+fn seed_policy_info(p: policy::SeedPolicy) -> SeedPolicyInfo {
+    let (policy, scope) = match p.policy {
+        policy::SeedingPolicy::Allow { scope } => (
+            "allow",
+            Some(match scope {
+                Scope::All => "all",
+                Scope::Followed => "followed",
+            }),
+        ),
+        policy::SeedingPolicy::Block => ("block", None),
+    };
+    SeedPolicyInfo {
+        rid: p.rid.to_string(),
+        policy: policy.to_owned(),
+        scope: scope.map(str::to_owned),
+    }
+}
+
 enum Backend {
     Rw(RawStore),
     Ro(RawReader),
+}
+
+/// Run one upstream read against whichever backend is open. Upstream
+/// implements the read methods for every `Store<T>`, so the two arms differ
+/// only in type and cannot share a trait object.
+macro_rules! read {
+    ($backend:expr, |$store:ident| $call:expr) => {
+        match &$backend {
+            Backend::Rw($store) => $call,
+            Backend::Ro($store) => $call,
+        }
+        .map_err(policy_err)
+    };
 }
 
 impl Backend {
@@ -220,135 +259,55 @@ impl PyPolicyStore {
 
     fn is_following(&self, node_id: &str) -> PyResult<bool> {
         let nid = parse_node_id(node_id)?;
-        match &self.backend {
-            Backend::Rw(s) => s.is_following(&nid),
-            Backend::Ro(s) => s.is_following(&nid),
-        }
-        .map_err(policy_err)
+        read!(self.backend, |s| s.is_following(&nid))
     }
 
     fn is_seeding(&self, rid: &str) -> PyResult<bool> {
         let rid = parse_rid(rid)?;
-        match &self.backend {
-            Backend::Rw(s) => s.is_seeding(&rid),
-            Backend::Ro(s) => s.is_seeding(&rid),
-        }
-        .map_err(policy_err)
+        read!(self.backend, |s| s.is_seeding(&rid))
     }
 
     /// Whether `node_id` is explicitly *blocked* (distinct from unfollowed).
     fn is_blocked(&self, node_id: &str) -> PyResult<bool> {
         let nid = parse_node_id(node_id)?;
-        match &self.backend {
-            Backend::Rw(s) => s.is_blocked(&nid),
-            Backend::Ro(s) => s.is_blocked(&nid),
-        }
-        .map_err(policy_err)
+        read!(self.backend, |s| s.is_blocked(&nid))
     }
 
     /// Explicit follow policy for `node_id`, or `None`.
     fn follow_policy(&self, node_id: &str) -> PyResult<Option<FollowPolicyInfo>> {
         let nid = parse_node_id(node_id)?;
-        let fetched = match &self.backend {
-            Backend::Rw(s) => s.follow_policy(&nid),
-            Backend::Ro(s) => s.follow_policy(&nid),
-        }
-        .map_err(policy_err)?;
-        Ok(fetched.map(|p| FollowPolicyInfo {
-            node_id: p.nid.to_string(),
-            alias: p.alias.map(|a| a.to_string()),
-            policy: policy_str(p.policy).to_owned(),
-        }))
+        Ok(read!(self.backend, |s| s.follow_policy(&nid))?.map(follow_policy_info))
     }
 
     /// Explicit seed policy for `rid`, or `None`.
     fn seed_policy(&self, rid: &str) -> PyResult<Option<SeedPolicyInfo>> {
-        let rid_t = parse_rid(rid)?;
-        let fetched = match &self.backend {
-            Backend::Rw(s) => s.seed_policy(&rid_t),
-            Backend::Ro(s) => s.seed_policy(&rid_t),
-        }
-        .map_err(policy_err)?;
-        Ok(fetched.map(|p| {
-            let (policy, scope) = match p.policy {
-                policy::SeedingPolicy::Allow { scope } => (
-                    "allow",
-                    Some(match scope {
-                        Scope::All => "all",
-                        Scope::Followed => "followed",
-                    }),
-                ),
-                policy::SeedingPolicy::Block => ("block", None),
-            };
-            SeedPolicyInfo {
-                rid: p.rid.to_string(),
-                policy: policy.to_owned(),
-                scope: scope.map(str::to_owned),
-            }
-        }))
+        let rid = parse_rid(rid)?;
+        Ok(read!(self.backend, |s| s.seed_policy(&rid))?.map(seed_policy_info))
     }
 
     /// All follow policies (eager; storage order).
     fn follow_policies(&self) -> PyResult<Vec<FollowPolicyInfo>> {
-        let raws: Vec<_> = match &self.backend {
-            Backend::Rw(s) => s.follow_policies(),
-            Backend::Ro(s) => s.follow_policies(),
-        }
-        .map_err(policy_err)?
-        .collect::<Result<Vec<_>, _>>()
-        .map_err(policy_err)?;
-        Ok(raws
-            .into_iter()
-            .map(|p| FollowPolicyInfo {
-                node_id: p.nid.to_string(),
-                alias: p.alias.map(|a| a.to_string()),
-                policy: policy_str(p.policy).to_owned(),
-            })
-            .collect())
+        let raws: Vec<_> = read!(self.backend, |s| s.follow_policies())?
+            .collect::<Result<_, _>>()
+            .map_err(policy_err)?;
+        Ok(raws.into_iter().map(follow_policy_info).collect())
     }
 
     /// All seed policies (eager; storage order).
     fn seed_policies(&self) -> PyResult<Vec<SeedPolicyInfo>> {
-        let raws: Vec<_> = match &self.backend {
-            Backend::Rw(s) => s.seed_policies(),
-            Backend::Ro(s) => s.seed_policies(),
-        }
-        .map_err(policy_err)?
-        .collect::<Result<Vec<_>, _>>()
-        .map_err(policy_err)?;
-        Ok(raws
-            .into_iter()
-            .map(|p| {
-                let (policy, scope) = match p.policy {
-                    policy::SeedingPolicy::Allow { scope } => (
-                        "allow",
-                        Some(match scope {
-                            Scope::All => "all",
-                            Scope::Followed => "followed",
-                        }),
-                    ),
-                    policy::SeedingPolicy::Block => ("block", None),
-                };
-                SeedPolicyInfo {
-                    rid: p.rid.to_string(),
-                    policy: policy.to_owned(),
-                    scope: scope.map(str::to_owned),
-                }
-            })
-            .collect())
+        let raws: Vec<_> = read!(self.backend, |s| s.seed_policies())?
+            .collect::<Result<_, _>>()
+            .map_err(policy_err)?;
+        Ok(raws.into_iter().map(seed_policy_info).collect())
     }
 
     /// Nodes whose alias **contains** `alias` (upstream fuzzy substring
     /// match, case-insensitive) — `(node_id, alias)` pairs.
     fn nodes_by_alias(&self, alias: &str) -> PyResult<Vec<(String, String)>> {
-        let alias_t = parse_alias(alias)?;
-        let raws: Vec<_> = match &self.backend {
-            Backend::Rw(s) => s.nodes_by_alias(&alias_t),
-            Backend::Ro(s) => s.nodes_by_alias(&alias_t),
-        }
-        .map_err(policy_err)?
-        .collect::<Result<Vec<_>, _>>()
-        .map_err(policy_err)?;
+        let alias = parse_alias(alias)?;
+        let raws: Vec<_> = read!(self.backend, |s| s.nodes_by_alias(&alias))?
+            .collect::<Result<_, _>>()
+            .map_err(policy_err)?;
         Ok(raws
             .into_iter()
             .map(|(nid, alias)| (nid.to_string(), alias.to_string()))

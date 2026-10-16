@@ -164,8 +164,8 @@ pub struct PyRepository {
 }
 
 impl PyRepository {
-    /// Repository id (crate-internal; the `#[pyo3(get)]`-style getter above
-    /// is the Python surface).
+    /// Repository id for crate-internal use; the `rid` getter below is the
+    /// Python surface.
     pub(crate) fn rid_str(&self) -> String {
         self.rid.to_string()
     }
@@ -273,12 +273,11 @@ impl PyRepository {
         for r in repo.backend.references().map_err(error::git_err)? {
             let r = r.map_err(error::git_err)?;
             let name = r.name().map_err(error::git_err)?;
-            // Nested if-let kept from the 1.88 era; let-chains would also be fine now.
-            #[allow(clippy::collapsible_if)]
-            if let Some(short) = name.strip_prefix("refs/tags/") {
-                if let Some(target) = r.target() {
-                    raws.push((short.to_owned(), target));
-                }
+            // Symbolic tag refs have no direct target and are skipped.
+            if let Some(short) = name.strip_prefix("refs/tags/")
+                && let Some(target) = r.target()
+            {
+                raws.push((short.to_owned(), target));
             }
         }
         raws.sort();
