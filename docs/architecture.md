@@ -91,7 +91,7 @@ layout and module alignment are implemented. Both bindings own `profile`,
 `project`, `repository`, `issues`, `patches`, `error` and `ids` modules; module
 entry points register/export the bindings rather than implementing workflows.
 Snapshots live near their domains, with a small collaboration comment type in
-each adapter. Python's root `values.rs` now contains only process-local hashing,
+each adapter. Python's `hashing.rs` contains only process-local hashing,
 not another shared DTO schema. Node tasks, repository locks, Date conversion and
 native probes remain explicitly binding-specific. Python-only policy, routing
 and raw access remain independent. [Development](development.md#module-alignment-map)

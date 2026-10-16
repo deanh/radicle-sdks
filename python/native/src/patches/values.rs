@@ -19,7 +19,7 @@ pub struct Review {
 #[pymethods]
 impl Review {
     fn __hash__(&self) -> u64 {
-        crate::values::snapshot_hash(self)
+        crate::hashing::snapshot_hash(self)
     }
 
     fn __repr__(&self) -> String {
@@ -43,7 +43,7 @@ pub struct Revision {
 #[pymethods]
 impl Revision {
     fn __hash__(&self) -> u64 {
-        crate::values::snapshot_hash(self)
+        crate::hashing::snapshot_hash(self)
     }
 
     fn __repr__(&self) -> String {
@@ -103,7 +103,7 @@ pub struct Patch {
 #[pymethods]
 impl Patch {
     fn __hash__(&self) -> u64 {
-        crate::values::snapshot_hash(self)
+        crate::hashing::snapshot_hash(self)
     }
 
     #[getter]

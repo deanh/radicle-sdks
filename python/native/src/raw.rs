@@ -57,7 +57,7 @@ pub struct CobRef {
 #[pymethods]
 impl CobRef {
     fn __hash__(&self) -> u64 {
-        crate::values::snapshot_hash(self)
+        crate::hashing::snapshot_hash(self)
     }
 
     /// Full git ref name (e.g.
@@ -103,7 +103,7 @@ pub struct CobManifest {
 #[pymethods]
 impl CobManifest {
     fn __hash__(&self) -> u64 {
-        crate::values::snapshot_hash(self)
+        crate::hashing::snapshot_hash(self)
     }
 
     /// COB typename, e.g. `xyz.radicle.issue`.
@@ -124,7 +124,7 @@ impl CobManifest {
 #[pymethods]
 impl RawOp {
     fn __hash__(&self) -> u64 {
-        crate::values::snapshot_hash(self)
+        crate::hashing::snapshot_hash(self)
     }
 
     /// Change commit OID (hex).

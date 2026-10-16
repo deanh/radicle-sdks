@@ -20,7 +20,7 @@ Python:
   materialization beside the domain in `values.rs`.
 - Project, policy and routing snapshots live in their own domain directories.
 - `comment.rs` owns the small shared collaboration snapshot/converter.
-- `values.rs` is only the existing process-local randomized hash helper; all
+- `hashing.rs` is only the existing process-local randomized hash helper; all
   snapshots still use the same key, not one per domain.
 - `ids.rs` contains public identifier helpers plus existing internal validators.
   The object-ID validator retains its distinct error wording from public parsers.
@@ -28,10 +28,10 @@ Python:
 
 Node:
 
-- `profile.rs`, `project.rs`, `repository/`, `issues/`, existing `patches.rs`,
+- `profile.rs`, `project.rs`, `repository/`, `issues/`, `patches/`,
   `error.rs` and `ids.rs` own operations and parsers.
-- Repository/issue DTOs and materialization are domain-local; patch values stay
-  next to patch operations. `comment.rs` owns the common DTO.
+- Repository/issue/patch DTOs and materialization live in domain `values.rs`
+  files beside operations in `mod.rs`. `comment.rs` owns the common DTO.
 - `tasks.rs`, `locks.rs`, `timestamps.rs` and `probes.rs` explicitly own binding
   scheduling/containment, write-lock registry, Date conversion and native probes.
 - Sibling handles need crate-visible storage/signer internals; no new JS getters

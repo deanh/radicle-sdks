@@ -38,7 +38,10 @@ def test_language_owned_domain_modules():
     python = ROOT / "python" / "native" / "src"
     for domain in ("repository", "project", "issues", "patches", "policy", "routing"):
         assert (python / domain / "values.rs").is_file()
-    assert "#[pyclass" not in (python / "values.rs").read_text()
+    assert "#[pyclass" not in (python / "hashing.rs").read_text()
+    assert not (python / "values.rs").exists()
+    assert (ROOT / "node/native/src/patches/values.rs").is_file()
+    assert not (ROOT / "node/native/src/patches.rs").exists()
     assert (python / "raw.rs").is_file()
     for obsolete in ("cob_typed.rs", "cob_values.rs", "storage.rs", "write.rs", "identity.rs"):
         assert not (python / obsolete).exists()

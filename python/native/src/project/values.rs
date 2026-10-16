@@ -1,5 +1,5 @@
 //! Canonical project identity snapshot.
-use crate::values::snapshot_hash;
+use crate::hashing::snapshot_hash;
 use pyo3::prelude::*;
 
 // ─── ProjectDoc ──────────────────────────────────────────────────────────────

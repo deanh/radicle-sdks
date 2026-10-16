@@ -13,7 +13,7 @@ mod repository;
 mod routing;
 #[cfg(feature = "test-helpers")]
 mod testhelpers;
-mod values; // Shared process-local snapshot hashing only; DTOs are domain-owned.
+mod hashing; // Shared process-local snapshot hashing only; DTOs are domain-owned.
 
 #[pymodule]
 fn radiclepy(py: Python<'_>, m: &Bound<'_, PyModule>) -> PyResult<()> {

@@ -1,5 +1,5 @@
 //! Owned repository snapshots, bytes-first and unchanged timestamp units.
-use crate::values::snapshot_hash;
+use crate::hashing::snapshot_hash;
 use pyo3::prelude::*;
 
 fn lossy(bytes: &[u8]) -> String {
@@ -439,7 +439,7 @@ pub struct PySetHead {
 #[pymethods]
 impl PySetHead {
     fn __hash__(&self) -> u64 {
-        crate::values::snapshot_hash(self)
+        crate::hashing::snapshot_hash(self)
     }
 
     /// Previous default-branch head (`None` if the branch did not exist).
@@ -485,7 +485,7 @@ pub struct PySignedRefs {
 #[pymethods]
 impl PySignedRefs {
     fn __hash__(&self) -> u64 {
-        crate::values::snapshot_hash(self)
+        crate::hashing::snapshot_hash(self)
     }
 
     /// Node id of the signer / remote namespace these refs live under.

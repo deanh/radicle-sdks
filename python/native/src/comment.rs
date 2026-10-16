@@ -16,7 +16,7 @@ pub struct Comment {
 #[pymethods]
 impl Comment {
     fn __hash__(&self) -> u64 {
-        crate::values::snapshot_hash(self)
+        crate::hashing::snapshot_hash(self)
     }
 
     fn __repr__(&self) -> String {

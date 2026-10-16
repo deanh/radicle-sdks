@@ -218,16 +218,16 @@ The module-alignment patch implements the following ownership under
 | --- | --- |
 | `storage.rs`, `write.rs` | `repository/mod.rs`, `write.rs`, `values.rs`: storage and repository reads/writes/snapshots |
 | `cob_typed.rs` | `issues/` and `patches/`: operations in `mod.rs`, snapshots/materialization in domain `values.rs` |
-| `values.rs`, `cob_values.rs` | domain `values.rs` under repository/project/issues/patches/policy/routing; common `comment.rs`; root `values.rs` holds only snapshot hashing |
+| `values.rs`, `cob_values.rs` | domain `values.rs` under repository/project/issues/patches/policy/routing; common `comment.rs`; `hashing.rs` holds only snapshot hashing |
 | `cob_raw.rs` | `raw.rs` (Python-only) |
 | `identity.rs` validators | `ids.rs`, separate from error presentation |
 | `profile.rs`, `project.rs`, `policy.rs`, `routing.rs`, `error.rs`, `testhelpers.rs` | unchanged responsibilities; project/policy/routing have domain subdirectories for snapshots |
 | `lib.rs` | registration/module declarations only |
 
 Node's former mixed `lib.rs` now separates profile, project, repository, issues,
-errors and argument parsers; existing patch operations stay in `patches.rs`.
-Repository and issue snapshots live in their domain `values.rs`, patch snapshots
-remain beside their operations, and `comment.rs` holds the small common DTO.
+errors and argument parsers; patch operations live in `patches/mod.rs`.
+Repository, issue and patch snapshots live in their domain `values.rs`, and
+`comment.rs` holds the small common DTO.
 `tasks.rs`, `locks.rs`, `timestamps.rs` and `probes.rs` remain binding-specific.
 Native free functions are re-exported at root; class registration stays with napi
 macros. Match operation ownership, not an artificial identical type hierarchy.

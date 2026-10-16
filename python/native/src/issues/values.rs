@@ -32,7 +32,7 @@ pub struct Issue {
 #[pymethods]
 impl Issue {
     fn __hash__(&self) -> u64 {
-        crate::values::snapshot_hash(self)
+        crate::hashing::snapshot_hash(self)
     }
 
     #[getter]

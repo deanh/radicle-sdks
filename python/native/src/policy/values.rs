@@ -1,5 +1,5 @@
 //! Immutable policy snapshots.
-use crate::values::snapshot_hash;
+use crate::hashing::snapshot_hash;
 use pyo3::prelude::*;
 
 /// A node follow policy (upstream `policy::FollowPolicy`).
