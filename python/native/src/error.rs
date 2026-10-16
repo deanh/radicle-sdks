@@ -1,9 +1,9 @@
 //! Python exception hierarchy and Rust-to-Python error mapping.
 //!
-//! Convention (PLAN §5.8): our own validators (`parse_*`) raise `ValueError`;
+//! Convention: our own validators (`parse_*`) raise `ValueError`;
 //! operational failures use this hierarchy. Every mapper documents the upstream
-//! error enum it covers. Children not yet raised in Phase 1 are registered so
-//! the hierarchy is stable from the first release.
+//! error enum it covers. Every child is registered even where no code path
+//! raises it yet, so the hierarchy is stable across releases.
 
 use pyo3::create_exception;
 use pyo3::exceptions::{PyException, PyValueError};
@@ -41,7 +41,7 @@ pub(crate) fn io_err(err: std::io::Error) -> PyErr {
 }
 
 /// Operational failures with no more specific class (e.g. OS RNG
-/// unavailability) — NOT `ValueError` (PLAN §5.8).
+/// unavailability) — never `ValueError`, which is reserved for invalid input.
 pub(crate) fn op_err(message: impl Into<String>) -> PyErr {
     Error::new_err(message.into())
 }
@@ -56,12 +56,12 @@ pub(crate) fn repository_err(err: radicle::storage::RepositoryError) -> PyErr {
     RepositoryError::new_err(err.to_string())
 }
 
-/// COB store / raw-COB failures (Phase 4).
+/// COB store / raw-COB failures.
 pub(crate) fn cob_err(err: impl std::fmt::Display) -> PyErr {
     CobError::new_err(err.to_string())
 }
 
-/// Low-level libgit2 failures crossing the boundary (PLAN §5.8).
+/// Low-level libgit2 failures crossing the boundary.
 pub(crate) fn git_err(err: impl std::fmt::Display) -> PyErr {
     GitError::new_err(err.to_string())
 }
@@ -71,12 +71,12 @@ pub(crate) fn identity_err(err: impl std::fmt::Display) -> PyErr {
     IdentityError::new_err(err.to_string())
 }
 
-/// `node::policy::store::Error` — policy store failures (Phase 3).
+/// `node::policy::store::Error` — policy store failures.
 pub(crate) fn policy_err(err: impl std::fmt::Display) -> PyErr {
     PolicyError::new_err(err.to_string())
 }
 
-/// SQLite / node-database failures crossing the boundary (Phase 3).
+/// SQLite / node-database failures crossing the boundary.
 pub(crate) fn database_err(err: impl std::fmt::Display) -> PyErr {
     DatabaseError::new_err(err.to_string())
 }

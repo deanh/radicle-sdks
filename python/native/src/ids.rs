@@ -1,8 +1,8 @@
-//! Identifier validators. Identifiers cross the boundary as strings
-//! (PLAN §5.1); these functions validate and canonicalize them.
+//! Identifier validators. Identifiers cross the boundary as plain strings;
+//! these functions validate and canonicalize them.
 //!
 //! Failure mode: `ValueError` — these are our own syntactic validators,
-//! not operational failures (PLAN §5.8).
+//! not operational failures (those use the `radiclepy.Error` hierarchy).
 
 use std::str::FromStr;
 

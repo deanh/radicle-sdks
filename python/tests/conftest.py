@@ -1,4 +1,4 @@
-"""Test fixtures (PLAN §5.7 — committed fixture strategy).
+"""Test fixtures (committed fixture strategy).
 
 Strategy:
   * Hermetic: every fixture uses an explicit temp path. NO process-global
@@ -56,8 +56,8 @@ def peer_profile(tmp_path) -> rad.Profile:
 def repo(profile, tmp_path):
     """A storage repository with one deterministic fixture commit.
 
-    Created via the feature-gated test helpers (Phase 2 has no public write
-    surface; writes are Phase 5).
+    Created via the feature-gated test helpers, which predate the public
+    write API and produce deterministic content.
     """
     from radiclepy import _test
 

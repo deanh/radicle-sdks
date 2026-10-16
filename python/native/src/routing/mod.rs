@@ -1,7 +1,6 @@
-//! `RoutingStore` — named after upstream `radicle::node::routing::Store`
-//! (Phase 3).
+//! `RoutingStore` — named after upstream `radicle::node::routing::Store`.
 //!
-//! Upstream facts (verified against `=0.25.1`, see docs/archive/FINDINGS-03.md):
+//! Upstream facts, verified against `=0.25.1`:
 //! * `Profile::routing(config)` is *literally* `Home::database(config)` — the
 //!   routing table lives in the node database (`<home>/node/node.db`), and
 //!   `node::Database` implements `routing::Store`. We therefore hold the
@@ -16,7 +15,7 @@
 //!   eager list that performs that lookup per pair (N+1 queries on a local
 //!   sqlite file — documented in docs/API.md).
 //! * Inventory mutations (`add_inventory` / `remove_inventory`) need the
-//!   mutable database; they are deferred to Phase 5 (writes).
+//!   mutable database and are not exposed.
 
 mod values;
 pub(crate) use values::RoutingEntry;
@@ -69,7 +68,7 @@ impl PyRoutingStore {
     /// upstream `Database::reader` opens with read-only flags and performs
     /// no schema creation (a fresh `Profile.init`/`load` home does have a
     /// migrated `node.db`, hence freshly-initialized profiles open fine with
-    /// an empty routing table; FINDINGS-03).
+    /// an empty routing table).
     #[classmethod]
     fn from_profile(_cls: &Bound<'_, PyType>, profile: PyRef<'_, PyProfile>) -> PyResult<Self> {
         Self::from_profile_ref(&profile.inner)

@@ -49,7 +49,7 @@ impl HeadInfo {
 // ─── Commit ──────────────────────────────────────────────────────────────────
 
 /// A git commit. All identity/message fields are bytes-first; `*_str`
-/// accessors are explicitly lossy (PLAN §5.4).
+/// accessors are explicitly lossy.
 #[pyclass(name = "Commit", module = "radiclepy", frozen, eq)]
 #[derive(Clone, PartialEq, Eq, Hash)]
 pub struct Commit {
@@ -171,7 +171,7 @@ impl Commit {
 /// symlinks with kind `"blob"` (they are blob objects); use the mode to
 /// distinguish them.
 ///
-/// Ordering contract (PLAN §5.4 / FINDINGS-02 S5): lists of entries preserve
+/// Ordering contract: lists of entries preserve
 /// libgit2's canonical git tree order (directories sort as `<name>/`). The
 /// binding never re-sorts.
 #[pyclass(name = "TreeEntry", module = "radiclepy", frozen, eq)]
@@ -270,7 +270,7 @@ impl Tree {
 
 // ─── TagInfo ─────────────────────────────────────────────────────────────────
 
-/// A git tag with explicit raw/peeled distinction (PLAN §5.4, FINDINGS-02 S6).
+/// A git tag with explicit raw/peeled distinction.
 ///
 /// Peeling is performed only on tag objects; for lightweight tags the target
 /// *is* the peeled object (no silent commit→tree peel).
@@ -370,7 +370,7 @@ impl RemoteInfo {
 
 /// One page of commit history.
 ///
-/// Ordering contract (FINDINGS-02 S7): libgit2 revwalk default order; **not**
+/// Ordering contract: libgit2 revwalk default order; **not**
 /// explicitly topological/time-sorted (the pinned upstream does not expose
 /// `Sort`). Callers needing strict topology must verify or cap depth.
 #[pyclass(name = "HistoryPage", module = "radiclepy", frozen, eq)]

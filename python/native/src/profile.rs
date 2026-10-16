@@ -1,8 +1,8 @@
 //! Profile, Home, Aliases, and Signer wrappers.
 //!
 //! Handles are owned: they hold `Arc<radicle::Profile>` / paths, never
-//! borrowed references into upstream structures (PLAN §5.3 — reopen-per-op,
-//! no lifetime gymnastics across the FFI boundary).
+//! borrowed references into upstream structures: handles reopen per
+//! operation, so no upstream lifetime crosses the FFI boundary.
 
 use std::collections::BTreeMap;
 use std::path::PathBuf;
@@ -68,7 +68,7 @@ impl PyHome {
 
 // ─── Aliases ─────────────────────────────────────────────────────────────────
 
-/// Lookup facade over the profile's alias stores (PLAN §3) — NOT a
+/// Lookup facade over the profile's alias stores — NOT a
 /// collection: upstream only supports `alias(node_id)` and `reverse_lookup`.
 #[pyclass(name = "Aliases", module = "radiclepy")]
 pub struct PyAliases {
@@ -145,7 +145,7 @@ pub struct PyProfile {
 }
 
 /// Fill 32 bytes from the OS RNG — the secure seed for `Profile.init`
-/// (PLAN §5.7; upstream `Seed` has no production `generate()`).
+/// (upstream `Seed` has no production `generate()`).
 fn secure_seed() -> PyResult<[u8; 32]> {
     let mut seed = [0u8; 32];
     getrandom::fill(&mut seed)
@@ -187,7 +187,7 @@ impl PyProfile {
     }
 
     /// Initialize a new profile at `home_path` with a **secure random seed**
-    /// from the OS RNG. Public contract (PLAN §5.7): this is the only seed
+    /// from the OS RNG. Public contract: this is the only seed
     /// source exposed publicly; deterministic seeding is test-only via
     /// `Profile._from_seed`.
     #[classmethod]
@@ -202,7 +202,7 @@ impl PyProfile {
     }
 
     /// TEST-ONLY (compiled exclusively behind the `test-helpers` cargo
-    /// feature — absent from release wheels, per PLAN §5.7): initialize a
+    /// feature — absent from release wheels): initialize a
     /// profile from a fixed 32-byte seed. Never part of the shipped API;
     /// an underscore prefix alone would not be a boundary, hence cfg-gating.
     #[cfg(feature = "test-helpers")]
@@ -264,12 +264,12 @@ impl PyProfile {
         })
     }
 
-    /// Read-write policy store of this profile's home (Phase 3).
+    /// Read-write policy store of this profile's home.
     fn policy_store(&self) -> PyResult<crate::policy::PyPolicyStore> {
         crate::policy::PyPolicyStore::from_profile_ref(&self.inner)
     }
 
-    /// Read-only routing store of this profile's home (Phase 3).
+    /// Read-only routing store of this profile's home.
     fn routing_store(&self) -> PyResult<crate::routing::PyRoutingStore> {
         crate::routing::PyRoutingStore::from_profile_ref(&self.inner)
     }

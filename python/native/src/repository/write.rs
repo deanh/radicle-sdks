@@ -1,6 +1,6 @@
-//! Phase 5 (narrow, upstream-shaped writes) — PLAN §3.
+//! Narrow, upstream-shaped repository writes.
 //!
-//! Exactly the writes the PLAN promises, each mapping 1:1 to an upstream
+//! Each write maps 1:1 to an upstream
 //! method on `storage::WriteRepository` / `storage::SignRepository`:
 //!
 //! * `set_default_branch_to_canonical_head` → `WriteRepository`

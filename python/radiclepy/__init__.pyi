@@ -144,7 +144,7 @@ class Profile:
     def init(cls, home_path: str | _PathLike[str], alias: str, passphrase: str | None = None) -> Profile:
         """Initialize a new profile with a **secure random seed** (OS RNG).
 
-        Deterministic seeding is not part of the shipped API (PLAN §5.7):
+        Deterministic seeding is not part of the shipped API:
         `Profile._from_seed` exists only in builds with the `test-helpers`
         cargo feature and is absent from release wheels.
         """
@@ -161,14 +161,14 @@ class Profile:
     def aliases(self) -> Aliases: ...
     def signer(self) -> Signer: ...
     def policy_store(self) -> PolicyStore:
-        """Read-write policy store of this profile's home (Phase 3)."""
+        """Read-write policy store of this profile's home."""
         ...
     def routing_store(self) -> RoutingStore:
-        """Read-only routing store of this profile's home (Phase 3)."""
+        """Read-only routing store of this profile's home."""
         ...
     def __repr__(self) -> str: ...
 
-# ── Storage & repository (Phase 2) ───────────────────────────────────────────
+# ── Storage & repository ───────────────────────────────────────────
 
 @_final
 class Storage:
@@ -202,7 +202,7 @@ class Storage:
 class Repository:
     """Read-only repository handle; reopens storage per operation.
 
-    Mutations arrive only via explicit write APIs (Phase 5).
+    Mutations arrive only via explicit write APIs.
     """
 
     @property
@@ -228,7 +228,7 @@ class Repository:
     def tree(self, oid: Oid) -> Tree: ...
     def blob(self, oid: Oid) -> bytes: ...
     def history(self, rev: str, *, limit: int = 100, offset: int = 0) -> HistoryPage:
-        """Bounded history page (libgit2 default walk order; see FINDINGS-02 S7).
+        """Bounded history page (libgit2 default walk order).
 
         Binding-validated (`ValueError`): `1 <= limit <= 1000` (larger limits
         clamped to 1000; `limit < 1` raises, negatives included) and
@@ -237,7 +237,7 @@ class Repository:
         ...
     def remotes(self) -> list[RemoteInfo]: ...
 
-    # ── Writes (Phase 5, PLAN §3): 1:1 upstream; only sign_refs takes a signer.
+    # ── Writes: 1:1 upstream; only sign_refs takes a signer.
     def set_default_branch_to_canonical_head(self) -> SetHead: ...
     def set_identity_head(self) -> Oid: ...
     def set_remote_identity_root(self, remote: NodeId) -> Oid: ...
@@ -428,7 +428,7 @@ class HistoryPage:
     def has_more(self) -> bool: ...
     def __repr__(self) -> str: ...
 
-# ── Policy & routing (Phase 3) ───────────────────────────────────────────────
+# ── Policy & routing ───────────────────────────────────────────────
 
 @_final
 class PolicyStore:
@@ -525,7 +525,7 @@ class RoutingEntry:
     def timestamp(self) -> int | None: ...
     def __repr__(self) -> str: ...
 
-# ── COB: typed + raw (Phase 4) ───────────────────────────────────────────────
+# ── COB: typed + raw ───────────────────────────────────────────────
 
 @_final
 class Issue:

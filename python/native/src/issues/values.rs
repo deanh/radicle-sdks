@@ -8,7 +8,7 @@ use radicle::cob::{
 
 /// A materialized issue (read-only snapshot of upstream `cob::issue::Issue`).
 ///
-/// Field mapping (PLAN §5.4): title/description/labels are `String` upstream
+/// Field mapping: title/description/labels are `String` upstream
 /// (already valid UTF-8), so exposed as `str`. `author`/`assignees` are DIDs.
 /// Comment bodies are `str` (upstream `String`); comment ids are COB
 /// `ObjectId` hex strings. `state` is `"open" | "closed"`; a closed issue's

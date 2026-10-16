@@ -1,7 +1,7 @@
 //! Storage and repository access.
 //!
 //! `PyRepository` holds `Arc<PyStorageInner>` + a `RepoId` and reopens the
-//! repository per operation (PLAN §5.3): no long-lived git handles, no
+//! repository per operation: no long-lived git handles, no
 //! borrow-lifetime pressure across the GIL.
 
 mod values;
@@ -25,7 +25,7 @@ use radicle::storage::{ReadRepository, ReadStorage};
 use crate::error;
 use crate::profile::PyProfile;
 
-/// Default/maximum page sizes — history walks are always bounded (FINDINGS-02 S7).
+/// Default/maximum page sizes — history walks are always bounded.
 const DEFAULT_HISTORY_LIMIT: i64 = 100;
 const MAX_HISTORY_LIMIT: i64 = 1000;
 
@@ -291,7 +291,7 @@ impl PyRepository {
                 .map_err(error::git_err)?;
             let annotated = obj.kind() == Some(git::raw::ObjectType::Tag);
             // Peel ONLY tag objects: peel() on a commit silently resolves to
-            // its tree (FINDINGS-02 S6 trap). For lightweight tags the target
+            // its tree. For lightweight tags the target
             // already is the peeled object.
             let (peeled, peeled_obj) = if annotated {
                 let peeled = obj
@@ -319,7 +319,7 @@ impl PyRepository {
 
     /// Resolve a git revision expression to an OID.
     /// Raises `GitError` for both invalid and unresolved revisions
-    /// (revspec semantics are git's, not ours — PLAN §5.8).
+    /// (revspec semantics are git's, not ours).
     fn rev_parse(&self, rev: &str) -> PyResult<String> {
         let repo = self.open()?;
         let obj = repo
@@ -401,7 +401,7 @@ impl PyRepository {
     /// Bounded commit history page starting at `rev`.
     ///
     /// Ordering: libgit2 revwalk default order (no explicit sort is exposed by
-    /// the pinned upstream — see FINDINGS-02 S7).
+    /// the pinned upstream).
     ///
     /// Pagination contract (binding-validated, `ValueError`):
     /// `1 <= limit <= 1000` (larger limits are clamped to 1000 — only values
@@ -469,7 +469,7 @@ impl PyRepository {
         Ok(out)
     }
 
-    // ─── Writes (Phase 5, PLAN §3) ─────────────────────────────────────────
+    // ─── Writes ─────────────────────────────────────────
     // Each maps 1:1 to an upstream `WriteRepository`/`SignRepository` method.
     // The first three take NO signer upstream and take none here; `sign_refs`
     // is the only signer-taking write. No hidden write-then-sign composition.

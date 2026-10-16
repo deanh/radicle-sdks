@@ -1,6 +1,6 @@
-//! `PolicyStore` — named after upstream `radicle::node::policy::Store` (Phase 3).
+//! `PolicyStore` — named after upstream `radicle::node::policy::Store`.
 //!
-//! Upstream facts (verified against `=0.25.1`, see docs/archive/FINDINGS-03.md):
+//! Upstream facts, verified against `=0.25.1`:
 //! * The policy store is its **own sqlite file** (`<home>/node/policies.db`),
 //!   separate from the node database.
 //! * `Store<Read>` opens read-only (multiple concurrent readers, upstream

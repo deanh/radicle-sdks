@@ -192,7 +192,7 @@ impl PyPatches {
     }
 }
 
-// ─── PatchMut (Phase 5) ──────────────────────────────────────────────────────
+// ─── PatchMut ──────────────────────────────────────────────────────
 
 /// Mutable patch handle; reopen/load per call, one upstream transaction.
 #[pyclass(name = "PatchMut", module = "radiclepy", unsendable)]

@@ -156,7 +156,7 @@ impl PyIssues {
     }
 }
 
-// ─── IssueMut (Phase 5 writes) ───────────────────────────────────────────────
+// ─── IssueMut ───────────────────────────────────────────────
 
 /// Mutable handle on an issue; every method commits one COB operation
 /// (upstream transaction) and refreshes the `issue` snapshot.

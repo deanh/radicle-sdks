@@ -1,6 +1,6 @@
 name: Python SDK
 
-# Release pipeline for `radicle-py` (Phase 6 polish of the Phase 0A gate).
+# Release pipeline for `radicle-py`.
 #
 # Gates:
 #   * test job — MSRV (1.91) + stable, pytest on the test build, clippy on
@@ -127,7 +127,7 @@ jobs:
 
       # Install the FINAL artifact (repaired, originals removed) in a clean
       # venv and run python/tests/wheel_smoke.py: version integrity (metadata + tag
-      # match) and release purity (plan §5.7 — no `_from_seed`, and no
+      # match) and release purity (no `_from_seed`, and no
       # `radiclepy._test` in sys.modules / importable).
       - uses: actions/setup-python@v5
         with:

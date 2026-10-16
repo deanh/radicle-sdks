@@ -1,4 +1,4 @@
-"""Identifier type aliases (PLAN §5.1).
+"""Identifier type aliases.
 
 Identifiers are strings at the boundary; these aliases exist for
 documentation and typed callers, not as a runtime class hierarchy.

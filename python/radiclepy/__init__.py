@@ -88,7 +88,7 @@ __all__ = [
     "Home",
     "Profile",
     "Signer",
-    # storage & repository (Phase 2)
+    # storage & repository
     "Storage",
     "Repository",
     "HeadInfo",
@@ -105,7 +105,7 @@ __all__ = [
     "RemoteInfo",
     "ProjectDoc",
     "HistoryPage",
-    # COB: typed + raw (Phase 4)
+    # COB: typed + raw
     "Issues",
     "Issue",
     "IssueMut",
@@ -116,10 +116,10 @@ __all__ = [
     "RawOp",
     "CobRef",
     "CobManifest",
-    # writes (Phase 5)
+    # writes
     "SetHead",
     "SignedRefs",
-    # policy & routing (Phase 3)
+    # policy & routing
     "PolicyStore",
     "RoutingStore",
     "FollowPolicyInfo",

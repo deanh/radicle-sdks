@@ -1,4 +1,4 @@
-"""Runtime identifier aliases (PLAN §5.1).
+"""Runtime identifier aliases.
 
 Identifiers are strings at the boundary. These aliases exist for typed
 callers and documentation; they are ``str`` at runtime. The paired

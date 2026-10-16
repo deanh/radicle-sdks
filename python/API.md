@@ -74,12 +74,12 @@ Raises `radiclepy.Error` if absent/unreadable.
 ##### `Profile.init(home_path: str, alias: str, passphrase: str | None = None) -> Profile` (classmethod)
 Initialize a new profile at `home_path`. The key seed comes from a
 **secure random fill (OS RNG, 32 bytes)** — there is no public way to
-inject a seed (plan §5.7). `passphrase` encrypts the keystore when given.
+inject a seed. `passphrase` encrypts the keystore when given.
 The alias is validated **before** any filesystem state is created.
 Raises `ValueError` for invalid aliases; `radiclepy.Error` for init
 failures (including OS RNG unavailability — operational, not input).
 
-##### Deterministic seeding — NOT part of the shipped API (plan §5.7)
+##### Deterministic seeding — NOT part of the shipped API
 `Profile._from_seed(home_path, alias, seed, passphrase=None)` exists only
 in builds compiled with the `test-helpers` cargo feature (`maturin
 develop --features test-helpers`) and is **absent from release wheels**.
@@ -137,7 +137,7 @@ Canonical filesystem path.
 
 #### `Aliases`
 
-Lookup facade (plan §3) — deliberately **not** a collection.
+Lookup facade — deliberately **not** a collection.
 
 ##### `aliases.get(node_id: NodeId) -> str | None` (method)
 Alias for `node_id`, if known. Raises `ValueError` for invalid node ids.
@@ -331,7 +331,7 @@ Canonical project identity document (verified at load).
 
 Follow/seed policy store (upstream `node::policy::Store`). Own sqlite file
 (`<home>/node/policies.db`). The binding mirrors the **raw upstream store
-surface** — no implicit file-config fallbacks (see FINDINGS-03).
+surface** — no implicit file-config fallbacks.
 Identifier/policy/scope validation happens binding-side (`ValueError`)
 before any database call. All write methods return `bool`: `true` when the
 store actually changed.

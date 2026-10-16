@@ -1,7 +1,7 @@
-//! Raw COB inspection (Phase 4): `Raw` — typename/entity/ref enumeration and
+//! Raw COB inspection: `Raw` — typename/entity/ref enumeration and
 //! causal history walk, no domain type required.
 //!
-//! Critical rules (FINDINGS-0A / PLAN §5.5):
+//! Critical rules, established by the feasibility spikes:
 //! * Raw action payloads come from `entry.contents().iter()` — one raw JSON
 //!   blob per action — **never** `Op<Vec<u8>>::try_from` (fails at runtime).
 //! * History traversal follows `entry.parents` **only** (causal). Git
@@ -355,7 +355,7 @@ impl PyRaw {
     /// returned in causal-topological order (each op after its parents).
     ///
     /// `related` and the identity `resource` link are surfaced on each `RawOp`
-    /// but never traversed (FINDINGS-0A / PLAN §5.5).
+    /// but never traversed.
     fn history(&self, typename: &str, entity_id: &str) -> PyResult<Vec<RawOp>> {
         let typename = parse_typename(typename)?;
         let entity = parse_cob_object_id(entity_id)?;

@@ -1,7 +1,7 @@
 //! TEST-ONLY helpers (cargo feature `test-helpers`) — compiled out of
-//! release wheels, exactly like `Profile._from_seed` (PLAN §5.7).
+//! release wheels, exactly like `Profile._from_seed`.
 //!
-//! Phase 2 has no public write surface (writes are Phase 5), so the test
+//! The repository/COB reader tests predate the public write API, so their
 //! fixtures create repositories through these helpers. Content is fully
 //! deterministic given the profile, so tests can assert exact OIDs where
 //! useful (commit timestamps come from the real clock, so most assertions
@@ -192,8 +192,7 @@ pub fn create_tag(
 }
 
 /// TEST-ONLY: create an issue in the storage repository via the typed store
-/// (COB writes are otherwise Phase 5; Phase 4 is read-only). Returns the new
-/// issue id.
+/// with deterministic content for reader tests. Returns the new issue id.
 #[pyfunction]
 #[pyo3(signature = (profile, rid, title, description, labels = None, comments = None))]
 pub fn create_issue(
@@ -306,7 +305,7 @@ pub fn create_ref(
 }
 
 /// TEST-ONLY: create/insert a routing entry into the profile's node
-/// database (writes are otherwise Phase 5; RoutingStore is read-only).
+/// database (the public `RoutingStore` is read-only).
 #[pyfunction]
 #[pyo3(signature = (profile, rid, node_id, timestamp_ms = 1_700_000_000_000))]
 pub fn add_routing_entry(
