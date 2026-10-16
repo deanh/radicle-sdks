@@ -242,25 +242,20 @@ fn json_to_py<'py>(py: Python<'py>, value: serde_json::Value) -> PyResult<Bound<
     })
 }
 
-/// Parse a git ref name into a COB `TypedId`, strictly (the ref must be a
-/// COB ref: `refs/cobs/<typename>/<id>` after namespace stripping). Non-COB
-/// refs — including tag/branch refs that merely share the
-/// `refs/<category>/<typename>/<oid>` shape — yield `Ok(None)`.
-fn typed_id_of(name: &str) -> PyResult<Option<cob::TypedId>> {
-    let Ok(refstr) = git::fmt::RefStr::try_from_str(name) else {
-        return Ok(None);
-    };
-    let typed = match refstr.to_namespaced() {
-        Some(ns) => cob::TypedId::from_namespaced(&ns).map_err(cob_err)?,
-        None => None,
-    }
-    .or_else(|| {
-        refstr
+/// Parse a git ref name into a COB `TypedId`, strictly: after stripping any
+/// namespaces the ref must be `refs/cobs/<typename>/<id>`. Everything else is
+/// `None`: non-COB refs (including tag/branch refs that merely share the
+/// `refs/<category>/<typename>/<oid>` shape) and COB-shaped refs whose typename
+/// or id does not parse. Peers control the ref names in their namespaces, so one
+/// malformed ref must not make enumeration fail for the whole repository.
+fn typed_id_of(name: &str) -> Option<cob::TypedId> {
+    let refstr = git::fmt::RefStr::try_from_str(name).ok()?;
+    match refstr.to_namespaced() {
+        Some(ns) => cob::TypedId::from_namespaced(&ns).ok().flatten(),
+        None => refstr
             .qualified()
-            .and_then(|q| cob::TypedId::from_qualified(&q).ok())
-            .flatten()
-    });
-    Ok(typed)
+            .and_then(|q| cob::TypedId::from_qualified(&q).ok().flatten()),
+    }
 }
 
 // ─── Raw store ───────────────────────────────────────────────────────────────
@@ -320,7 +315,7 @@ impl PyRaw {
         for reference in repo.backend.references().map_err(git_err)? {
             let reference = reference.map_err(git_err)?;
             let name = reference.name().map_err(git_err)?;
-            if let Some(typed) = typed_id_of(name)? {
+            if let Some(typed) = typed_id_of(name) {
                 names.insert(typed.type_name.to_string());
             }
         }
@@ -339,7 +334,7 @@ impl PyRaw {
         for reference in repo.backend.references().map_err(git_err)? {
             let reference = reference.map_err(git_err)?;
             let name = reference.name().map_err(git_err)?;
-            match typed_id_of(name)? {
+            match typed_id_of(name) {
                 Some(typed) if typed.type_name == typename => {
                     out.insert(typed.id.to_string());
                 }

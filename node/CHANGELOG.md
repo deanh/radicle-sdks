@@ -1,5 +1,10 @@
 # radicle-sdk changelog
 
+## Assessment fixes (unreleased)
+
+- `TreeEntry.kind` is declared and produced as exactly `'blob' | 'tree' | 'commit'`
+  (optional); the unreachable `'tag'`/`'any'` members are gone.
+
 ## Native module alignment (unreleased)
 
 - Split the mixed native entry point into profile, project, repository, issues,

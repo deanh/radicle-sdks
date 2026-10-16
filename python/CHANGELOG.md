@@ -2,6 +2,19 @@
 
 All notable changes to `radicle-py` are documented here.
 
+## Assessment fixes (unreleased)
+
+- Fix: `Raw.typenames()`/`Raw.entities()` skip COB-shaped refs whose typename
+  or id does not parse, in peer namespaces as well as at the top level. One
+  malformed peer ref no longer raises `CobError` for the whole repository.
+- `Patch.state` is derived from the upstream state enum exhaustively; the
+  unreachable `'unknown'` value is gone from the stub.
+- `TreeEntry.kind` is exactly `'blob' | 'tree' | 'commit' | None` and
+  `TagInfo.peeled_kind` exactly `'commit' | 'tree' | 'blob'` at runtime and in
+  the stub; a tag peeling to another object kind raises `GitError`.
+- Development: run pytest with `uv run --no-sync` after the helper build;
+  `RADICLE_REQUIRE_TEST_HELPERS=1` fails instead of skipping without it.
+
 ## Native module alignment (unreleased)
 
 - Align operation ownership around profile, project, repository, issues, patches,

@@ -123,15 +123,14 @@ impl NativeRepository {
                     .map(|e| TreeEntry {
                         name: e.name_bytes().to_vec().into(),
                         name_str: String::from_utf8_lossy(e.name_bytes()).into_owned(),
-                        kind: e.kind().map(|kind| {
-                            match kind {
-                                radicle::git::raw::ObjectType::Blob => "blob",
-                                radicle::git::raw::ObjectType::Tree => "tree",
-                                radicle::git::raw::ObjectType::Commit => "commit",
-                                radicle::git::raw::ObjectType::Tag => "tag",
-                                radicle::git::raw::ObjectType::Any => "any",
-                            }
-                            .to_owned()
+                        // Tree entries point at blobs, trees or commits; keep the
+                        // declared domain exact and report anything else as absent.
+                        kind: e.kind().and_then(|kind| match kind {
+                            radicle::git::raw::ObjectType::Blob => Some("blob".to_owned()),
+                            radicle::git::raw::ObjectType::Tree => Some("tree".to_owned()),
+                            radicle::git::raw::ObjectType::Commit => Some("commit".to_owned()),
+                            radicle::git::raw::ObjectType::Tag
+                            | radicle::git::raw::ObjectType::Any => None,
                         }),
                         mode: e.filemode() as u32,
                         oid: e.id().to_string(),

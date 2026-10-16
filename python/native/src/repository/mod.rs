@@ -38,17 +38,18 @@ fn parse_oid(value: &str) -> PyResult<Oid> {
     Oid::from_str(value).map_err(|err| error::value_err(format!("invalid Oid: {err}")))
 }
 
+/// Concrete object kind behind `TreeEntry.kind` and `TagInfo.peeled_kind`.
+/// Only blob, tree and commit can occur there: tree entries never point at tag
+/// objects, and a fully peeled tag target is by construction not a tag. The
+/// libgit2 wildcard `Any` and `Tag` map to `None` so the public domain stays
+/// exactly `"blob" | "tree" | "commit"`.
 fn kind_str(kind: Option<git::raw::ObjectType>) -> Option<String> {
-    kind.map(|k| {
-        match k {
-            git::raw::ObjectType::Any => "any",
-            git::raw::ObjectType::Blob => "blob",
-            git::raw::ObjectType::Commit => "commit",
-            git::raw::ObjectType::Tree => "tree",
-            git::raw::ObjectType::Tag => "tag",
-        }
-        .to_owned()
-    })
+    match kind? {
+        git::raw::ObjectType::Blob => Some("blob".to_owned()),
+        git::raw::ObjectType::Tree => Some("tree".to_owned()),
+        git::raw::ObjectType::Commit => Some("commit".to_owned()),
+        git::raw::ObjectType::Any | git::raw::ObjectType::Tag => None,
+    }
 }
 
 // ─── Storage ─────────────────────────────────────────────────────────────────
@@ -292,20 +293,19 @@ impl PyRepository {
             // Peel ONLY tag objects: peel() on a commit silently resolves to
             // its tree (FINDINGS-02 S6 trap). For lightweight tags the target
             // already is the peeled object.
-            let (peeled, peeled_kind) = if annotated {
+            let (peeled, peeled_obj) = if annotated {
                 let peeled = obj
                     .peel(git::raw::ObjectType::Any)
                     .map_err(error::git_err)?;
-                (
-                    peeled.id().to_string(),
-                    kind_str(peeled.kind()).unwrap_or_else(|| "unknown".into()),
-                )
+                (peeled.id().to_string(), peeled)
             } else {
-                (
-                    target.to_string(),
-                    kind_str(obj.kind()).unwrap_or_else(|| "unknown".into()),
-                )
+                (target.to_string(), obj)
             };
+            // A peeled target is a commit, tree or blob; anything else is
+            // corrupt data and must not leak as a made-up kind string.
+            let peeled_kind = kind_str(peeled_obj.kind()).ok_or_else(|| {
+                error::git_err(format!("tag {short:?} peels to an unexpected object kind"))
+            })?;
             out.push(TagInfo {
                 name: short,
                 target: target.to_string(),

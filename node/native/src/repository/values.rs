@@ -71,7 +71,7 @@ pub struct TreeEntry {
     pub name: Uint8Array,
     #[napi(readonly)]
     pub name_str: String,
-    #[napi(readonly, ts_type = "'blob' | 'tree' | 'commit' | 'tag' | 'any'")]
+    #[napi(readonly, ts_type = "'blob' | 'tree' | 'commit'")]
     pub kind: Option<String>,
     #[napi(readonly)]
     pub mode: u32,

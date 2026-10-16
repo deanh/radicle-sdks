@@ -40,7 +40,7 @@ def collaboration(repo: rad.Repository, signer: rad.Signer) -> dict[rad.Commit, 
     comment: rad.Comment = issue.reload().comments[0]
     assert comment.body
     for entry in repo.tree(repo.commit(repo.head.oid).tree):
-        kind: Literal["blob", "tree", "commit", "tag", "any"] | None = entry.kind
+        kind: Literal["blob", "tree", "commit"] | None = entry.kind
         assert kind is not None
     commit = repo.commit(repo.head.oid)
     return {commit: "structural snapshot key"}

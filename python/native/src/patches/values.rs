@@ -189,16 +189,11 @@ impl Patch {
 }
 
 pub(super) fn materialize_patch(id: &ObjectId, patch: &RawPatch) -> Patch {
-    let state = if patch.is_draft() {
-        "draft"
-    } else if patch.is_open() {
-        "open"
-    } else if patch.is_archived() {
-        "archived"
-    } else if patch.is_merged() {
-        "merged"
-    } else {
-        "unknown"
+    let state = match patch.state() {
+        patch::State::Draft => "draft",
+        patch::State::Open { .. } => "open",
+        patch::State::Archived => "archived",
+        patch::State::Merged { .. } => "merged",
     };
     let target = match patch.target() {
         patch::MergeTarget::Delegates => "delegates".to_string(),

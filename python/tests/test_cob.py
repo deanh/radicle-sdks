@@ -130,6 +130,25 @@ class TestRawCob:
         assert ISSUE_TN in tns  # real COB refs still found
         assert rad.Raw.open(repo).entities(ISSUE_TN) == [issue]
 
+    def test_malformed_cob_shaped_refs_are_skipped(self, repo, issue, profile):
+        # A COB-shaped ref whose typename or id does not parse is skipped,
+        # wherever it lives. Peers control their namespaced ref names, so one
+        # bad ref must not turn enumeration into a CobError for the repository.
+        from radiclepy import _test
+
+        nid = _test.local_remote_id(profile)
+        oid = repo.head.oid
+        for name in (
+            f"refs/cobs/{ISSUE_TN}/not-an-object-id",
+            f"refs/namespaces/{nid}/refs/cobs/{ISSUE_TN}/not-an-object-id",
+            f"refs/namespaces/{nid}/refs/cobs/bad_typename/{oid}",
+        ):
+            _test.create_ref(profile, repo.rid, name, "master")
+        raw = rad.Raw.open(repo)
+        assert ISSUE_TN in raw.typenames()
+        assert "bad_typename" not in raw.typenames()
+        assert raw.entities(ISSUE_TN) == [issue]
+
     def test_typenames(self, repo, issue, patch):
         tns = rad.Raw.open(repo).typenames()
         assert ISSUE_TN in tns

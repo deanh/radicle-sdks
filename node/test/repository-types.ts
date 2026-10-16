@@ -11,7 +11,7 @@ async function usage(storage: Storage, repo: Repository, signer: Signer): Promis
   bytes[0] = 0; // independent mutable copies, not immutable byte containers
   const tree: Tree = await repo.tree(c.tree);
   const e: TreeEntry = tree.entries[0];
-  const kind: 'blob' | 'tree' | 'commit' | 'tag' | 'any' | undefined = e.kind;
+  const kind: 'blob' | 'tree' | 'commit' | undefined = e.kind;
   const name: string = e.nameStr;
   e.name[0] = 0;
   const blob: Uint8Array = await repo.blob(e.oid);
