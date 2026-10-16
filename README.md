@@ -74,7 +74,7 @@ SDK_GIT_URL=https://YOUR-HOST/YOUR-REPOSITORY.git
 python -m pip install "git+${SDK_GIT_URL}@FULL_COMMIT_SHA"
 ```
 
-A local Git checkout also works, after the RC changes have been committed:
+A local Git checkout also works, at any committed revision:
 
 ```sh
 python -m pip install "git+file:///absolute/path/to/checkout@FULL_COMMIT_SHA"

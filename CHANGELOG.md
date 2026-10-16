@@ -4,6 +4,9 @@ All notable changes to `radicle-py` are documented here.
 
 ## Post-alpha Python UX (unreleased)
 
+- Docs: the Python API reference moved from `API.md` to `docs/API.md`;
+  historical plans, reviews and findings moved to `docs/archive/`, indexed by
+  `docs/README.md`.
 - Fix: `Repository.history(..., offset=N)` now raises `GitError` when the walk
   fails inside the skipped range (for example, a missing parent object).
   Previously `offset >= 1` returned an empty page with `has_more=False`, making
