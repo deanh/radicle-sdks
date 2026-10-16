@@ -1,21 +1,60 @@
-# radicle-py — alpha release candidate
+# Radicle SDKs — Python and TypeScript alpha
 
-Typed Python bindings for the [`radicle`](https://crates.io/crates/radicle)
-crate, pinned to **`=0.25.1`**. The alpha covers **local project workflows**:
-profiles/signers, project init/fork/checkout, Git/storage inspection, local
-policy/routing, issue discussions and common writes, patch
-revision/review/lifecycle operations, and raw COB inspection.
+Typed Python and Node.js/TypeScript bindings for the
+[`radicle`](https://crates.io/crates/radicle) crate, pinned to **`=0.25.1`**.
+Both SDKs support **local signed project, issue and patch workflows**:
+profile/signer setup, project init/fork/checkout, storage and Git inspection,
+issue discussions and common writes, and patch revisions/reviews/lifecycle.
 
-This is **not a node or a network client**. Fetching/announcing projects,
-connections and daemon control are outside this alpha. Policy writes change
-persisted local policy; they do not perform networking. APIs may change during
-alpha; pin installations to a reviewed Git commit.
+| SDK | Package / import | Runtime | Guide |
+| --- | --- | --- | --- |
+| Python | `radicle-py` / `radiclepy` | CPython ≥ 3.9 (abi3) | [Installation below](#python-installation), [API](API.md) |
+| TypeScript | `radicle-sdk` | Node.js ≥ 26.12.0 | [Installation, quick start and contract](node/README.md) |
 
-For Node.js/TypeScript, see the [radicle-sdk alpha guide](node/README.md),
-including source installation and a runnable local quick start. For programs
-using either SDK, see [`examples/`](examples/README.md).
+These are **experimental, source-installed alphas**, not nodes or network
+clients. Fetching/announcing projects, connections and daemon control are outside
+the SDKs. Git handles commit creation/import and working-copy pushes. Python
+additionally exposes local policy management, routing reads and raw COB inspection;
+full API parity is not the alpha goal. No shared Python/TypeScript core has been
+extracted.
 
-## Install from Git
+Both package versions are `0.1.0`; the **exact reviewed Git commit**, not the
+version, identifies each alpha candidate. APIs may change. Install from Git;
+PyPI/npm registry publication is deferred. Installation compiles native code and
+requires **Rust ≥ 1.91**, Git and a C toolchain. Source builds can take minutes
+on a cold cache.
+
+## Examples
+
+The [project digest](examples/README.md) is a read-only Markdown report of local
+patches, latest-revision reviews, merged patches, open issues by label and items
+assigned to you. [Python](examples/digest.py) and [TypeScript](examples/digest.mjs)
+implement the same program, with tested byte-identical output. They use your
+existing profile without loading a signer or making signed writes.
+
+The runnable quick starts create temporary local data: [Python below](#runnable-local-quick-start)
+and [TypeScript](node/README.md#runnable-local-quick-start). A sandboxed write-side
+review-bot example is planned separately; it is not implemented yet.
+
+## TypeScript installation
+
+Initial native support is **Linux x86_64 (GNU/glibc) only**. Use Node.js ≥ 26.12.0;
+there is no upper-version cap. Set `SDK_GIT_URL` to a clone URL supported by your
+Git client and replace `FULL_COMMIT_SHA` with a full reviewed commit:
+
+```sh
+# npm 12+: explicitly approve the root Git dependency's build scripts.
+npm install --allow-git=root "git+${SDK_GIT_URL}#FULL_COMMIT_SHA"
+# npm 11: omit the Git approval option.
+npm install "git+${SDK_GIT_URL}#FULL_COMMIT_SHA"
+```
+
+The npm package is at repository root and builds an optimized native addon during
+`prepare`; no prebuilt download or registry publication is required. See the
+[TypeScript guide](node/README.md) for pnpm approval, Bun's best-effort limitation,
+platform boundaries, executable quick start and async API contracts.
+
+## Python installation
 
 The alpha is distributed from Git, **not PyPI**. Requires CPython ≥ 3.9,
 Git, Rust ≥ 1.91 and a C toolchain. libgit2 and SQLite build from bundled
@@ -31,15 +70,14 @@ installation, then install:
 python -m venv .venv
 . .venv/bin/activate
 SDK_GIT_URL=https://YOUR-HOST/YOUR-REPOSITORY.git
-python -m pip install "git+${SDK_GIT_URL}@alpha-rc"
-# Reproducible install: replace the branch with a full reviewed commit SHA.
+# Replace FULL_COMMIT_SHA with a full reviewed commit SHA.
 python -m pip install "git+${SDK_GIT_URL}@FULL_COMMIT_SHA"
 ```
 
 A local Git checkout also works, after the RC changes have been committed:
 
 ```sh
-python -m pip install "git+file:///absolute/path/to/radicle-py@alpha-rc"
+python -m pip install "git+file:///absolute/path/to/checkout@FULL_COMMIT_SHA"
 ```
 
 Do not enable the `test-helpers` Cargo feature in alpha installations.
@@ -49,6 +87,9 @@ for SDK local workflows. Subsequent external Git operations against the
 configured `rad` remote require **`git-remote-rad`** separately.
 
 ## Runnable local quick start
+
+This Python example creates a temporary profile and working copy. For the
+TypeScript equivalent, see its [runnable quick start](node/README.md#runnable-local-quick-start).
 
 Unlike the interactive **`rad init` CLI**, `radiclepy.init_project` calls the
 crate directly with explicit metadata. Git subprocess calls below only create
@@ -102,7 +143,7 @@ Use `RAD_PASSPHRASE` for an encrypted keystore or the upstream SSH-agent path.
 Encrypted-key success/wrong/missing-passphrase paths are tested; live
 SSH-agent integration is not verified by the alpha suite.
 
-## Contract and scope limits
+## Python contract and scope limits
 
 - IDs are strings; `parse_*` functions validate/canonicalize them.
 - Binding input validation raises `ValueError`; operational failures raise
@@ -141,14 +182,19 @@ SSH-agent integration is not verified by the alpha suite.
 
 ## Documentation
 
-- [`API.md`](./API.md): current public API contract.
-- [`ALPHA-PLAN.md`](./ALPHA-PLAN.md): bounded alpha/MVP scope and completion record.
-- [`CHANGELOG.md`](./CHANGELOG.md): release changes.
+- [`node/README.md`](./node/README.md): TypeScript installation, runnable example and public contract.
+- [`node/CHANGELOG.md`](./node/CHANGELOG.md): TypeScript alpha changes.
+- [`examples/README.md`](./examples/README.md): cross-SDK programs and usage.
+- [`API.md`](./API.md): Python public API contract.
+- [`ALPHA-PLAN.md`](./ALPHA-PLAN.md): Python alpha/MVP scope and completion record.
+- [`CHANGELOG.md`](./CHANGELOG.md): Python release changes.
 - [`PLAN.md`](./PLAN.md): historical phased implementation design; not the
   current release checklist. `FINDINGS-*.md` retain phase evidence.
 - `spike/` and `wheel-probe/`: historical feasibility probes, not the SDK.
 
 ## Development and validation
+
+Python (from the repository root):
 
 ```sh
 uv sync --dev --locked
@@ -167,8 +213,25 @@ uv run pytest -q
 uv run python tests/workflow_smoke.py
 ```
 
-The README quick start is executed directly by pytest. Stubtest checks the
-installed exports/signatures, with two documented extension-introspection
+TypeScript and cross-SDK examples (after the Python setup above):
+
+```sh
+nvm use
+npm ci --ignore-scripts
+npm run build
+npm run check
+npm test
+RADICLE_REQUIRE_CROSS_SDK=1 uv run pytest -q tests/test_examples.py
+```
+
+The final command requires both SDK builds: missing TypeScript output fails
+rather than skipping conformance checks. See the [TypeScript guide](node/README.md#repository-development-and-validation)
+for native Rust checks and exact-commit npm/pnpm installation gates.
+
+The Python README quick start is executed directly by pytest; the TypeScript
+suite and Git-install gates execute its actual README quick-start fence.
+Python stubtest checks the installed exports/signatures, with two documented
+extension-introspection
 exceptions; behavioral tests check Literal domains and snapshot semantics.
 Mypy/pyright check consumer examples; `--verifytypes` checks annotation
 completeness, not semantic correctness. Stubs mark non-subclassable extension
