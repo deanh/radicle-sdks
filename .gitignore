@@ -6,3 +6,6 @@ __pycache__
 .pytest_cache
 *.so
 *.abi3.so
+node_modules/
+node/dist/
+node/native/target/

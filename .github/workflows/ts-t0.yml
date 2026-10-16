@@ -1,0 +1,41 @@
+name: TypeScript T0 spike
+
+on:
+  push:
+    branches: [main]
+    paths: ['node/**', 'package.json', 'package-lock.json', '.nvmrc', '.github/workflows/ts-t0.yml']
+  pull_request:
+    paths: ['node/**', 'package.json', 'package-lock.json', '.nvmrc', '.github/workflows/ts-t0.yml']
+  workflow_dispatch:
+
+jobs:
+  linux:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy
+      - run: npm ci --ignore-scripts
+      - run: npm run build
+      - run: npm run check
+      - run: npm test
+      - run: cargo test --manifest-path node/native/Cargo.toml --locked
+      - run: cargo clippy --manifest-path node/native/Cargo.toml --all-targets --locked -- -D warnings
+      - name: Exact-commit root Git install (npm)
+        run: bash node/scripts/git-install-smoke.sh npm "$GITHUB_SHA"
+      - name: Exact-commit root Git install (pnpm, approved build scripts)
+        run: bash node/scripts/git-install-smoke.sh pnpm "$GITHUB_SHA"
+      - name: Bun source install and runtime (best effort)
+        continue-on-error: true
+        run: bash node/scripts/git-install-smoke.sh bun "$GITHUB_SHA"
+      # Measured MSRV: radicle 0.25.1 declares 1.88.0 but fails on 1.88-1.90
+      # (E0382, cob/identity.rs:506). Re-measure on every radicle pin bump.
+      - name: Minimum supported Rust (1.91)
+        run: |
+          rustup toolchain install 1.91.0 --profile minimal
+          cargo +1.91.0 check --manifest-path node/native/Cargo.toml --locked

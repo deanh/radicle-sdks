@@ -1,0 +1,25 @@
+[package]
+name = "radicle-sdk-t0"
+version = "0.0.0"
+edition = "2024"
+rust-version = "1.91"
+publish = false
+license = "MIT OR Apache-2.0"
+
+[lib]
+crate-type = ["cdylib"]
+
+[dependencies]
+napi = { version = "3", default-features = false, features = ["napi8", "dyn-symbols"] }
+napi-derive = "3"
+radicle = "=0.25.1"
+getrandom = "0.3"
+# radicle disables indexmap defaults but uses its std-only default hasher.
+# Python's feature graph enables std incidentally; this independent crate must.
+indexmap = { version = "2", features = ["std"] }
+
+[build-dependencies]
+napi-build = "2"
+
+[dev-dependencies]
+static_assertions = "1"
