@@ -5,8 +5,8 @@
 //! no lifetime gymnastics across the FFI boundary).
 
 use std::collections::BTreeMap;
-use std::str::FromStr;
 use std::path::PathBuf;
+use std::str::FromStr;
 use std::sync::Arc;
 
 use pyo3::prelude::*;
@@ -55,9 +55,10 @@ impl PyHome {
     /// Canonical filesystem path of this home.
     #[getter]
     fn path(&self) -> PyResult<&str> {
-        self.inner.path().to_str().ok_or_else(|| {
-            error::value_err("home path is not valid UTF-8")
-        })
+        self.inner
+            .path()
+            .to_str()
+            .ok_or_else(|| error::value_err("home path is not valid UTF-8"))
     }
 
     fn __repr__(&self) -> PyResult<String> {
@@ -92,7 +93,12 @@ impl PyAliases {
             .aliases()
             .reverse_lookup(&alias)
             .into_iter()
-            .map(|(a, nids)| (a.to_string(), nids.into_iter().map(|n| n.to_string()).collect()))
+            .map(|(a, nids)| {
+                (
+                    a.to_string(),
+                    nids.into_iter().map(|n| n.to_string()).collect(),
+                )
+            })
             .collect())
     }
 
@@ -156,9 +162,10 @@ fn init_with_seed(
     passphrase: Option<&str>,
     seed: [u8; 32],
 ) -> PyResult<PyProfile> {
-    let alias = Alias::from_str(alias)
-        .map_err(|err| error::value_err(format!("invalid Alias: {err}")))?;
-    let passphrase = passphrase.map(|p| radicle::crypto::ssh::keystore::Passphrase::from(p.to_owned()));
+    let alias =
+        Alias::from_str(alias).map_err(|err| error::value_err(format!("invalid Alias: {err}")))?;
+    let passphrase =
+        passphrase.map(|p| radicle::crypto::ssh::keystore::Passphrase::from(p.to_owned()));
     // Only now — after all input validation — touch the filesystem.
     let home = RawHome::new(home_path).map_err(error::io_err)?;
     let profile = radicle::Profile::init(home, alias, passphrase, radicle::crypto::Seed::new(seed))
@@ -252,7 +259,9 @@ impl PyProfile {
     /// matching `radicle::Profile::signer()`.
     fn signer(&self) -> PyResult<PySigner> {
         let signer = self.inner.signer().map_err(error::signer_err)?;
-        Ok(PySigner { inner: std::rc::Rc::new(signer) })
+        Ok(PySigner {
+            inner: std::rc::Rc::new(signer),
+        })
     }
 
     /// Read-write policy store of this profile's home (Phase 3).

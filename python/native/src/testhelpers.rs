@@ -22,7 +22,10 @@ use crate::profile::PyProfile;
 /// Deterministic file set for the initial commit: (path, content).
 fn fixture_files() -> Vec<(&'static str, &'static [u8])> {
     vec![
-        ("README.md", b"# fixture\n\nhermetic test repository\n".as_slice()),
+        (
+            "README.md",
+            b"# fixture\n\nhermetic test repository\n".as_slice(),
+        ),
         ("zoo.txt", b"z\n".as_slice()),
         ("assets/logo.svg", b"<svg/>\n".as_slice()),
     ]
@@ -47,10 +50,11 @@ fn commit_files(
             .blob(content)
             .map_err(|e| error::op_err(format!("blob: {e}")))?;
         match path.rsplit_once('/') {
-            Some((dir, rest)) => dirs
-                .entry(dir)
-                .or_default()
-                .push((rest.to_string(), oid, 0o100644i32)),
+            Some((dir, rest)) => {
+                dirs.entry(dir)
+                    .or_default()
+                    .push((rest.to_string(), oid, 0o100644i32))
+            }
             None => dirs
                 .entry("")
                 .or_default()
@@ -75,11 +79,7 @@ fn commit_files(
             .write()
             .map_err(|e| error::op_err(format!("tree write: {e}")))?;
         drop(tb);
-        root_entries.push((
-            dir.to_string(),
-            tree_oid,
-            0o040000i32,
-        ));
+        root_entries.push((dir.to_string(), tree_oid, 0o040000i32));
     }
     let mut tb = repo
         .treebuilder(None)
@@ -97,10 +97,7 @@ fn commit_files(
         .map_err(|e| error::op_err(format!("find tree: {e}")))?;
 
     let parents: Vec<git::raw::Commit> = match repo.head() {
-        Ok(head) => head
-            .peel_to_commit()
-            .map(|c| vec![c])
-            .unwrap_or_default(),
+        Ok(head) => head.peel_to_commit().map(|c| vec![c]).unwrap_or_default(),
         Err(_) => vec![],
     };
     let parent_refs: Vec<&git::raw::Commit> = parents.iter().collect();
@@ -129,21 +126,26 @@ pub fn init_project(
     default_branch: &str,
 ) -> PyResult<String> {
     let path = Path::new(workdir);
-    std::fs::create_dir_all(path)
-        .map_err(|e| error::op_err(format!("workdir: {e}")))?;
-    let repo = git::raw::Repository::init(path)
-        .map_err(|e| error::op_err(format!("git init: {e}")))?;
+    std::fs::create_dir_all(path).map_err(|e| error::op_err(format!("workdir: {e}")))?;
+    let repo =
+        git::raw::Repository::init(path).map_err(|e| error::op_err(format!("git init: {e}")))?;
 
     let files = fixture_files();
     let file_refs: Vec<(&str, &[u8])> = files.iter().map(|(p, c)| (*p, *c)).collect();
-    commit_files(&repo, &file_refs, "fixture: initial commit\n", default_branch)?;
+    commit_files(
+        &repo,
+        &file_refs,
+        "fixture: initial commit\n",
+        default_branch,
+    )?;
 
     let branch = git::fmt::RefStr::try_from_str(default_branch)
         .map_err(|e| error::value_err(format!("invalid branch: {e}")))?
         .to_ref_string();
     let (rid, _doc, _refs) = radicle::rad::init(
         &repo,
-        name.try_into().map_err(|e| error::value_err(format!("invalid name: {e}")))?,
+        name.try_into()
+            .map_err(|e| error::value_err(format!("invalid name: {e}")))?,
         description,
         branch,
         radicle::identity::Visibility::default(),
@@ -165,8 +167,8 @@ pub fn create_tag(
     target: &str,
     annotated: bool,
 ) -> PyResult<String> {
-    let rid_t = RepoId::from_str(rid)
-        .map_err(|e| error::value_err(format!("invalid RepoId: {e}")))?;
+    let rid_t =
+        RepoId::from_str(rid).map_err(|e| error::value_err(format!("invalid RepoId: {e}")))?;
     let storage = &profile.inner.storage;
     let repo = storage.repository(rid_t).map_err(error::repository_err)?;
     let obj = repo
@@ -189,7 +191,6 @@ pub fn create_tag(
     Ok(tag_ref)
 }
 
-
 /// TEST-ONLY: create an issue in the storage repository via the typed store
 /// (COB writes are otherwise Phase 5; Phase 4 is read-only). Returns the new
 /// issue id.
@@ -205,15 +206,17 @@ pub fn create_issue(
 ) -> PyResult<String> {
     use radicle::cob::issue::Issues;
     use radicle::cob::store::access::WriteAs;
-    use radicle::cob::{cache::NoCache, Label, Title};
+    use radicle::cob::{Label, Title, cache::NoCache};
 
-    let rid_t = RepoId::from_str(rid)
-        .map_err(|e| error::value_err(format!("invalid RepoId: {e}")))?;
+    let rid_t =
+        RepoId::from_str(rid).map_err(|e| error::value_err(format!("invalid RepoId: {e}")))?;
     let title = Title::new(title).map_err(|e| error::value_err(format!("invalid title: {e}")))?;
     let labels: Vec<Label> = labels
         .unwrap_or_default()
         .iter()
-        .map(|l| Label::new(l.as_str()).map_err(|e| error::value_err(format!("invalid label: {e}",))))
+        .map(|l| {
+            Label::new(l.as_str()).map_err(|e| error::value_err(format!("invalid label: {e}",)))
+        })
         .collect::<PyResult<_>>()?;
 
     let storage = &profile.inner.storage;
@@ -251,11 +254,11 @@ pub fn create_patch(
 ) -> PyResult<String> {
     use radicle::cob::patch::{MergeTarget, Patches};
     use radicle::cob::store::access::WriteAs;
-    use radicle::cob::{cache::NoCache, Title};
+    use radicle::cob::{Title, cache::NoCache};
     use radicle::storage::ReadRepository;
 
-    let rid_t = RepoId::from_str(rid)
-        .map_err(|e| error::value_err(format!("invalid RepoId: {e}")))?;
+    let rid_t =
+        RepoId::from_str(rid).map_err(|e| error::value_err(format!("invalid RepoId: {e}")))?;
     let title = Title::new(title).map_err(|e| error::value_err(format!("invalid title: {e}")))?;
 
     let storage = &profile.inner.storage;
@@ -282,9 +285,14 @@ pub fn create_patch(
 /// (revspec). Used by tests to plant non-COB refs shaped like COB refs
 /// (typenames() false-positive regression).
 #[pyfunction]
-pub fn create_ref(profile: PyRef<'_, PyProfile>, rid: &str, name: &str, target: &str) -> PyResult<String> {
-    let rid_t = RepoId::from_str(rid)
-        .map_err(|e| error::value_err(format!("invalid RepoId: {e}")))?;
+pub fn create_ref(
+    profile: PyRef<'_, PyProfile>,
+    rid: &str,
+    name: &str,
+    target: &str,
+) -> PyResult<String> {
+    let rid_t =
+        RepoId::from_str(rid).map_err(|e| error::value_err(format!("invalid RepoId: {e}")))?;
     let storage = &profile.inner.storage;
     let repo = storage.repository(rid_t).map_err(error::repository_err)?;
     let obj = repo
@@ -309,14 +317,11 @@ pub fn add_routing_entry(
 ) -> PyResult<bool> {
     use radicle::node::routing::Store as _;
 
-    let rid_t = RepoId::from_str(rid)
-        .map_err(|e| error::value_err(format!("invalid RepoId: {e}")))?;
+    let rid_t =
+        RepoId::from_str(rid).map_err(|e| error::value_err(format!("invalid RepoId: {e}")))?;
     let nid = node::NodeId::from_str(node_id)
         .map_err(|e| error::value_err(format!("invalid NodeId: {e}")))?;
-    let mut db = profile
-        .inner
-        .database_mut()
-        .map_err(error::database_err)?;
+    let mut db = profile.inner.database_mut().map_err(error::database_err)?;
     let updated = db
         .add_inventory(
             [&rid_t],

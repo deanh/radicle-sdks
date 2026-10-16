@@ -2,8 +2,8 @@
 use crate::comment::{self, Comment};
 use pyo3::prelude::*;
 use radicle::cob::{
-    issue::{self, Issue as RawIssue},
     ObjectId,
+    issue::{self, Issue as RawIssue},
 };
 
 /// A materialized issue (read-only snapshot of upstream `cob::issue::Issue`).

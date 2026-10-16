@@ -1,9 +1,9 @@
 //! Immutable patch/revision/review snapshots and eager materialization.
-use crate::comment::{comment, Comment};
+use crate::comment::{Comment, comment};
 use pyo3::prelude::*;
 use radicle::cob::{
-    patch::{self, Patch as RawPatch},
     ObjectId,
+    patch::{self, Patch as RawPatch},
 };
 
 #[pyclass(name = "Review", module = "radiclepy", get_all, frozen, eq)]

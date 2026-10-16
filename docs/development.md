@@ -24,6 +24,7 @@ uv run --no-sync pyright python/tests/typing/usage.py
 uv run --no-sync pyright --verifytypes radiclepy --ignoreexternal
 cargo clippy -p radicle-py --all-targets --locked --features test-helpers -- -D warnings
 cargo clippy -p radicle-py --all-targets --locked -- -D warnings
+cargo fmt -p radicle-py -- --check
 ```
 
 `test-helpers` enables deterministic legacy fixtures. Never enable it in release

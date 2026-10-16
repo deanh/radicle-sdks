@@ -26,9 +26,9 @@ use std::str::FromStr;
 use pyo3::prelude::*;
 use pyo3::types::PyType;
 use radicle::identity::RepoId;
-use radicle::node::routing::Store as _;
 use radicle::node::Database;
 use radicle::node::NodeId;
+use radicle::node::routing::Store as _;
 
 use crate::error;
 use crate::profile::PyProfile;

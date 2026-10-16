@@ -7,7 +7,7 @@
 use std::str::FromStr;
 
 use pyo3::prelude::*;
-use radicle::cob::{thread::CommentId, Label, ObjectId, Title};
+use radicle::cob::{Label, ObjectId, Title, thread::CommentId};
 use radicle::git::Oid;
 use radicle::identity::{Did, RepoId};
 use radicle::node::NodeId;

@@ -15,7 +15,7 @@ use std::str::FromStr;
 
 use pyo3::prelude::*;
 
-use pyo3::types::{PyBytes, PyDict, PyList, PyType, PyTuple};
+use pyo3::types::{PyBytes, PyDict, PyList, PyTuple, PyType};
 use radicle::cob::change::store::Storage as _; // load
 use radicle::cob::object::Storage as _; // types / objects
 use radicle::cob::{self, TypeName};
@@ -33,9 +33,8 @@ fn git_err(err: impl std::fmt::Display) -> PyErr {
 }
 
 fn parse_typename(value: &str) -> PyResult<TypeName> {
-    TypeName::from_str(value).map_err(|err| {
-        error::value_err(format!("invalid COB typename {value:?}: {err}"))
-    })
+    TypeName::from_str(value)
+        .map_err(|err| error::value_err(format!("invalid COB typename {value:?}: {err}")))
 }
 
 fn parse_cob_object_id(value: &str) -> PyResult<cob::ObjectId> {
@@ -148,9 +147,7 @@ impl RawOp {
     fn actions<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyTuple>> {
         PyTuple::new(
             py,
-            self.actions
-                .iter()
-                .map(|b| PyBytes::new(py, b).into_any()),
+            self.actions.iter().map(|b| PyBytes::new(py, b).into_any()),
         )
     }
     /// Causal parents (the ONLY traversal edge).
@@ -183,13 +180,12 @@ impl RawOp {
             .iter()
             .enumerate()
             .map(|(i, blob)| {
-                let value: serde_json::Value =
-                    serde_json::from_slice(blob).map_err(|err| {
-                        error::cob_err(format!(
-                            "action #{i} of entry {} is not valid JSON: {err}",
-                            self.id
-                        ))
-                    })?;
+                let value: serde_json::Value = serde_json::from_slice(blob).map_err(|err| {
+                    error::cob_err(format!(
+                        "action #{i} of entry {} is not valid JSON: {err}",
+                        self.id
+                    ))
+                })?;
                 json_to_py(py, value)
             })
             .collect::<PyResult<Vec<_>>>()?;
@@ -268,10 +264,7 @@ pub struct PyRaw {
 
 impl PyRaw {
     /// Load an entry and convert it to a `RawOp`.
-    fn load_op(
-        repo: &radicle::storage::git::Repository,
-        oid: Oid,
-    ) -> PyResult<RawOp> {
+    fn load_op(repo: &radicle::storage::git::Repository, oid: Oid) -> PyResult<RawOp> {
         let entry = repo
             .load(oid)
             .map_err(|err| cob_err(format!("load entry {oid}: {err}")))?;
@@ -279,11 +272,7 @@ impl PyRaw {
             id: oid.to_string(),
             actor: entry.author().to_string(),
             timestamp: entry.timestamp,
-            actions: entry
-                .contents()
-                .iter()
-                .map(|b| b.to_vec())
-                .collect(),
+            actions: entry.contents().iter().map(|b| b.to_vec()).collect(),
             parents: entry.parents.iter().map(|p| p.to_string()).collect(),
             related: entry.related.iter().map(|r| r.to_string()).collect(),
             identity: entry.resource().map(|r| r.to_string()),
@@ -440,8 +429,11 @@ fn topological_sort(ops: BTreeMap<String, RawOp>) -> PyResult<Vec<RawOp>> {
             if emitted.contains(*id) {
                 return None;
             }
-            let outstanding: BTreeSet<&str> =
-                parents.iter().copied().filter(|p| !emitted.contains(p)).collect();
+            let outstanding: BTreeSet<&str> = parents
+                .iter()
+                .copied()
+                .filter(|p| !emitted.contains(p))
+                .collect();
             if outstanding.is_empty() {
                 Some(*id)
             } else {

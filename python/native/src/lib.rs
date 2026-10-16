@@ -2,6 +2,8 @@ use pyo3::prelude::*;
 
 mod comment;
 mod error;
+// Process-local snapshot hashing only; snapshot types live with their domains.
+mod hashing;
 mod ids;
 mod issues;
 mod patches;
@@ -13,7 +15,6 @@ mod repository;
 mod routing;
 #[cfg(feature = "test-helpers")]
 mod testhelpers;
-mod hashing; // Shared process-local snapshot hashing only; DTOs are domain-owned.
 
 #[pymodule]
 fn radiclepy(py: Python<'_>, m: &Bound<'_, PyModule>) -> PyResult<()> {

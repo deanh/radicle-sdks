@@ -48,7 +48,7 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
         with:
           toolchain: ${{ matrix.rust }}
-          components: clippy
+          components: clippy, rustfmt
 
       - uses: astral-sh/setup-uv@v3
 
@@ -77,6 +77,9 @@ jobs:
 
       - name: Clippy (release surface)
         run: cargo clippy -p radicle-py --all-targets --locked -- -D warnings
+
+      - name: Rustfmt
+        run: cargo fmt -p radicle-py -- --check
 
   wheels:
     name: wheel / ${{ matrix.kind }}

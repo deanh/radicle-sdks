@@ -19,8 +19,8 @@ use pyo3::prelude::*;
 use radicle::storage::{SignRepository, WriteRepository};
 
 use super::{
-    values::{PySetHead, PySignedRefs},
     PyRepository,
+    values::{PySetHead, PySignedRefs},
 };
 use crate::error;
 use crate::profile::PySigner;

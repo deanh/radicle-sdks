@@ -10,8 +10,8 @@ use pyo3::types::PyType;
 use radicle::cob::cache::NoCache;
 use radicle::cob::issue::{self, Issues as RawIssues, State as IssueState};
 use radicle::cob::store::access::{ReadOnly, WriteAs};
-use values::materialize_issue;
 pub(crate) use values::Issue;
+use values::materialize_issue;
 
 // ─── Issues store ────────────────────────────────────────────────────────────
 
