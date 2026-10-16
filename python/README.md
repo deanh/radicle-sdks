@@ -6,8 +6,10 @@ reads and raw COB inspection. Import the package as `radiclepy`.
 
 See the [API reference](API.md) for signatures and conversion rules, the
 [changelog](CHANGELOG.md) for Python changes, and the
-[project overview](../README.md) for both SDKs. This guide is also the Python
-package's long description; it is not a registry-publication announcement.
+[project overview](../README.md) for both SDKs, including the shared
+[scope and non-goals](../README.md#scope-and-non-goals). This guide is also
+the Python package's long description; it is not a registry-publication
+announcement.
 
 ## Python installation
 

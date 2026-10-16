@@ -85,11 +85,11 @@ Node's panic/error protocol. Neither SDK adds rollback or automatic retry.
 
 ## Distribution and evidence
 
-Both versions remain `0.1.0`; a full Git SHA identifies the reviewed candidate.
-Python Git installation builds its extension, and its package description is the
-[Python guide](../python/README.md). Node Git preparation builds the addon in the
-full checkout; installed consumers load that built output. No registry
-publication or portable prebuilt distribution is authorized.
+Both SDKs install from Git at an exact commit; publication and platform status
+are in the root README's [scope and non-goals](../README.md#scope-and-non-goals).
+Python Git installation builds its extension, with the
+[Python guide](../python/README.md) as package description. Node Git preparation
+builds the addon in the full checkout, and installed consumers load that output.
 
 Python wheel/sdist workflows and npm 11/npm 12/pnpm exact-commit consumer tests
 establish different packaging guarantees. Bun Git preparation remains best

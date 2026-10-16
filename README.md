@@ -11,20 +11,30 @@ issue discussions and common writes, and patch revisions/reviews/lifecycle.
 | Python | `radicle-py` / `radiclepy` | CPython ≥ 3.9 (abi3) | [Guide](python/README.md), [API](python/API.md), [changelog](python/CHANGELOG.md) |
 | TypeScript | `radicle-sdk` | Node.js ≥ 26.12.0 | [Guide](node/README.md), [API](node/API.md), [changelog](node/CHANGELOG.md) |
 
-These are **experimental, source-installed alphas**, not nodes or network
-clients. Both package versions are `0.1.0`; the **exact reviewed Git commit**,
-not the version, identifies a candidate. APIs may change. PyPI/npm registry
-publication and portable prebuilt distribution are deferred.
+## Scope and non-goals
 
-Git installation compiles native code and requires **Rust ≥ 1.91**, Git and a C
-toolchain; a cold build can take minutes. Python targets Linux/macOS; Windows is
-unsupported/unverified. The TypeScript alpha is validated on **Linux x86_64
-GNU/glibc only**. See each guide for installation, prerequisites and limitations.
+Both SDKs do one job: **local, signed project, issue and patch workflows** on a
+Radicle home you already have. The other documents link here rather than
+restating these points.
 
-Fetching/announcing projects, connections and daemon control are outside the
-SDKs. Git handles commit creation/import and working-copy pushes. Python also
-exposes local policy management, routing reads and raw COB inspection. Full API
-parity is not the alpha goal, and no shared Rust core has been extracted yet.
+- **Alpha, installed from Git.** Both packages are version `0.1.0`; the exact
+  reviewed commit identifies a candidate, and APIs may change. Registry
+  publication and prebuilt binaries are deferred.
+- **Not a node.** Fetching, announcing, connections and daemon control are out
+  of scope, and nothing in the SDKs talks to the network.
+- **Git owns commits.** The SDKs never create or import commits, move branches
+  or push working copies; use Git (and `git-remote-rad`) for that.
+- **One operation at a time.** Each write is one upstream transaction. There is
+  no multi-call transaction, rollback or automatic retry; after a failure,
+  inspect persisted state before continuing.
+- **Thin adapters, no shared core.** Each binding adapts the upstream crate
+  directly; no common Rust crate has been extracted, and full API parity is not
+  a goal. Python additionally exposes policy management, routing reads and raw
+  COB inspection.
+- **Platforms.** Building from Git needs **Rust ≥ 1.91**, Git and a C toolchain,
+  and a cold build takes minutes. Python targets Linux and macOS (Windows is
+  unverified); the TypeScript alpha is validated on Linux x86_64 GNU/glibc only.
+  Each guide lists its own prerequisites.
 
 ## Try the SDKs
 

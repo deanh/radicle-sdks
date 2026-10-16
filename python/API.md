@@ -3,8 +3,7 @@
 Status: **experimental alpha, version 0.1.0**, pinned to Radicle `=0.25.1`.
 The full reviewed Git SHA identifies a candidate. This Python-only reference
 covers public names, their kinds (class / attribute / method / function),
-conversions and failure modes. API tests check exported names/kinds; behavioral
-and installed-package tests establish the guarantees those checks cannot prove.
+conversions and failure modes.
 See the [Python guide](README.md) for installation and a runnable example, and
 [SDK differences](../docs/sdk-differences.md) for comparison with TypeScript.
 
@@ -78,13 +77,6 @@ inject a seed. `passphrase` encrypts the keystore when given.
 The alias is validated **before** any filesystem state is created.
 Raises `ValueError` for invalid aliases; `radiclepy.Error` for init
 failures (including OS RNG unavailability — operational, not input).
-
-##### Deterministic seeding — NOT part of the shipped API
-`Profile._from_seed(home_path, alias, seed, passphrase=None)` exists only
-in builds compiled with the `test-helpers` cargo feature (`maturin
-develop --features test-helpers`) and is **absent from release wheels**.
-Used exclusively by the test fixtures. `test_api.py` treats it as
-non-public; CI's wheel smoke step asserts its absence.
 
 ##### `profile.did -> Did` (attribute)
 Profile DID, `did:key:z…`.
@@ -329,9 +321,9 @@ Canonical project identity document (verified at load).
 
 #### `PolicyStore`
 
-Follow/seed policy store (upstream `node::policy::Store`). Own sqlite file
-(`<home>/node/policies.db`). The binding mirrors the **raw upstream store
-surface** — no implicit file-config fallbacks.
+Follow/seed policy store (upstream `node::policy::Store`) in its own sqlite file
+(`<home>/node/policies.db`). Reads and writes go to that database only;
+policies declared in the node configuration file are not consulted.
 Identifier/policy/scope validation happens binding-side (`ValueError`)
 before any database call. All write methods return `bool`: `true` when the
 store actually changed.
@@ -371,8 +363,7 @@ Read-only routing table (upstream `node::routing::Store`, physically the
 node database). Raises `DatabaseError` if the node database does **not
 exist** (the read-only open creates nothing; freshly-initialized profiles do
 have a migrated `node.db`, so they open with an empty table). Timestamps are
-**unix epoch milliseconds** (upstream `node::Timestamp` is a millis `u64`
-newtype). Routing writes are not exposed by this SDK.
+**unix epoch milliseconds**. Routing writes are not exposed by this SDK.
 
 ##### `RoutingStore.from_profile(profile: Profile) -> RoutingStore` (classmethod)
 Also `profile.routing_store()`.
@@ -505,10 +496,9 @@ Raw COB inspection — no domain types required.
 ##### `raw.rid -> RepoId` (attribute)
 
 ##### `raw.typenames() -> list[str]` (method) — distinct COB typenames, sorted.
-Strict COB-ref acceptance (`cob::TypedId`: `refs/cobs/<typename>/<id>` after
-namespace stripping) — COB-shaped non-COB refs (e.g.
-`refs/tags/<typename>/<oid>`, which `cob::object::parse_refstr`'s shape check
-false-matches) never appear.
+Only refs of the form `refs/cobs/<typename>/<id>` count, in any namespace.
+Refs that merely look similar (such as `refs/tags/<typename>/<oid>`) and
+COB-shaped refs whose typename or id does not parse are ignored.
 
 ##### `raw.entities(typename: str) -> list[ObjectId]` (method) — entity ids with COB refs under `typename`, sorted; same strict acceptance. `ValueError` on invalid typename
 
@@ -522,9 +512,9 @@ One change entry; one op carries a **non-empty tuple** of actions.
 
 ##### `op.id -> Oid` (attribute) — change-commit OID
 
-##### `op.actor -> NodeId` (attribute) — canonical NodeId (upstream stores a PublicKey)
+##### `op.actor -> NodeId` (attribute) — canonical NodeId
 
-##### `op.timestamp -> int` (attribute) — **unix epoch SECONDS** (upstream `cob::change::Timestamp` is seconds; unlike `node::Timestamp`/routing, which is millis)
+##### `op.timestamp -> int` (attribute) — **unix epoch SECONDS**, unlike the millisecond timestamps of typed comments, revisions, reviews and routing entries
 
 ##### `op.actions -> tuple[bytes, ...]` (attribute) — raw action payloads (canonical JSON bytes), decoded independently
 
@@ -556,8 +546,7 @@ Narrow, upstream-shaped writes. The three canonical-ref writes take **no
 signer** because upstream takes none; `sign_refs` is the only signer-taking
 repository write in this group. No hidden write-then-sign composition — sequencing is
 the caller's explicit choice. For COB stores the signer is fixed at
-store-open time (`open_as`, upstream `WriteAs(signer)`); mutating methods
-themselves take none.
+store-open time (`open_as`); mutating methods themselves take none.
 
 ### Repository writes
 
@@ -585,7 +574,7 @@ themselves take none.
 
 ##### `signed.parent -> Oid | None` (attribute) — parent sigrefs commit (`None` at root)
 
-##### `signed.feature_level -> str` (attribute) — `"none" | "root" | "parent"` (upstream `FeatureLevel` has exactly these three in 0.25.1)
+##### `signed.feature_level -> str` (attribute) — `"none" | "root" | "parent"`
 
 ##### `signed.refs() -> dict[str, Oid]` (method) — the signed set (sorted). The cryptographic signature itself is not surfaced (verified/re-derived upstream on read)
 
@@ -606,7 +595,7 @@ Stores opened with plain `open()` raise `ReadOnlyError` on write attempts.
 
 #### `Issues` (write extensions)
 
-##### `Issues.open_as(repository: Repository, signer: Signer) -> Issues` (classmethod) — write store (upstream `WriteAs(signer)`)
+##### `Issues.open_as(repository: Repository, signer: Signer) -> Issues` (classmethod) — write store; the signer is fixed for the handle's lifetime
 
 ##### `issues.create(title: str, description: str, labels: Sequence[str] | None = None, assignees: Sequence[Did] | None = None) -> IssueMut` (method) — creates and persists immediately; `ValueError` on invalid title/labels/DIDs
 
@@ -629,9 +618,9 @@ Each mutator commits **one COB transaction** and returns the new change-entry
 
 ##### `issue_mut.edit_description(description: str) -> Oid` (method) — edits the root comment (upstream semantics)
 
-##### `issue_mut.label(labels: Sequence[str]) -> Oid` (method) — **sets** the label set: upstream `Action::Label` REPLACES (not additive)
+##### `issue_mut.label(labels: Sequence[str]) -> Oid` (method) — **replaces** the whole label set (not additive); `[]` clears it
 
-##### `issue_mut.assign(assignees: Sequence[Did]) -> Oid` (method) — **sets** the assignee set: upstream `Action::Assign` REPLACES (like `label`); an empty list clears
+##### `issue_mut.assign(assignees: Sequence[Did]) -> Oid` (method) — **replaces** the whole assignee set (like `label`); `[]` clears it
 
 ##### `issue_mut.lifecycle(state: str, reason: str | None = None) -> Oid` (method) — `state` `"open"|"closed"`; `reason` (closing only) `"unspecified"` (default) | `"solved"`; invalid combinations raise `ValueError`
 
@@ -720,12 +709,10 @@ No atomic multi-call transaction or automatic Git branch movement is promised.
 
 ##### `patch_mut.merge(revision: Oid, commit: Oid) -> Oid` (method) — returns operation ID, **not a Git merge**. Does not move branches or clean up refs. Upstream checks authorization and evaluates whether the commit is in the author's target branch and the delegate quorum is met. An operation may succeed but leave the patch open; inspect/reload `patch.state`. Commit must already exist in storage.
 
-Note: `Patch.target` surfaces `"delegates"` or `"branch:<name>"` with exactly
-one guaranteed `refs/heads/` prefix removed (`strip_prefix` — `repeat`-trim
-would eat repeated prefixes). Output is canonical *bare*: qualified input
-`branch:refs/heads/foo` reads back as `branch:foo`. Degenerate branches whose
-bare name itself starts with `refs/heads/` share the canonical short form and
-are the only non-round-tripping case.
+Note: `Patch.target` reads back as `"delegates"` or `"branch:<name>"` with
+exactly one leading `refs/heads/` removed, so `branch:refs/heads/foo` reads back
+as `branch:foo`. A branch whose bare name itself starts with `refs/heads/` is
+the only case that does not round-trip.
 
 ## Local project lifecycle (alpha)
 
@@ -757,7 +744,7 @@ Read-only properties: `id: Oid`, `author: Did`, `verdict: Literal['accept', 'rej
 
 Read-only properties: `id: Oid`, `author: Did`, `description: str`, `base: Oid`, `head: Oid`, `timestamp: int` (epoch **milliseconds**), `comments: list[Comment]` (non-redacted, thread order), `reviews: list[Review]`.
 
-These typed timestamps come from `cob::common::Timestamp`; **RawOp.timestamp remains epoch seconds** from the raw change entry. Collection getters return copies; snapshots do not refresh automatically. Signers and mutable stores/handles are thread-affine; no async/thread-safety guarantee is made.
+**RawOp.timestamp remains epoch seconds** from the raw change entry. Collection getters return copies; snapshots do not refresh automatically. Signers and mutable stores/handles are thread-affine; no async/thread-safety guarantee is made.
 
 ## Quick start
 
@@ -810,8 +797,34 @@ conversion is introduced).
   explicit narrowing for static type checking. Patch targets remain `str`
   because `branch:<name>` is an open-ended domain.
 
-## Layout notes
+## Maintainer notes
 
-- Extension module: `radiclepy.radiclepy` (compiled); the package
-  `radiclepy/__init__.py` re-exports the public names.
-- Stubs: `__init__.pyi` + `_types.pyi` (identifier aliases), `py.typed`.
+Consumers do not need this section; it records how the reference is kept
+honest and where the binding departs from upstream vocabulary.
+
+- **Tests behind the reference.** `python/tests/test_api.py` checks every
+  documented name and its kind (class, attribute, method, function);
+  behavioural and installed-package tests establish what name checks cannot.
+- **Deterministic seeding.** `Profile._from_seed(home_path, alias, seed,
+  passphrase=None)` exists only in builds compiled with the `test-helpers`
+  Cargo feature (`maturin develop --features test-helpers`) and is absent from
+  release wheels; the wheel smoke asserts its absence and `test_api.py` treats
+  it as non-public.
+- **Upstream access modes.** `open()` maps to upstream `ReadOnly` store access
+  and `open_as(signer)` to `WriteAs(signer)`; mutating methods take no signer
+  because the store already holds one. `label`/`assign` map to upstream
+  `Action::Label`/`Action::Assign`, which replace the whole set.
+- **Strict COB ref parsing.** `Raw.typenames()`/`entities()` parse refs with
+  `cob::TypedId`, not upstream `cob::object::parse_refstr`, whose shape check
+  also matches `refs/tags/<typename>/<oid>`.
+- **Branch target canonical form.** Exactly one `refs/heads/` prefix is removed
+  with `strip_prefix`; a repeated-prefix trim would eat nested prefixes.
+- **Feature levels.** `SignedRefs.feature_level` mirrors upstream
+  `FeatureLevel`, which has exactly `none`, `root` and `parent` in 0.25.1.
+- **Timestamp sources.** Typed comment/revision/review timestamps come from
+  `cob::common::Timestamp` (milliseconds); `RawOp.timestamp` is the raw change
+  entry's `cob::change::Timestamp` (seconds); routing uses `node::Timestamp`
+  (milliseconds).
+- **Layout.** The compiled extension is `radiclepy.radiclepy`; the package
+  `radiclepy/__init__.py` re-exports the public names. Stubs are `__init__.pyi`,
+  `_types.pyi` (identifier aliases) and `py.typed`.

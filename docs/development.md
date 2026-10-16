@@ -5,9 +5,9 @@ Cargo workspace: `python/native/` and `node/native/`. Python-only tests live in
 `python/tests/`; root `tests/` owns cross-SDK tests and shared fixture support.
 See [architecture](architecture.md) for ownership and remaining follow-ups.
 
-Both packages are `0.1.0`. Pin the full reviewed Git SHA for candidate installs;
-Git installs do not include uncommitted worktree changes. No automated publisher,
-PyPI upload or npm publication is part of this alpha flow.
+Git installs build the committed tree only, never uncommitted worktree changes;
+pin the full reviewed SHA for candidate installs. Publication status is in the
+root README's [scope and non-goals](../README.md#scope-and-non-goals).
 
 ## Python development
 

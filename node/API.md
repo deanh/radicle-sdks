@@ -217,7 +217,8 @@ There is no SDK commit-import API or merge-base default.
   not wait on the write mutex; repository handles are reopened inside each task.
 - Signer guard follows the repository lock and is retained for the upstream
   transaction. Signer getters use cached public metadata and never wait on it.
-- No JS write queue. Mutex waiters can occupy libuv pool threads and delay reads;
+- No JS write queue. Waiting writers occupy threads in Node's worker pool and can
+  delay reads;
   no ordering/fairness or read-latency guarantee is made.
 - External processes, CLI/Git writes, and separate loaded copies/versions of the
   addon are not coordinated. Init has no RID yet; concurrent init of one working
@@ -239,7 +240,7 @@ There is no SDK commit-import API or merge-base default.
 
 Worker jobs catch Rust unwinding panics and reject with `RadicleError` code
 `INTERNAL`, without returning the panic payload. Synchronous native entry points
-also use napi-rs panic guards. Panic hooks may still write diagnostics to stderr.
+also use native panic guards. Panic hooks may still write diagnostics to stderr.
 A poisoned mutex rejects while it remains alive, but this is **not a permanent
 repository quarantine**: the registry holds weak references, so once the last
 owner drops, another operation can acquire a fresh mutex and write again. A
@@ -259,6 +260,16 @@ inside the ECMAScript Date range, or `null` outside it (including overflow), nev
 a rounded number. Unrepresentable peer metadata does not hide an issue/patch, reject a
 listing or prevent a mutation; genuine store/decoding errors still reject.
 
-T0-only timestamp/panic probes are internal files, not package exports. Explicit
-timestamp probe inputs retain range/validation rejection. The public SDK does
-not gain a timestamp-input API or a raw/BigInt representation.
+The public SDK has no timestamp-input API and no raw/BigInt representation.
+
+## Maintainer notes
+
+Consumers do not need this section.
+
+- The timestamp and panic probes (`node/src/probes.ts` and the native `probe*`
+  functions) are test-only leftovers from the initial native baseline, not
+  package exports. Their explicit inputs keep range and validation rejection
+  so the error-translation layer stays covered by `node/test/timestamps.test.mjs`
+  and `node/test/panics.test.mjs`.
+- Worker tasks run on Node's libuv thread pool; the lock registry lives in
+  `node/native/src/locks.rs` and the panic containment in `tasks.rs`.

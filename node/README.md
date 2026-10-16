@@ -3,9 +3,10 @@
 A Node.js/TypeScript SDK for **local signed Radicle projects, issues and patches**,
 plus storage/repository inspection. It is not a node or a network client.
 
-**Experimental, source-installed alpha.** APIs may change: version `0.1.0` is the
-package version; pin the exact reviewed Git commit to identify a candidate.
-See the [API reference](API.md) for the implemented surface, conversions, errors,
+An experimental alpha installed from Git at an exact reviewed commit; in a
+source checkout, the root README's
+[scope and non-goals](../README.md#scope-and-non-goals) define what both SDKs
+do and do not do. See the [API reference](API.md) for the implemented surface, conversions, errors,
 concurrency and environment contracts, and the [changelog](CHANGELOG.md) for
 package history.
 

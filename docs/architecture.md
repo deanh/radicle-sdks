@@ -1,8 +1,8 @@
 # Architecture and ownership
 
-The project provides two language bindings to upstream Radicle **`=0.25.1`**,
-not a node, network client or replacement Git implementation. Both expose local
-signed project, issue and patch workflows. Full API parity is not a goal.
+The project provides two language bindings to upstream Radicle **`=0.25.1`**.
+The root README's [scope and non-goals](../README.md#scope-and-non-goals)
+define what they do and do not do; this guide covers how the code is laid out.
 
 ## Ownership rule
 
