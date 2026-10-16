@@ -1,38 +1,46 @@
 use pyo3::prelude::*;
 
-mod cob_raw;
-mod cob_typed;
-mod cob_values;
+mod comment;
 mod error;
-mod identity;
+mod ids;
+mod issues;
+mod patches;
 mod policy;
 mod profile;
 mod project;
+mod raw;
+mod repository;
 mod routing;
-mod storage;
 #[cfg(feature = "test-helpers")]
 mod testhelpers;
-mod values;
-mod write;
+mod values; // Shared process-local snapshot hashing only; DTOs are domain-owned.
 
 #[pymodule]
 fn radiclepy(py: Python<'_>, m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add("__version__", env!("CARGO_PKG_VERSION"))?;
     error::register(py, m)?;
-    identity::register(py, m)?;
+    ids::register(py, m)?;
     profile::register(py, m)?;
     project::register(m)?;
-    cob_values::register(m)?;
-    storage::register(py, m)?;
-    storage::register_values(py, m)?;
+    m.add_class::<comment::Comment>()?;
+    m.add_class::<patches::Review>()?;
+    m.add_class::<patches::Revision>()?;
+    repository::register(py, m)?;
+    repository::register_values(py, m)?;
     policy::register(py, m)?;
     routing::register(py, m)?;
-    m.add_class::<values::FollowPolicyInfo>()?;
-    m.add_class::<values::SeedPolicyInfo>()?;
-    m.add_class::<values::RoutingEntry>()?;
-    write::register(py, m)?;
-    cob_typed::register(py, m)?;
-    cob_raw::register(py, m)?;
+    m.add_class::<policy::FollowPolicyInfo>()?;
+    m.add_class::<policy::SeedPolicyInfo>()?;
+    m.add_class::<routing::RoutingEntry>()?;
+    m.add_class::<repository::PySetHead>()?;
+    m.add_class::<repository::PySignedRefs>()?;
+    m.add_class::<issues::Issue>()?;
+    m.add_class::<patches::Patch>()?;
+    m.add_class::<issues::PyIssues>()?;
+    m.add_class::<patches::PyPatches>()?;
+    m.add_class::<issues::PyIssueMut>()?;
+    m.add_class::<patches::PyPatchMut>()?;
+    raw::register(py, m)?;
     #[cfg(feature = "test-helpers")]
     testhelpers::register(py, m)?;
     Ok(())

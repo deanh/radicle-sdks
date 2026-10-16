@@ -236,8 +236,8 @@ impl PyProfile {
 
     /// Storage owned by this profile (same backing storage as from_profile).
     #[getter]
-    fn storage(&self) -> crate::storage::PyStorage {
-        crate::storage::PyStorage::from_profile_ref(&self.inner)
+    fn storage(&self) -> crate::repository::PyStorage {
+        crate::repository::PyStorage::from_profile_ref(&self.inner)
     }
 
     /// Alias lookup facade (not a collection — see docs/API.md).

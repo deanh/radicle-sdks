@@ -18,18 +18,20 @@
 //! * Inventory mutations (`add_inventory` / `remove_inventory`) need the
 //!   mutable database; they are deferred to Phase 5 (writes).
 
+mod values;
+pub(crate) use values::RoutingEntry;
+
 use std::str::FromStr;
 
 use pyo3::prelude::*;
 use pyo3::types::PyType;
 use radicle::identity::RepoId;
 use radicle::node::routing::Store as _;
-use radicle::node::NodeId;
 use radicle::node::Database;
+use radicle::node::NodeId;
 
 use crate::error;
 use crate::profile::PyProfile;
-use crate::values::RoutingEntry;
 
 fn db_err(err: impl std::fmt::Display) -> PyErr {
     error::database_err(err)
@@ -76,7 +78,13 @@ impl PyRoutingStore {
     /// Nodes seeding `rid` (sorted).
     fn get(&self, rid: &str) -> PyResult<Vec<String>> {
         let rid = parse_rid(rid)?;
-        let mut ids: Vec<String> = self.db.get(&rid).map_err(db_err)?.into_iter().map(|n| n.to_string()).collect();
+        let mut ids: Vec<String> = self
+            .db
+            .get(&rid)
+            .map_err(db_err)?
+            .into_iter()
+            .map(|n| n.to_string())
+            .collect();
         ids.sort();
         Ok(ids)
     }
@@ -100,11 +108,7 @@ impl PyRoutingStore {
     fn entry(&self, rid: &str, node_id: &str) -> PyResult<Option<u64>> {
         let rid = parse_rid(rid)?;
         let nid = parse_node_id(node_id)?;
-        Ok(self
-            .db
-            .entry(&rid, &nid)
-            .map_err(db_err)?
-            .map(|t| *t))
+        Ok(self.db.entry(&rid, &nid).map_err(db_err)?.map(|t| *t))
     }
 
     /// All routing entries (eager list). Each entry's timestamp is looked up

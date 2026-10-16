@@ -1,9 +1,70 @@
 //! Detached repository DTOs and binding-only pagination validation.
-use super::err;
-use napi::{Result, bindgen_prelude::Uint8Array};
+use crate::error::err;
+use napi::{
+    Result,
+    bindgen_prelude::{Either, Null, Uint8Array},
+};
 use napi_derive::napi;
 use std::collections::BTreeMap;
-
+#[napi(object)]
+pub struct HeadInfo {
+    #[napi(readonly)]
+    pub name: String,
+    #[napi(readonly)]
+    pub oid: String,
+}
+#[napi(object)]
+pub struct ProjectDoc {
+    #[napi(readonly)]
+    pub name: String,
+    #[napi(readonly)]
+    pub description: String,
+    #[napi(readonly)]
+    pub default_branch: String,
+    #[napi(readonly, ts_type = "ReadonlyArray<string>")]
+    pub delegates: Vec<String>,
+    #[napi(readonly, ts_type = "'public' | 'private'")]
+    pub visibility: String,
+}
+#[napi(object)]
+pub struct Commit {
+    #[napi(readonly)]
+    pub oid: String,
+    #[napi(readonly)]
+    pub message: Uint8Array,
+    #[napi(readonly)]
+    pub message_str: String,
+    #[napi(readonly)]
+    pub author_name: Uint8Array,
+    #[napi(readonly)]
+    pub author_name_str: String,
+    #[napi(readonly)]
+    pub author_email: Uint8Array,
+    #[napi(readonly)]
+    pub author_email_str: String,
+    #[napi(readonly)]
+    pub author_time: Either<f64, Null>,
+    #[napi(readonly)]
+    pub author_offset_min: i32,
+    #[napi(readonly)]
+    pub committer_name: Uint8Array,
+    #[napi(readonly)]
+    pub committer_name_str: String,
+    #[napi(readonly)]
+    pub committer_email: Uint8Array,
+    #[napi(readonly)]
+    pub committer_email_str: String,
+    #[napi(readonly)]
+    pub committer_time: Either<f64, Null>,
+    #[napi(readonly)]
+    pub committer_offset_min: i32,
+    #[napi(readonly)]
+    pub tree: String,
+    #[napi(readonly, ts_type = "ReadonlyArray<string>")]
+    pub parents: Vec<String>,
+    #[napi(readonly)]
+    pub encoding: Option<String>,
+}
 #[napi(object)]
 pub struct TreeEntry {
     #[napi(readonly)]

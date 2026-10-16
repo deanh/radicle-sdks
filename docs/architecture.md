@@ -84,14 +84,18 @@ rollback, automatic retry or a generalized write scheduler.
 Source sharing does not imply shared ABI, shared runtime state or synchronization
 across Python, Node, external processes or separately loaded addon copies.
 
-## Remaining structural work
+## Structural migration status
 
-Radicle issue `edcbbd7` tracks the migration. Language-owned docs and the
-workspace/test layout are implemented. Module alignment remains a separate
-mechanical patch: put profile, project, repository, issues, patches and error
-operations in consistently named modules in each binding, keeping binding-specific
-work explicit. The large existing modules have not been split by this layout
-change. [Development](development.md#module-alignment-map) records the mapping.
+Radicle issue `edcbbd7` tracks the migration. Language-owned docs, workspace/test
+layout and module alignment are implemented. Both bindings own `profile`,
+`project`, `repository`, `issues`, `patches`, `error` and `ids` modules; module
+entry points register/export the bindings rather than implementing workflows.
+Snapshots live near their domains, with a small collaboration comment type in
+each adapter. Python's root `values.rs` now contains only process-local hashing,
+not another shared DTO schema. Node tasks, repository locks, Date conversion and
+native probes remain explicitly binding-specific. Python-only policy, routing
+and raw access remain independent. [Development](development.md#module-alignment-map)
+records the mapping. No shared Rust extraction is included in these moves.
 
 ## Shared Rust: only with a real consumer
 

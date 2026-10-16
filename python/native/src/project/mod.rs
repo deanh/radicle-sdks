@@ -1,11 +1,14 @@
 //! Non-interactive local project workflows. The crate (not `rad init` CLI)
 //! performs the work; upstream init/checkout invoke the Git executable.
+mod values;
+pub(crate) use values::ProjectDoc;
+
 use pyo3::prelude::*;
-use std::path::PathBuf;
 use radicle::git;
 use radicle::identity::{RepoId, Visibility};
+use std::path::PathBuf;
 
-use crate::{error, profile::PySigner, storage::PyStorage};
+use crate::{error, profile::PySigner, repository::PyStorage};
 
 fn rid(value: &str) -> PyResult<RepoId> {
     value

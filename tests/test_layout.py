@@ -27,6 +27,25 @@ def test_workspace_and_language_build_entries():
     assert (ROOT / ".github" / "workflows" / "node.yml").is_file()
 
 
+def test_language_owned_domain_modules():
+    for language in ("python", "node"):
+        source = ROOT / language / "native" / "src"
+        for domain in ("profile", "project", "repository", "issues", "patches", "error", "ids"):
+            assert (source / f"{domain}.rs").is_file() or (source / domain / "mod.rs").is_file()
+        entry = (source / "lib.rs").read_text()
+        assert "pub struct " not in entry and "#[pymethods]" not in entry
+        assert "fn materialize_" not in entry and "fn snapshot(" not in entry
+    python = ROOT / "python" / "native" / "src"
+    for domain in ("repository", "project", "issues", "patches", "policy", "routing"):
+        assert (python / domain / "values.rs").is_file()
+    assert "#[pyclass" not in (python / "values.rs").read_text()
+    assert (python / "raw.rs").is_file()
+    for obsolete in ("cob_typed.rs", "cob_values.rs", "storage.rs", "write.rs", "identity.rs"):
+        assert not (python / obsolete).exists()
+    for binding_only in ("tasks", "locks", "timestamps"):
+        assert (ROOT / "node" / "native" / "src" / f"{binding_only}.rs").is_file()
+
+
 def test_shared_fixture_does_not_import_python_private_tests():
     import sdk_fixture
 

@@ -1,8 +1,14 @@
 //! Local patch workflows. Reads stay parallel; every write reloads, signs and
 //! materializes its own result snapshot under the shared repository lock.
-use super::{
-    Comment, NativeRepository, NativeSigner, Work, err, metadata_timestamp, oid, parse_dids,
-    parse_labels, repo_lock, unsigned_millis, work,
+use crate::{
+    comment::Comment,
+    error::err,
+    ids::{oid, parse_dids, parse_labels},
+    locks::repo_lock,
+    profile::NativeSigner,
+    repository::NativeRepository,
+    tasks::{Work, work},
+    timestamps::{metadata_timestamp, unsigned_millis},
 };
 use napi::{
     Result,

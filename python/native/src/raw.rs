@@ -22,7 +22,7 @@ use radicle::cob::{self, TypeName};
 use radicle::git::{self, Oid};
 
 use crate::error;
-use crate::storage::PyRepository;
+use crate::repository::PyRepository;
 
 fn cob_err(err: impl std::fmt::Display) -> PyErr {
     error::cob_err(err)

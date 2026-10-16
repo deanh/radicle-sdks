@@ -164,8 +164,8 @@ Report local checks separately from successful remote/native CI jobs.
 ## Architecture migration gates
 
 Issue `edcbbd7` tracks docs, workspace/test layout, then module alignment.
-The first two steps are implemented here; module alignment and core/history
-sharing remain separate follow-ups. Dependency changes and validation are
+All three structural steps are implemented here. Shared core/history extraction
+remains a separate follow-up. Dependency changes and validation are
 recorded in [layout findings](archive/FINDINGS-WORKSPACE-LAYOUT.md).
 
 ### Workspace feasibility first
@@ -211,23 +211,29 @@ in the mechanical migration.
 
 ### Module alignment map
 
-The following mapping is for the later mechanical module patch, not current paths:
+The module-alignment patch implements the following ownership under
+`python/native/src/` (the first column records pre-alignment paths):
 
-| Current `python/native/src/` | Planned module ownership |
+| Previous paths | Current module ownership |
 | --- | --- |
-| `storage.rs`, `write.rs` | `repository.rs` or `repository/`: storage plus repository reads/writes |
-| `cob_typed.rs` | `issues.rs`, `patches.rs`, with materialization near the corresponding domain |
-| `values.rs`, `cob_values.rs` | snapshot `values` modules, divided by domain if needed rather than one oversized file |
+| `storage.rs`, `write.rs` | `repository/mod.rs`, `write.rs`, `values.rs`: storage and repository reads/writes/snapshots |
+| `cob_typed.rs` | `issues/` and `patches/`: operations in `mod.rs`, snapshots/materialization in domain `values.rs` |
+| `values.rs`, `cob_values.rs` | domain `values.rs` under repository/project/issues/patches/policy/routing; common `comment.rs`; root `values.rs` holds only snapshot hashing |
 | `cob_raw.rs` | `raw.rs` (Python-only) |
 | `identity.rs` validators | `ids.rs`, separate from error presentation |
-| `profile.rs`, `project.rs`, `policy.rs`, `routing.rs`, `error.rs`, `testhelpers.rs` | unchanged domain names |
+| `profile.rs`, `project.rs`, `policy.rs`, `routing.rs`, `error.rs`, `testhelpers.rs` | unchanged responsibilities; project/policy/routing have domain subdirectories for snapshots |
 | `lib.rs` | registration/module declarations only |
 
-Node's mixed `lib.rs` similarly separates profile, project, repository, issues
-and errors; existing patch operations stay in `patches`. Tasks, locks and Date
-conversion remain binding-specific modules. Match operation ownership, not an
-artificial identical type hierarchy. Preserve public declarations, error codes,
-validation order, lock order and snapshot timing.
+Node's former mixed `lib.rs` now separates profile, project, repository, issues,
+errors and argument parsers; existing patch operations stay in `patches.rs`.
+Repository and issue snapshots live in their domain `values.rs`, patch snapshots
+remain beside their operations, and `comment.rs` holds the small common DTO.
+`tasks.rs`, `locks.rs`, `timestamps.rs` and `probes.rs` remain binding-specific.
+Native free functions are re-exported at root; class registration stays with napi
+macros. Match operation ownership, not an artificial identical type hierarchy.
+Public declarations, error codes, validation order, lock order and snapshot timing
+are unchanged. No shared core, scheduler, DTO hierarchy or dependency change is
+part of module alignment.
 
 Remove obsolete probes only after checking references and recording exact
 last-containing commits, in a separate cleanup commit. Do not silently modernize

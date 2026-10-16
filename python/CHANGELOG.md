@@ -2,6 +2,15 @@
 
 All notable changes to `radicle-py` are documented here.
 
+## Native module alignment (unreleased)
+
+- Align operation ownership around profile, project, repository, issues, patches,
+  errors and identifier validators; rename raw COB access to `raw.rs`.
+- Split issue/patch operations and domain-owned immutable snapshots out of the
+  mixed COB/value modules. Keep one process-local snapshot hash key and preserve
+  public exports, class identity, signatures, errors and transaction timing.
+- No dependency, API or shared-core changes.
+
 ## Workspace and test layout (unreleased)
 
 - Move the PyO3 crate into `python/native/` and Python tests/typing/smokes into

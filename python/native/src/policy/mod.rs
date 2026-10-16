@@ -12,6 +12,9 @@
 //! * `nodes_by_alias` is a **fuzzy** (substring, case-insensitive) lookup
 //!   upstream — preserved, documented.
 
+mod values;
+pub(crate) use values::{FollowPolicyInfo, SeedPolicyInfo};
+
 use std::path::PathBuf;
 use std::str::FromStr;
 
@@ -19,12 +22,11 @@ use pyo3::prelude::*;
 use pyo3::types::PyType;
 use radicle::identity::RepoId;
 use radicle::node::policy::{self, Policy, Scope};
-use radicle::node::{Alias, NodeId};
 use radicle::node::{self as node_mod};
+use radicle::node::{Alias, NodeId};
 
 use crate::error;
 use crate::profile::PyProfile;
-use crate::values::{FollowPolicyInfo, SeedPolicyInfo};
 
 type RawStore = policy::store::Store<policy::store::Write>;
 type RawReader = policy::store::Store<policy::store::Read>;
@@ -163,9 +165,7 @@ impl PyPolicyStore {
         let nid = parse_node_id(node_id)?;
         let alias = alias.map(parse_alias).transpose()?;
         let alias_ref = alias.as_ref();
-        self.rw()?
-            .follow(&nid, alias_ref)
-            .map_err(policy_err)
+        self.rw()?.follow(&nid, alias_ref).map_err(policy_err)
     }
 
     /// Stop following `node_id`. `true` if it was followed.
@@ -192,7 +192,9 @@ impl PyPolicyStore {
     fn set_follow_policy(&mut self, node_id: &str, policy: &str) -> PyResult<bool> {
         let nid = parse_node_id(node_id)?;
         let policy = parse_policy(policy)?;
-        self.rw()?.set_follow_policy(&nid, policy).map_err(policy_err)
+        self.rw()?
+            .set_follow_policy(&nid, policy)
+            .map_err(policy_err)
     }
 
     /// Set the seed policy (`"allow"`/`"block"`) for `rid`.
@@ -357,7 +359,11 @@ impl PyPolicyStore {
         format!(
             "PolicyStore({}, {})",
             self.path.display(),
-            if matches!(self.backend, Backend::Rw(_)) { "rw" } else { "ro" }
+            if matches!(self.backend, Backend::Rw(_)) {
+                "rw"
+            } else {
+                "ro"
+            }
         )
     }
 }

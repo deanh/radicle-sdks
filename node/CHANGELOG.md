@@ -1,5 +1,14 @@
 # radicle-sdk changelog
 
+## Native module alignment (unreleased)
+
+- Split the mixed native entry point into profile, project, repository, issues,
+  error and argument-parser modules, retaining existing patch ownership.
+- Keep detached snapshots domain-local, and worker/panic containment, repository
+  locks, timestamp conversion and native probes in binding-specific modules.
+- Preserve native declarations/exports, validation and lock order, snapshot timing
+  and public wrapper APIs. No dependency or shared-core changes.
+
 ## Workspace and package layout (unreleased)
 
 - Join the root Rust workspace and lock without changing Node's existing package

@@ -1,11 +1,17 @@
-//! Storage and read-only repository access (Phase 2).
+//! Storage and repository access.
 //!
 //! `PyRepository` holds `Arc<PyStorageInner>` + a `RepoId` and reopens the
 //! repository per operation (PLAN §5.3): no long-lived git handles, no
 //! borrow-lifetime pressure across the GIL.
 
-use std::str::FromStr;
+mod values;
+mod write;
+use crate::project::ProjectDoc;
+use values::{Commit, HeadInfo, HistoryPage, RemoteInfo, TagInfo, Tree, TreeEntry};
+pub(crate) use values::{PySetHead, PySignedRefs};
+
 use std::path::PathBuf;
+use std::str::FromStr;
 use std::sync::Arc;
 
 use pyo3::prelude::*;
@@ -18,7 +24,6 @@ use radicle::storage::{ReadRepository, ReadStorage};
 
 use crate::error;
 use crate::profile::PyProfile;
-use crate::values::{Commit, HeadInfo, HistoryPage, ProjectDoc, RemoteInfo, TagInfo, Tree, TreeEntry};
 
 /// Default/maximum page sizes — history walks are always bounded (FINDINGS-02 S7).
 const DEFAULT_HISTORY_LIMIT: i64 = 100;
@@ -60,7 +65,11 @@ pub struct PyStorage {
 
 impl PyStorage {
     pub(crate) fn from_profile_ref(profile: &radicle::Profile) -> Self {
-        Self { inner: Arc::new(StorageInner { raw: profile.storage.clone() }) }
+        Self {
+            inner: Arc::new(StorageInner {
+                raw: profile.storage.clone(),
+            }),
+        }
     }
 }
 
@@ -76,22 +85,14 @@ impl PyStorage {
     /// Low-level constructor: open (or create) storage at `path` with an
     /// explicit git user identity. Most callers want `Storage.from_profile`.
     #[classmethod]
-    fn open(
-        _cls: &Bound<'_, PyType>,
-        path: PathBuf,
-        alias: &str,
-        node_id: &str,
-    ) -> PyResult<Self> {
+    fn open(_cls: &Bound<'_, PyType>, path: PathBuf, alias: &str, node_id: &str) -> PyResult<Self> {
         let alias = Alias::from_str(alias)
             .map_err(|err| error::value_err(format!("invalid Alias: {err}")))?;
         let key = node_id
             .parse::<radicle::node::NodeId>()
             .map_err(|err| error::value_err(format!("invalid NodeId: {err}")))?;
-        let raw = RawStorage::open(
-            path,
-            git::UserInfo { alias, key },
-        )
-        .map_err(error::storage_err)?;
+        let raw =
+            RawStorage::open(path, git::UserInfo { alias, key }).map_err(error::storage_err)?;
         Ok(Self {
             inner: Arc::new(StorageInner { raw }),
         })
@@ -100,7 +101,8 @@ impl PyStorage {
     /// Filesystem path of this storage.
     #[getter]
     fn path(&self) -> PyResult<&str> {
-        self.inner.raw
+        self.inner
+            .raw
             .path()
             .to_str()
             .ok_or_else(|| error::value_err("storage path is not valid UTF-8"))
@@ -111,7 +113,8 @@ impl PyStorage {
         let rid = RepoId::from_str(rid)
             .map_err(|err| error::value_err(format!("invalid RepoId: {err}")))?;
         // Validate now; operations reopen per call.
-        self.inner.raw
+        self.inner
+            .raw
             .repository(rid)
             .map_err(error::repository_err)?;
         Ok(PyRepository {
@@ -233,7 +236,11 @@ impl PyRepository {
         let mut names = Vec::new();
         for r in repo.backend.references().map_err(error::git_err)? {
             let r = r.map_err(error::git_err)?;
-            if let Some(name) = r.name().map_err(error::git_err)?.strip_prefix("refs/heads/") {
+            if let Some(name) = r
+                .name()
+                .map_err(error::git_err)?
+                .strip_prefix("refs/heads/")
+            {
                 names.push(name.to_owned());
             }
         }
@@ -286,7 +293,9 @@ impl PyRepository {
             // its tree (FINDINGS-02 S6 trap). For lightweight tags the target
             // already is the peeled object.
             let (peeled, peeled_kind) = if annotated {
-                let peeled = obj.peel(git::raw::ObjectType::Any).map_err(error::git_err)?;
+                let peeled = obj
+                    .peel(git::raw::ObjectType::Any)
+                    .map_err(error::git_err)?;
                 (
                     peeled.id().to_string(),
                     kind_str(peeled.kind()).unwrap_or_else(|| "unknown".into()),
@@ -402,9 +411,7 @@ impl PyRepository {
     #[pyo3(signature = (rev, *, limit = DEFAULT_HISTORY_LIMIT, offset = 0))]
     fn history(&self, rev: &str, limit: i64, offset: i64) -> PyResult<HistoryPage> {
         if limit < 1 {
-            return Err(error::value_err(format!(
-                "limit must be >= 1, got {limit}"
-            )));
+            return Err(error::value_err(format!("limit must be >= 1, got {limit}")));
         }
         if offset < 0 {
             return Err(error::value_err(format!(
@@ -419,8 +426,7 @@ impl PyRepository {
             .revparse_single(rev)
             .map_err(|err| error::git_err(format!("rev-parse {rev:?}: {err}")))?;
         let head = obj.id();
-        let mut walk = ReadRepository::revwalk(&repo, Oid::from(head))
-            .map_err(error::git_err)?;
+        let mut walk = ReadRepository::revwalk(&repo, Oid::from(head)).map_err(error::git_err)?;
         // Check the skipped entries too: `Iterator::skip` would discard a walk
         // error (e.g. a missing parent) and end the walk, so a corrupt history
         // past `offset` would masquerade as an empty, final page.
@@ -470,26 +476,26 @@ impl PyRepository {
 
     /// Compute the default-branch head from the delegate set and set it
     /// (upstream `set_default_branch_to_canonical_head`).
-    fn set_default_branch_to_canonical_head(&self) -> PyResult<crate::write::PySetHead> {
-        crate::write::set_default_branch_to_canonical_head(self)
+    fn set_default_branch_to_canonical_head(&self) -> PyResult<PySetHead> {
+        write::set_default_branch_to_canonical_head(self)
     }
 
     /// Set the repository's `rad/id` to the canonical identity head agreed
     /// by quorum (upstream `set_identity_head`). Returns the new head.
     fn set_identity_head(&self) -> PyResult<String> {
-        crate::write::set_identity_head(self)
+        write::set_identity_head(self)
     }
 
     /// Set remote `remote`'s identity-root ref to the repository's canonical
     /// identity root (upstream `set_remote_identity_root`). Returns the root.
     fn set_remote_identity_root(&self, remote: &str) -> PyResult<String> {
-        crate::write::set_remote_identity_root(self, remote)
+        write::set_remote_identity_root(self, remote)
     }
 
     /// Sign the repository's canonical refs under `refs/rad/sigrefs`
     /// (upstream `sign_refs`). The ONLY signer-taking write in the binding.
-    fn sign_refs(&self, signer: &crate::profile::PySigner) -> PyResult<crate::write::PySignedRefs> {
-        crate::write::sign_refs(self, signer)
+    fn sign_refs(&self, signer: &crate::profile::PySigner) -> PyResult<PySignedRefs> {
+        write::sign_refs(self, signer)
     }
 
     fn __repr__(&self) -> String {

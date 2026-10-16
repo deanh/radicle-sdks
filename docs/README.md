@@ -33,6 +33,8 @@ other local checkouts are not dependencies of this repository.
 
 ### Shared SDK structure
 
+- [Module alignment findings](archive/FINDINGS-MODULE-ALIGNMENT.md): domain
+  ownership, preservation checks and fresh artifact validation.
 - [Workspace layout findings](archive/FINDINGS-WORKSPACE-LAYOUT.md): explicit
   dependency alignment, feature isolation and source-packaging evidence.
 
