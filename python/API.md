@@ -679,7 +679,7 @@ of the project's branch, which feeds canonical-head and merge evaluation.
 
 ##### `Patches.open_as(repository: Repository, signer: Signer) -> Patches` (classmethod)
 
-##### `patches.create(title, description, *, base, head, target="delegates", labels=None) -> PatchMut` (method) — open patch; `target` `"delegates"` or `"branch:<name>"` (bare name accepted; a fully-qualified `branch:refs/heads/<name>` is accepted too and **canonicalizes to bare output**); `base`/`head` git commit Oids that exist in the repository
+##### `patches.create(title, description, *, base, head, target="delegates", labels=None) -> PatchMut` (method) — open patch; `target` `"delegates"` or `"branch:<name>"` (`branch:main` and `branch:refs/heads/main` are both accepted and **canonicalize to `branch:main` output**; a branch target requires the `branch:` prefix); `base`/`head` git commit Oids that exist in the repository
 
 ##### `patches.draft(...) -> PatchMut` (method) — same signature as `create`, created in `draft` state.
 

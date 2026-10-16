@@ -56,8 +56,10 @@ store/decoding errors still reject. No raw/BigInt timestamp API is promised.
 | Operational failures | `radiclepy.Error` subclasses | `RadicleError` with stable binding error codes |
 
 Both expose IDs as strings and finite domains in typing declarations, but those
-annotations do not replace runtime validation. Python's additional bare patch
-target input convenience is not a requirement that Node accept it too.
+annotations do not replace runtime validation. Both SDKs accept patch targets
+`delegates`, `branch:main` and `branch:refs/heads/main`; the branch forms
+canonicalize to `branch:main` in snapshots. The `branch:` prefix is required
+for branch targets in both SDKs.
 
 ## Concurrency and failure handling
 
