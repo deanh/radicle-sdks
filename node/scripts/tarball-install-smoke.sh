@@ -10,7 +10,11 @@ npm pack --ignore-scripts --json --pack-destination "$consumer" > "$consumer/pac
 node --input-type=module - "$consumer/pack.json" <<'JS'
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-const [{ files }] = JSON.parse(readFileSync(process.argv[2], 'utf8'));
+const parsed = JSON.parse(readFileSync(process.argv[2], 'utf8'));
+// npm 11 emits an array; npm 12 keys results by package name.
+const packages = Array.isArray(parsed) ? parsed : Object.values(parsed);
+assert.equal(packages.length, 1, 'expected exactly one packed package');
+const [{ files }] = packages;
 const paths = files.map(file => file.path);
 for (const path of ['node/README.md', 'node/API.md', 'node/CHANGELOG.md', 'LICENSE-MIT', 'LICENSE-APACHE']) {
   assert.ok(paths.includes(path), `missing ${path}`);

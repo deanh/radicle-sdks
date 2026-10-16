@@ -28,8 +28,10 @@ jobs:
       - run: npm run build
       - run: npm run check
       - run: npm test
-      - name: Packed consumer (runtime, API docs, README and types; no Rust sources)
-        run: bash node/scripts/tarball-install-smoke.sh
+      - name: Packed consumer (npm 11; runtime, docs and types; no Rust sources)
+        run: npm exec --yes --package npm@11.20.0 -- bash node/scripts/tarball-install-smoke.sh
+      - name: Packed consumer (npm 12; runtime, docs and types; no Rust sources)
+        run: npm exec --yes --package npm@12.2.0 -- bash node/scripts/tarball-install-smoke.sh
       # examples/ must print identical output from both SDKs; with both builds
       # present the cross-SDK tests must run, so a missing build fails, not skips.
       - uses: astral-sh/setup-uv@v3
