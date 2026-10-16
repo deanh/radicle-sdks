@@ -161,7 +161,7 @@ impl NativePatches {
             let mut out = Vec::new();
             for item in store.all().map_err(|e| err("COB", e))? {
                 let (id, patch) = item.map_err(|e| err("COB", e))?;
-                out.push(snapshot(&id, &patch)?);
+                out.push(snapshot(&id, &patch));
             }
             out.sort_by(|a, b| a.id.cmp(&b.id));
             Ok(out)
@@ -174,11 +174,10 @@ impl NativePatches {
             let id = oid(&id)?;
             let repo = me.repo.open()?;
             let store = RawPatches::open(&repo, ReadOnly).map_err(|e| err("COB", e))?;
-            store
+            Ok(store
                 .get(&id)
                 .map_err(|e| err("COB", e))?
-                .map(|p| snapshot(&id, &p))
-                .transpose()
+                .map(|p| snapshot(&id, &p)))
         })
     }
     #[napi(catch_unwind, ts_return_type = "Promise<NativePatchMut>")]
@@ -223,7 +222,7 @@ impl NativePatchMut {
             .get(&self.id)
             .map_err(|e| err("COB", e))?
             .ok_or_else(|| err("COB", "patch not found"))?;
-        snapshot(&self.id, &p)
+        Ok(snapshot(&self.id, &p))
     }
     fn change<T>(
         &self,
@@ -239,7 +238,7 @@ impl NativePatchMut {
             .get_mut(&self.id, &mut cache)
             .map_err(|e| err("COB", e))?;
         let result = operation(&mut p)?;
-        Ok((result, snapshot(&self.id, &p)?))
+        Ok((result, snapshot(&self.id, &p)))
     }
     fn entry(
         &self,

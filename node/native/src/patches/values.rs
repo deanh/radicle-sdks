@@ -1,13 +1,9 @@
 //! Detached patch/revision/review snapshots and eager materialization.
 use crate::{
     comment::Comment,
-    error::err,
     timestamps::{metadata_timestamp, unsigned_millis},
 };
-use napi::{
-    Result,
-    bindgen_prelude::{Either, Null},
-};
+use napi::bindgen_prelude::{Either, Null};
 use napi_derive::napi;
 use radicle::{
     cob::{
@@ -70,7 +66,7 @@ pub struct Patch {
     #[napi(readonly)]
     pub latest_revision: String,
     #[napi(readonly)]
-    pub version: u32,
+    pub version: f64,
     #[napi(readonly, ts_type = "ReadonlyArray<string>")]
     pub labels: Vec<String>,
     #[napi(readonly, ts_type = "ReadonlyArray<string>")]
@@ -103,13 +99,13 @@ pub struct PatchStateChange {
     #[napi(readonly)]
     pub snapshot: Patch,
 }
-pub(super) fn snapshot(id: &ObjectId, p: &RawPatch) -> Result<Patch> {
+pub(super) fn snapshot(id: &ObjectId, p: &RawPatch) -> Patch {
     let mut labels: Vec<_> = p.labels().map(ToString::to_string).collect();
     let mut assignees: Vec<_> = p.assignees().map(|v| v.to_string()).collect();
     labels.sort();
     assignees.sort();
     let (latest, revision) = p.latest();
-    Ok(Patch {
+    Patch {
         id: id.to_string(),
         title: p.title().to_owned(),
         description: revision.description().to_owned(),
@@ -134,7 +130,8 @@ pub(super) fn snapshot(id: &ObjectId, p: &RawPatch) -> Result<Patch> {
         base: revision.base().to_string(),
         head: revision.head().to_string(),
         latest_revision: latest.to_string(),
-        version: p.version().try_into().map_err(|e| err("INVALID_DATA", e))?,
+        // Slot count minus one; a plain JS number like HistoryPage.offset.
+        version: p.version() as f64,
         labels,
         assignees,
         revisions: p
@@ -176,5 +173,5 @@ pub(super) fn snapshot(id: &ObjectId, p: &RawPatch) -> Result<Patch> {
             patch::State::Merged { commit, .. } => Some(commit.to_string()),
             _ => None,
         },
-    })
+    }
 }

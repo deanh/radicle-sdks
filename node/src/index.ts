@@ -43,6 +43,10 @@ let wrapRepository: (value: raw.NativeRepository) => Repository;
 let wrapIssue: (value: raw.NativeIssueMut) => IssueMut;
 let wrapPatch: (value: raw.NativePatchMut) => PatchMut;
 
+// Handles that other classes or free functions must unwrap (initProject takes a
+// Storage and a Signer; the store factories take a Repository) keep their native
+// object in these module-private maps, reachable through the accessors below.
+// Handles only their own methods unwrap keep it in a private #raw field instead.
 const storages = new WeakMap<Storage, raw.NativeStorage>();
 const signers = new WeakMap<Signer, raw.NativeSigner>();
 const repositories = new WeakMap<Repository, raw.NativeRepository>();

@@ -111,7 +111,7 @@ impl NativeIssues {
             let mut out = Vec::new();
             for item in store.all().map_err(|e| err("COB", e))? {
                 let (id, issue) = item.map_err(|e| err("COB", e))?;
-                out.push(snapshot(&id, &issue)?);
+                out.push(snapshot(&id, &issue));
             }
             out.sort_by(|a, b| a.id.cmp(&b.id));
             Ok(out)
@@ -124,11 +124,10 @@ impl NativeIssues {
             let id = oid(&id)?;
             let repo = me.repo.open()?;
             let store = RawIssues::open(&repo, ReadOnly).map_err(|e| err("COB", e))?;
-            store
+            Ok(store
                 .get(&id)
                 .map_err(|e| err("COB", e))?
-                .map(|i| snapshot(&id, &i))
-                .transpose()
+                .map(|i| snapshot(&id, &i)))
         })
     }
 }
@@ -159,7 +158,7 @@ impl NativeIssueMut {
             .get(&self.id)
             .map_err(|e| err("COB", e))?
             .ok_or_else(|| err("COB", "issue not found"))?;
-        snapshot(&self.id, &issue)
+        Ok(snapshot(&self.id, &issue))
     }
     fn change(&self, operation: IssueOperation) -> Result<IssueChange> {
         let lock = repo_lock(&self.repo)?;
@@ -187,7 +186,7 @@ impl NativeIssueMut {
         .map_err(|e| err("COB", e))?;
         Ok(IssueChange {
             entry_id: entry.to_string(),
-            snapshot: snapshot(&self.id, &issue)?,
+            snapshot: snapshot(&self.id, &issue),
         })
     }
 }
