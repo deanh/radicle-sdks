@@ -86,7 +86,12 @@ class Digest:
         if not active:
             self.emit("_None._")
         for patch in active:
-            latest = next(r for r in patch.revisions if r.id == patch.latest_revision)
+            latest = next((r for r in patch.revisions if r.id == patch.latest_revision), None)
+            if latest is None:
+                # Only a redacted author revision can be missing from the list.
+                self.emit(f"- **{patch.title}** `{short(patch.id)}` ({patch.state}), "
+                          f"by {self.who(patch.author)}: latest revision unavailable.")
+                continue
             verdicts = [f"{r.verdict} from {self.who(r.author)}"
                         for r in sorted(latest.reviews, key=lambda r: r.author) if r.verdict]
             line = (f"- **{patch.title}** `{short(patch.id)}` ({patch.state}), "

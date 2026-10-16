@@ -89,6 +89,14 @@ class Digest {
     if (active.length === 0) this.emit('_None._');
     for (const patch of active) {
       const latest = patch.revisions.find((r) => r.id === patch.latestRevision);
+      if (latest === undefined) {
+        // Only a redacted author revision can be missing from the list.
+        this.emit(
+          `- **${patch.title}** \`${short(patch.id)}\` (${patch.state}), ` +
+            `by ${this.who(patch.author)}: latest revision unavailable.`,
+        );
+        continue;
+      }
       const verdicts = [...latest.reviews]
         .sort((a, b) => compare(a.author, b.author))
         .filter((r) => r.verdict)
