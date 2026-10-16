@@ -4,6 +4,10 @@ All notable changes to `radicle-py` are documented here.
 
 ## Post-alpha Python UX (unreleased)
 
+- Docs: correct `PatchMut.review` (it returns the operation ID; upstream keeps
+  an actor's first review per revision and ignores later ones), and state which
+  patch lifecycle calls record an operation (`archive()` always does; a `False`
+  from `ready`/`unready`/`unarchive` records nothing).
 - **Minimum Rust is now 1.91** (was documented as 1.88). The pinned
   `radicle` 0.25.1 declares `rust-version = "1.88.0"` but fails to compile on
   Rust 1.88–1.90 (E0382 in `cob/identity.rs:506`); 1.91.0 is the measured

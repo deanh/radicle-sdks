@@ -688,17 +688,17 @@ No atomic multi-call transaction or automatic Git branch movement is promised.
 
 ##### `patch_mut.update(description: str, *, base: Oid, head: Oid) -> Oid` (method) — add a revision; commits must exist in storage, returns revision ID
 
-##### `patch_mut.ready() -> bool` (method) — false unless draft
+##### `patch_mut.ready() -> bool` (method) — false unless draft. A `false` return is an upstream no-op: no operation is recorded
 
-##### `patch_mut.unready() -> bool` (method) — false unless open with no merge conflicts
+##### `patch_mut.unready() -> bool` (method) — false unless open with no merge conflicts; a `false` return records no operation
 
-##### `patch_mut.archive() -> bool` (method) — upstream always attempts lifecycle and returns true on success
+##### `patch_mut.archive() -> bool` (method) — upstream always attempts lifecycle and returns true on success, **including when already archived**: every call records an operation. The boolean is upstream's decision, not a before/after state comparison
 
-##### `patch_mut.unarchive() -> bool` (method) — false unless archived
+##### `patch_mut.unarchive() -> bool` (method) — false unless archived; a `false` return records no operation
 
 ##### `patch_mut.comment(revision: Oid, body: str, reply_to: Oid | None = None) -> Oid` (method) — revision discussion; no inline location or embeds
 
-##### `patch_mut.review(revision: Oid, verdict: str | None = None, summary: str | None = None) -> Oid` (method) — verdict `accept`/`reject`; at least one of verdict/summary must be supplied (`CobError` otherwise); returns review ID
+##### `patch_mut.review(revision: Oid, verdict: str | None = None, summary: str | None = None) -> Oid` (method) — verdict `accept`/`reject`; at least one of verdict/summary must be supplied (`CobError` otherwise). Returns the **operation ID**, which is the review ID for an actor's first review of a revision. Upstream keeps the first review per actor and revision: a later `review()` by the same actor is recorded under a new operation ID but does not replace the existing review (review editing is not exposed)
 
 ##### `patch_mut.merge(revision: Oid, commit: Oid) -> Oid` (method) — returns operation ID, **not a Git merge**. Does not move branches or clean up refs. Upstream checks authorization and evaluates whether the commit is in the author's target branch and the delegate quorum is met. An operation may succeed but leave the patch open; inspect/reload `patch.state`. Commit must already exist in storage.
 
