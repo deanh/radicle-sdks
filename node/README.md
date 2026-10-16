@@ -36,6 +36,9 @@ explicit `indexmap/std` for pinned radicle 0.25.1.
 Use a Git URL supported by your Git client; the package is at repository root:
 
 ```sh
+# npm 12+ requires explicit approval for root Git dependencies:
+npm install --allow-git=root "git+${SDK_GIT_URL}#<full-commit>"
+# npm 11 (does not have the Git opt-in policy):
 npm install "git+${SDK_GIT_URL}#<full-commit>"
 # pnpm 12: first approve the exact Git source in pnpm-workspace.yaml (below).
 pnpm add "git+${SDK_GIT_URL}#<full-commit>"
@@ -66,7 +69,8 @@ the Node-built addon; that is not a claim that Bun's Git build path works.
 After committing, validate the actual root Git dependency in a clean project:
 
 ```sh
-bash node/scripts/git-install-smoke.sh npm
+bash node/scripts/git-install-smoke.sh npm    # adds Git approval for npm >=12
+bash node/scripts/git-install-smoke.sh npm12  # pinned npm 12.2.0 gate
 bash node/scripts/git-install-smoke.sh pnpm
 bash node/scripts/git-install-smoke.sh bun  # best effort
 ```
@@ -141,14 +145,17 @@ This alpha intentionally exposes only a subset of the planned v0 fields/methods.
 - `Issues.open()` is read-only: `create/getMut` reject `READ_ONLY`. Invalid titles,
   labels, DIDs and reasons reject as `TypeError` (`ERR_INVALID_ARG_VALUE`); wrong
   input types use `ERR_INVALID_ARG_TYPE`. Upstream COB failures reject `COB`.
-  Issue listing/get/reload coordinate with issue writes; no cached snapshot is
-  reused by a later mutation.
+  Issue reads (`all/get/reload/getMut`) do not acquire the write mutex. Upstream
+  writes objects before moving refs, so a concurrent read can see an older or
+  newer persisted view; listing is not a repository-wide atomic snapshot. Await
+  a write before reading its result. No cached snapshot is reused by a mutation.
 
 ## Concurrency and environment boundaries
 
 - A Rust registry shares locks by canonical storage path + RID across handles
-  and `worker_threads` loading the same addon. Reload/transaction/sign/snapshot
-  run under that lock; repository handles are reopened inside each task.
+  and `worker_threads` loading the same addon. Write-side reload, transaction,
+  signing and result snapshot run under that lock. Reads remain parallel and do
+  not wait on the write mutex; repository handles are reopened inside each task.
 - Signer guard follows the repository lock and is retained for the upstream
   transaction. Signer getters use cached public metadata and never wait on it.
 - No JS write queue. Mutex waiters can occupy libuv pool threads and delay reads;
@@ -174,12 +181,22 @@ This alpha intentionally exposes only a subset of the planned v0 fields/methods.
 Worker jobs catch Rust unwinding panics and reject with `RadicleError` code
 `INTERNAL`, without returning the panic payload. Synchronous native entry points
 also use napi-rs panic guards. Panic hooks may still write diagnostics to stderr.
-Poisoned locks fail closed; operations are not retried or rolled back. Inspect
-persisted state before continuing after an internal failure. `panic=abort` builds
+A poisoned mutex rejects while it remains alive, but this is **not a permanent
+repository quarantine**: the registry holds weak references, so once the last
+owner drops, another operation can acquire a fresh mutex and write again. A
+poisoned signer mutex remains poisoned for handles sharing that signer; loading
+a new signer creates a new mutex. Operations are not automatically retried or
+rolled back. Inspect persisted state before deliberately continuing after an
+internal failure. `panic=abort` builds
 are rejected; aborts, double panics during unwinding, OOM and native faults cannot
 be contained this way. This is not process isolation.
 
-T0-only timestamp/panic probes are internal files, not package exports. Timestamp
-conversion is checked before conversion to `number`, rejecting invalid metadata
-outside the ECMAScript Date range. The public SDK does not gain a timestamp-input
-API just to test this policy.
+Stored timestamps (`Comment.timestamp`, `Commit.authorTime`/`committerTime`) are
+required `number | null` fields. Checked conversion returns exact epoch milliseconds
+inside the ECMAScript Date range, or `null` outside it (including overflow), never
+a rounded number. Unrepresentable peer metadata does not hide an issue, reject a
+listing or prevent a mutation; genuine store/decoding errors still reject.
+
+T0-only timestamp/panic probes are internal files, not package exports. Explicit
+timestamp probe inputs retain range/validation rejection. The public SDK does
+not gain a timestamp-input API or a raw/BigInt representation.

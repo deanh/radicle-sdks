@@ -46,6 +46,14 @@ extraction. Native CI has been added but has not been run remotely.
 
 ## Material findings
 
+**Post-T0 patch-1 review changes:** stored timestamp fields now use `number | null`;
+unrepresentable peer dates no longer reject object reads/listings/mutations.
+Explicit timestamp probes retain strict rejection. Issue reads no longer take
+the repository write mutex. Weak lock entries do not permanently quarantine a
+repository after panic; once their owners drop a fresh lock can be created.
+`node/README.md` documents the current policies and npm 12's `--allow-git=root`
+requirement. Earlier validation records below describe their named revisions.
+
 ### Standalone feature graph differs from Python
 
 A fresh standalone dependency resolution failed compiling radicle's IndexMap/

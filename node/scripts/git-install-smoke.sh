@@ -15,7 +15,15 @@ export BUN_INSTALL_CACHE_DIR="$consumer/bun-cache"
 cd "$consumer"
 printf '{"name":"sdk-consumer","version":"1.0.0","private":true,"type":"module"}\n' > package.json
 case "$manager" in
-  npm) npm install --foreground-scripts "$spec" ;;
+  npm)
+    flags=(--foreground-scripts)
+    version=$(npm --version)
+    if (( ${version%%.*} >= 12 )); then flags+=(--allow-git=root); fi
+    npm install "${flags[@]}" "$spec"
+    ;;
+  npm12)
+    npm exec --yes --package npm@12.2.0 -- npm install --foreground-scripts --allow-git=root "$spec"
+    ;;
   pnpm)
     # pnpm 12 checks Git prepare approval before --allow-build takes effect.
     # Approve this exact reviewed Git source/commit, not arbitrary build scripts.
@@ -23,7 +31,7 @@ case "$manager" in
     npm exec --yes --package pnpm@12.11.2 -- pnpm add --store-dir "$consumer/pnpm-store" "$spec"
     ;;
   bun) npm exec --yes --package bun@1.4.3 -- bun add --trust "$spec" ;;
-  *) echo "expected npm, pnpm or bun" >&2; exit 2 ;;
+  *) echo "expected npm, npm12, pnpm or bun" >&2; exit 2 ;;
 esac
 cp "$root/node/test/install-smoke.mjs" smoke.mjs
 node smoke.mjs

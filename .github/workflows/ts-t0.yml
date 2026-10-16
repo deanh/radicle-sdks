@@ -28,6 +28,8 @@ jobs:
       - run: cargo clippy --manifest-path node/native/Cargo.toml --all-targets --locked -- -D warnings
       - name: Exact-commit root Git install (npm)
         run: bash node/scripts/git-install-smoke.sh npm "$GITHUB_SHA"
+      - name: Exact-commit root Git install (npm 12, explicit Git approval)
+        run: bash node/scripts/git-install-smoke.sh npm12 "$GITHUB_SHA"
       - name: Exact-commit root Git install (pnpm, approved build scripts)
         run: bash node/scripts/git-install-smoke.sh pnpm "$GITHUB_SHA"
       - name: Bun source install and runtime (best effort)

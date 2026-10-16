@@ -3,7 +3,7 @@
 compile_error!("radicle-sdk requires panic=unwind to contain worker task panics");
 use napi::{
     Env, Error, Result, Status, Task,
-    bindgen_prelude::{AsyncTask, ToNapiValue, TypeName, Uint8Array},
+    bindgen_prelude::{AsyncTask, Either, Null, ToNapiValue, TypeName, Uint8Array},
 };
 use napi_derive::napi;
 use radicle::{
@@ -89,6 +89,15 @@ fn unsigned_millis(value: u64) -> Result<f64> {
     )
 }
 
+// A peer controls stored metadata, not our Date/number representation. Do not
+// let an unrepresentable date hide the object (or an entire issue listing).
+fn metadata_timestamp(value: Result<f64>) -> Either<f64, Null> {
+    match value {
+        Ok(ms) => Either::A(ms),
+        Err(_) => Either::B(Null),
+    }
+}
+
 #[napi(object)]
 pub struct InitOptions {
     pub name: String,
@@ -140,9 +149,9 @@ pub struct Commit {
     #[napi(readonly)]
     pub author_name: Uint8Array,
     #[napi(readonly)]
-    pub author_time: f64,
+    pub author_time: Either<f64, Null>,
     #[napi(readonly)]
-    pub committer_time: f64,
+    pub committer_time: Either<f64, Null>,
 }
 #[napi(object)]
 pub struct Comment {
@@ -153,7 +162,7 @@ pub struct Comment {
     #[napi(readonly)]
     pub body: String,
     #[napi(readonly)]
-    pub timestamp: f64,
+    pub timestamp: Either<f64, Null>,
     #[napi(readonly)]
     pub reply_to: Option<String>,
 }
@@ -226,7 +235,7 @@ fn snapshot(id: &ObjectId, issue: &RawIssue) -> Result<Issue> {
                     id: id.to_string(),
                     author: Did::from(*c.author()).to_string(),
                     body: c.body().to_owned(),
-                    timestamp: unsigned_millis(c.timestamp().as_millis())?,
+                    timestamp: metadata_timestamp(unsigned_millis(c.timestamp().as_millis())),
                     reply_to: c.reply_to().map(|id| id.to_string()),
                 })
             })
@@ -414,8 +423,8 @@ impl NativeRepository {
                 message: c.message_bytes().to_vec().into(),
                 message_str: String::from_utf8_lossy(c.message_bytes()).into_owned(),
                 author_name: c.author().name_bytes().to_vec().into(),
-                author_time: millis(c.author().when().seconds(), true)?,
-                committer_time: millis(c.committer().when().seconds(), true)?,
+                author_time: metadata_timestamp(millis(c.author().when().seconds(), true)),
+                committer_time: metadata_timestamp(millis(c.committer().when().seconds(), true)),
             })
         })
     }
@@ -587,8 +596,6 @@ impl NativeIssues {
     pub fn all(&self) -> AsyncTask<Work<Vec<Issue>>> {
         let me = self.clone();
         work(move || {
-            let lock = repo_lock(&me.repo)?;
-            let _guard = lock.lock().map_err(|e| err("INTERNAL", e))?;
             let repo = me.repo.open()?;
             let store = RawIssues::open(&repo, ReadOnly).map_err(|e| err("COB", e))?;
             let mut out = Vec::new();
@@ -605,8 +612,6 @@ impl NativeIssues {
         let me = self.clone();
         work(move || {
             let id = oid(&id)?;
-            let lock = repo_lock(&me.repo)?;
-            let _guard = lock.lock().map_err(|e| err("INTERNAL", e))?;
             let repo = me.repo.open()?;
             let store = RawIssues::open(&repo, ReadOnly).map_err(|e| err("COB", e))?;
             store
@@ -636,8 +641,8 @@ enum IssueOperation {
 }
 impl NativeIssueMut {
     fn read(&self) -> Result<Issue> {
-        let lock = repo_lock(&self.repo)?;
-        let _guard = lock.lock().map_err(|e| err("INTERNAL", e))?;
+        // Objects are written before refs move: concurrent readers can observe
+        // an older or newer persisted view without serializing on write locks.
         let repo = self.repo.open()?;
         let store = RawIssues::open(&repo, ReadOnly).map_err(|e| err("COB", e))?;
         let issue = store
@@ -805,6 +810,22 @@ mod tests {
         assert!(task.compute().is_err()); // consumed; never rerun
         let mut next = Work(Some(Box::new(|| Ok(42))));
         assert_eq!(next.compute().unwrap(), 42);
+    }
+
+    #[test]
+    fn stored_timestamp_unrepresentable_values_are_null() {
+        assert!(
+            matches!(metadata_timestamp(millis(DATE_MAX, false)), Either::A(v) if v == DATE_MAX as f64)
+        );
+        for value in [
+            millis(DATE_MAX + 1, false),
+            millis(-DATE_MAX - 1, false),
+            millis(i64::MAX, true),
+            millis(i64::MIN, true),
+            unsigned_millis(u64::MAX),
+        ] {
+            assert!(matches!(metadata_timestamp(value), Either::B(Null)));
+        }
     }
 
     #[test]

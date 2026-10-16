@@ -1,7 +1,12 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { probeTimestamp } from '../dist/probes.js';
-import { RadicleError } from '../dist/index.js';
+import { RadicleError, Issues } from '../dist/index.js';
+import { execFile, execFileSync } from 'node:child_process';
+import { promisify } from 'node:util';
+import { fileURLToPath } from 'node:url';
+import { join } from 'node:path';
+import { fixture, git } from './helpers.mjs';
 
 test('worker timestamp conversion: Date boundaries, multiplication overflow, u64 maximum', async () => {
   for (const [value, seconds, want] of [
@@ -26,4 +31,58 @@ test('worker timestamp conversion: Date boundaries, multiplication overflow, u64
   // exercises RangeError translation, not a public timestamp-input SDK feature.
   await assert.rejects(probeTimestamp('18446744073709551615', false), e => e instanceof RangeError && e.code === 'ERR_OUT_OF_RANGE');
   await assert.rejects(probeTimestamp('bad', true), e => e instanceof TypeError && e.code === 'ERR_INVALID_ARG_VALUE');
+});
+
+test('signed peer dates outside Date range remain readable and cannot deny issue listing', async t => {
+  const f = await fixture(t), read = Issues.open(f.repo);
+  const normal = await Issues.openAs(f.repo, f.signer).create({ title: 'Normal', description: 'Normal root' });
+  const before = await normal.reload();
+  const ids = [];
+  // Just outside Date's range, and a valid upstream millis value above i64::MAX.
+  for (const seconds of ['8640000000001', '18446744073709551']) {
+    const { stdout } = await promisify(execFile)(process.execPath, [
+      fileURLToPath(new URL('./metadata-consumer.mjs', import.meta.url)), f.rid,
+    ], { env: { ...process.env, RAD_HOME: f.home, GIT_COMMITTER_DATE: seconds }, timeout: 15000 });
+    const id = stdout.trim();
+    assert.match(id, /^[0-9a-f]{40}$/);
+    ids.push(id);
+    const peer = await read.get(id);
+    assert.equal(peer.comments.length, 2);
+    assert.ok(peer.comments.every(c => c.timestamp === null && Object.isFrozen(c)));
+    const handle = await Issues.openAs(f.repo, f.signer).getMut(id);
+    assert.deepEqual(await handle.reload(), peer);
+    assert.equal((await handle.edit('Still editable')).snapshot.comments[0].timestamp, null);
+    const comment = await handle.comment('Normal date after peer metadata');
+    assert.equal(typeof comment.snapshot.comments.find(c => c.id === comment.entryId).timestamp, 'number');
+  }
+  const all = await read.all();
+  assert.equal(all.length, 3);
+  assert.ok(Object.isFrozen(all));
+  assert.deepEqual(all.map(i => i.id), [normal.id, ...ids].sort());
+  assert.deepEqual(await read.get(normal.id), before);
+  assert.ok(all.find(i => i.id === normal.id).comments.every(c => typeof c.timestamp === 'number'));
+});
+
+test('commit metadata uses number-or-null independently for both dates without rejecting commit()', async t => {
+  const f = await fixture(t);
+  const tree = git(f.work, 'rev-parse', 'HEAD^{tree}');
+  // Write raw peer-like objects, avoiding Git CLI date validation. No refs move.
+  const stored = join(f.home, 'storage', f.rid.slice(4));
+  for (const [author, committer, wantAuthor, wantCommitter] of [
+    ['8640000000000', '-8640000000000', 8640000000000000, -8640000000000000],
+    ['8640000000001', '1', null, 1000],
+    ['-8640000000001', '8640000000001', null, null],
+    ['9223372036854775807', '-9223372036854775808', null, null],
+  ]) {
+    const input = `tree ${tree}\nauthor Peer <peer@example.invalid> ${author} +0000\ncommitter Peer <peer@example.invalid> ${committer} +0000\n\nPeer dates\n`;
+    const oid = execFileSync('git', ['-C', stored, 'hash-object', '--literally', '-t', 'commit', '-w', '--stdin'], { input, encoding: 'utf8' }).trim();
+    const commit = await f.repo.commit(oid);
+    assert.equal(commit.oid, oid);
+    assert.ok(Object.isFrozen(commit));
+    assert.ok(Object.hasOwn(commit, 'authorTime'));
+    assert.ok(Object.hasOwn(commit, 'committerTime'));
+    assert.equal(commit.authorTime, wantAuthor);
+    assert.equal(commit.committerTime, wantCommitter);
+    assert.equal(commit.messageStr, 'Peer dates\n');
+  }
 });

@@ -14,8 +14,13 @@ async function usage(home: string): Promise<void> {
   const visibility: 'public' | 'private' = doc.visibility;
   console.log(visibility);
   const commit: Commit = await repo.commit(head.oid);
-  const ms: number = commit.authorTime;
-  new Date(ms);
+  const ms: number | null = commit.authorTime;
+  if (ms !== null) new Date(ms);
+  const committerTime: number | null = commit.committerTime;
+  console.log(committerTime);
+  // @ts-expect-error stored metadata may be unrepresentable
+  const requiredTime: number = commit.authorTime;
+  void requiredTime;
   const bytes: Uint8Array = commit.message;
   bytes[0] = 1; // copied byte contents intentionally remain mutable
   // @ts-expect-error snapshot properties cannot be reassigned
@@ -44,6 +49,11 @@ async function usage(home: string): Promise<void> {
   await issue.close({ reason: 'done' });
   const result: IssueChange = await issue.comment('reply');
   const snapshot: Issue = result.snapshot;
+  const timestamp: number | null = snapshot.comments[0].timestamp;
+  if (timestamp !== null) new Date(timestamp);
+  // @ts-expect-error callers must handle unavailable stored dates
+  const requiredCommentTime: number = snapshot.comments[0].timestamp;
+  void requiredCommentTime;
   const state: 'open' | 'closed' = snapshot.state;
   console.log(state, result.entryId);
   // @ts-expect-error readonly labels

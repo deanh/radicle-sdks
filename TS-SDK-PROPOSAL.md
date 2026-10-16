@@ -227,14 +227,16 @@ const current = await issue.reload();                  // explicit fresh read
   conveniences where Python has them. The recursive freezer skips typed-array
   views; it must not call `Object.freeze` on their nonempty contents. TypeScript
   readonly properties do not claim that the byte elements are immutable.
-- **Timestamps:** epoch **milliseconds** as `number`, converted in Rust with
-  **checked arithmetic**. Upstream seconds use `checked_mul(1000)`. A
-  value is exposed only if it lies within the **ECMAScript `Date` range**
-  (±8.64 × 10¹⁵ ms, which is narrower than `Number.MAX_SAFE_INTEGER`), so every
-  exposed timestamp is exact and works with `new Date(ms)`. Out-of-range
-  peer-controlled metadata makes the operation reject with
-  `RadicleError{code:"INVALID_DATA"}`. It never wraps, rounds or becomes BigInt.
-  Lossless raw values are deferred until something needs them.
+- **Timestamps:** stored metadata uses required **`number | null`** fields,
+  converted in Rust with **checked arithmetic**. Upstream seconds use
+  `checked_mul(1000)`. Inside the **ECMAScript `Date` range** (±8.64 × 10¹⁵ ms,
+  narrower than `Number.MAX_SAFE_INTEGER`), the number is exact epoch milliseconds
+  and works with `new Date(ms)`. Unrepresentable peer metadata (including checked
+  overflow) becomes `null`, not a failed object read, listing or mutation. This
+  applies to comment dates and both Git commit dates. Genuine store/decoding
+  errors still reject; explicit timestamp input/probe validation still rejects
+  out-of-range values. No wrapping, rounding or BigInt. Lossless raw values are
+  deferred until something needs them.
 - **Errors:** `RadicleError extends Error` with a typed `code` (`"STORAGE" |
   "REPOSITORY" | "GIT" | "IDENTITY" | "SIGNER" | "COB" | "READ_ONLY" |
   "INVALID_DATA"`), also for rejections from worker tasks. Invalid arguments use
@@ -370,9 +372,16 @@ and supporting repository reads remain separate follow-ups, not part of patch 1.
 No Python restructuring, scheduler, networking or publication work is authorized
 by this increment. Current implemented surface and contracts: `node/README.md`.
 
+**Landing gate:** issue patch `15cd0e4` is stacked on the unmerged T0 head
+`adeb55c13a0ebecb4a457252c03e46a822c1c11c`. Review and merge the T0 baseline
+separately before merging this increment. Its explicit diff base does not make
+it standalone: merging its head into main also brings in the T0 ancestry. Do not
+implicitly import the spike/history through the issue patch. No merge is authorized
+by this review-fix increment.
+
 | Phase | Work | Exit criteria |
 |---|---|---|
-| **T0 spike** (~3–4 days, throwaway branch) | napi-rs addon on `radicle =0.25.1`. **Workflow 1 end to end** (`Profile.init` → `initProject` → `head()`/`identity()` → `forkProject` → `checkoutProject`), plus a `commit()` read to exercise byte fields and issue create/comment, as Promises on Node 26.12.0; `Profile.load()`/`signer()` are synchronous setup exceptions. Comment result envelopes and detached snapshot/byte-copy tests. Signer crossing to worker tasks. §5 lock contract and tests. Timestamp boundary tests (upstream max values, overflow, out-of-`Date`-range rejection). Check generated `.d.ts` against §4 (literal unions, readonly, Promise signatures, `Uint8Array`) and runtime behaviour (frozen object/array containers, mutable independent byte copies, `RadicleError` instances/codes, `TypeError`/`RangeError`). **Alpha install command:** from a clean project, `npm install "git+${SDK_GIT_URL}#<commit>"` (the seed URL form the Python README uses) builds and loads the addon; pnpm (build-script opt-in documented) and Bun best effort | All of the listed operations pass on Linux. A FINDINGS file records the reproducible Send/Sync assertions, concurrency results, generated types and installation results |
+| **T0 spike** (~3–4 days, throwaway branch) | napi-rs addon on `radicle =0.25.1`. **Workflow 1 end to end** (`Profile.init` → `initProject` → `head()`/`identity()` → `forkProject` → `checkoutProject`), plus a `commit()` read to exercise byte fields and issue create/comment, as Promises on Node 26.12.0; `Profile.load()`/`signer()` are synchronous setup exceptions. Comment result envelopes and detached snapshot/byte-copy tests. Signer crossing to worker tasks. §5 lock contract and tests. Timestamp boundary tests (upstream max values, overflow, out-of-`Date`-range rejection). Check generated `.d.ts` against §4 (literal unions, readonly, Promise signatures, `Uint8Array`) and runtime behaviour (frozen object/array containers, mutable independent byte copies, `RadicleError` instances/codes, `TypeError`/`RangeError`). **Alpha install command:** from a clean project, `npm install --allow-git=root "git+${SDK_GIT_URL}#<commit>"` (npm 12+; omit the Git opt-in on npm 11) (the seed URL form the Python README uses) builds and loads the addon; pnpm (build-script opt-in documented) and Bun best effort | All of the listed operations pass on Linux. A FINDINGS file records the reproducible Send/Sync assertions, concurrency results, generated types and installation results |
 | **Decision** | Using T0 evidence: which operations were reusable as-is, what extraction would cost radicle-py users, mono-repo or not | Written decision. T1 runs only if it says so |
 | **T1 core extraction** (conditional, ~3–4 days) | `radicle-sdk-core`, Python layer becomes thin conversions | §6 gates all pass; no Python API, stub or API.md changes |
 | **T2 TypeScript v0** (~1–1½ weeks) | §2 surface; documentation of `git push rad` vs. SDK `create()`; README quick start executed by a test | The three workflows pass; error, validation and concurrency tests pass |
@@ -393,7 +402,8 @@ prebuilt packages are deferred until there are actual users.
   `--manifest-path` pointing at the Rust crate, wherever it lives, so this
   doesn't constrain the Rust layout or the mono-repo decision.
 - **Install command for alpha users**, the same shape as pip's:
-  `npm install "git+${SDK_GIT_URL}#<commit>"`. It needs Rust and a C
+  `npm install --allow-git=root "git+${SDK_GIT_URL}#<commit>"` on npm 12+
+  (omit the Git opt-in on npm 11). It needs Rust and a C
   toolchain. Minimum Rust is 1.91 (measured; see above).
 - **Package-manager evidence:** npm and pnpm root Git installs passed in T0.
   pnpm 12 requires exact Git-source approval in `allowBuilds`; see `node/README.md`.
