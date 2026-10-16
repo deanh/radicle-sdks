@@ -1,4 +1,4 @@
-//! Isolated Node binding. No shared-core extraction or Python changes.
+//! Node binding. FFI code is independent of the Python adapter; no shared core.
 mod patches;
 mod repository;
 use repository::{HistoryOptions, HistoryPage, SignedRefs, Tree, TreeEntry, page_number};

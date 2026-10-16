@@ -8,7 +8,7 @@ import pytest
 import radiclepy as rad
 from workflow_smoke import project_fixture
 
-STUB = Path(__file__).resolve().parent.parent / "python/radiclepy/__init__.pyi"
+STUB = Path(__file__).resolve().parents[2] / "python/radiclepy/__init__.pyi"
 
 
 def test_alpha_stub_signatures():

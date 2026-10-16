@@ -1,0 +1,28 @@
+[package]
+name = "radicle-py"
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.91"
+description = "Python bindings for the radicle crate"
+license = "MIT OR Apache-2.0"
+publish = false
+
+[lib]
+name = "radiclepy"
+crate-type = ["cdylib"]
+
+[dependencies]
+pyo3 = { version = "0.23", features = ["extension-module", "abi3-py39"] }
+# Shared exact upstream constraint and explicit std-only default hasher.
+radicle.workspace = true
+indexmap.workspace = true
+# OS RNG for Profile.init()'s secure seed (PLAN §5.7; no upstream Seed::generate()).
+getrandom = "0.3"
+# Raw COB actions are JSON bytes; we validate/inspect them without a private
+# Python type mapping (PLAN §5.5 — actions stay `bytes`; only a type-name probe).
+serde_json = "1"
+
+[features]
+# Deterministic test helpers (Profile._from_seed). NEVER enabled in release
+# wheels — `maturin develop --features test-helpers` for the test build only.
+test-helpers = []

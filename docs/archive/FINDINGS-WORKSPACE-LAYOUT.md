@@ -93,3 +93,44 @@ Git/workspace builds continue using `--locked`.
 The experiment's Python-preserving dependency seed was not adopted: it would
 have downgraded Node. The final candidate instead uses the explicit alignment
 above and must validate that graph independently.
+
+## Maintained layout and artifact validation
+
+The layout commit moves Python's Rust crate and private test suite into its SDK
+folder, makes the root a resolver-3 virtual workspace, and removes the standalone
+Node lock. The Python package version/import and Node package/addon identities
+are unchanged. Modules are not reorganized in this patch.
+
+- Node's per-package feature tree is byte-identical before/after workspace entry.
+- Python's tree after explicit alignment changes only its crate's filesystem path
+  during the layout move. All package selections are from the original lock union.
+- Shared `git`, `signed_refs`, `project_fixture` and `add_commit` functions move
+  unchanged into `tests/sdk_fixture.py`; root examples import it directly.
+  All four cross-SDK example tests pass with `python/tests/` temporarily absent.
+- Workflows become `python.yml` and `node.yml`, retaining installed/artifact,
+  minimum/stable Rust, panic and source-install gates. Node filters include both
+  SDK directories and shared manifests/fixtures.
+- npm packing contains built output, language docs and licenses, with no Rust
+  sources/manifests. A separate tarball consumer test installs with invalid Rust
+  tool paths, runs actual installed workflows/README, and checks consumer types.
+- Fresh optimized Node output is built in a new target directory with Rust 1.91:
+  30 Node tests, consumer type checks, four native release tests and abort-mode
+  rejection pass. Clippy passes per adapter on 1.91 and stable; Node fmt passes.
+  Pre-existing unrelated Python formatting is not rewritten.
+- Fresh Python helper build on CPython 3.13: 202 tests pass with required Node
+  parity. An MSRV-built abi3 release wheel installs on CPython 3.9 and 3.14:
+  each has 89 passed/113 helper-dependent skips, production/workflow smoke,
+  stubtest/mypy/pyright and 100% annotation completeness. Local wheels are
+  manylinux_2_39, not evidence for CI's manylinux_2_28/macOS targets.
+- Installed pyright completeness is checked outside the checkout with the
+  explicit consumer interpreter: an ambient source/config lookup returned no
+  package even though runtime imports and `py.typed` were present. CI now uses
+  the independent installed lookup rather than trusting the caller's context.
+- The actual aligned-layout sdist builds offline on Rust 1.91 in a clean consumer.
+  It prunes 19 Node-only lock selections, adds none, and passes installed
+  production/workflow smoke. CI caches dependencies first and checks this same
+  no-new-selection invariant. Source closure is not a promise of all-vendored
+  dependencies or strict immutable sdist locks.
+
+Candidate-specific exact-commit Git-install evidence is recorded in the patch
+and issue discussion after committing. Local checks are not remote CI results.

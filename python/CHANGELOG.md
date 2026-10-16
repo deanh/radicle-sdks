@@ -2,6 +2,19 @@
 
 All notable changes to `radicle-py` are documented here.
 
+## Workspace and test layout (unreleased)
+
+- Move the PyO3 crate into `python/native/` and Python tests/typing/smokes into
+  `python/tests/`; preserve root Git installation and `radiclepy` imports.
+- Share one root workspace/lock with Node, inheriting the exact Radicle pin and
+  explicit `indexmap/std`. The isolated alignment commit adopts the existing
+  newer Node selections for 31 shared dependencies, not a fresh dependency
+  refresh; the full version table is in the archived workspace findings.
+- Root tests own cross-SDK checks and shared public-API project fixtures. Rename
+  the Python workflow to `python.yml`; preserve artifact/typing/workflow gates
+  and add offline source-closure checking for the unpacked sdist.
+- No API/module reorganization or common Rust core is included.
+
 ## Documentation ownership (unreleased)
 
 - Python installation and the executed quick start now live in `python/README.md`,

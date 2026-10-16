@@ -26,6 +26,11 @@ proposals and old filenames in their prose describe the work at that time.
 Use the current guides above for supported behavior. Historical references to
 other local checkouts are not dependencies of this repository.
 
+### Shared SDK structure
+
+- [Workspace layout findings](archive/FINDINGS-WORKSPACE-LAYOUT.md): explicit
+  dependency alignment, feature isolation and source-packaging evidence.
+
 ### Python
 
 - [Original implementation plan](archive/PLAN.md).

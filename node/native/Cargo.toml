@@ -12,11 +12,10 @@ crate-type = ["cdylib"]
 [dependencies]
 napi = { version = "3", default-features = false, features = ["napi8", "dyn-symbols"] }
 napi-derive = "3"
-radicle = "=0.25.1"
+radicle.workspace = true
 getrandom = "0.3"
-# radicle disables indexmap defaults but uses its std-only default hasher.
-# Python's feature graph enables std incidentally; this independent crate must.
-indexmap = { version = "2", features = ["std"] }
+# Explicit std-only default hasher even when building this adapter alone.
+indexmap.workspace = true
 
 [build-dependencies]
 napi-build = "2"

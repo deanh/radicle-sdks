@@ -13,51 +13,62 @@ directories. Tool-required entry manifests remain at root.**
 Directory ownership is not artifact contents: development tests need not ship,
 and a source build may require root manifests and shared dependencies.
 
-- `python/`: Python package/stubs, guide, API reference and changelog.
+- `python/`: Python package/stubs, Rust binding, tests, guide, API and changelog.
 - `node/`: TypeScript wrapper, native binding, tests, scripts, guide, API reference
   and changelog. Generated `node/dist/` is build output, not hand-edited source.
 - `docs/`: current cross-SDK documentation and an index of preserved history.
 - `examples/`: runnable programs demonstrating both SDKs.
-- Root `tests/`: intended home for cross-SDK conformance and documentation tests.
+- Root `tests/`: cross-SDK conformance, documentation/layout checks and explicit
+  shared public-API fixture support in `sdk_fixture.py`.
 - Root README: project overview and language entry points, not another guide.
 - Root manifests, lockfiles, licenses and tool configuration: repository/tool
   entry points. There is no project changelog duplicating package histories.
 
 ## Current code and build boundaries
 
-This documentation step establishes language-owned guides. The Rust/test layout
-has **not yet migrated**:
-
-| Concern | Current location | Planned location |
-| --- | --- | --- |
-| Python Rust crate | root `Cargo.toml`, `src/` | `python/native/` |
-| Python package and stubs | `python/radiclepy/` | unchanged |
-| Python-only tests/typing/smokes | root `tests/` | `python/tests/` |
-| Cross-SDK digest and docs tests | root `tests/` | unchanged |
-| Node Rust crate | `node/native/` | unchanged |
-| TypeScript wrapper/tests/scripts | `node/src/`, `node/test/`, `node/scripts/` | unchanged |
-| Rust dependency graphs | root and `node/native/` locks | virtual workspace, one root lock |
-
-The following is the **current** runtime layering:
-
 ```text
 Python public exports                  TypeScript public exports
 python/radiclepy/                       node/src/
         |                                  |
 PyO3 adapter                           napi-rs adapter
-src/                                   node/native/src/
+python/native/src/                     node/native/src/
         |                                  |
         +---------- upstream radicle ------+
                        =0.25.1
 ```
 
-Root `pyproject.toml` is the Python Git-install/build entry point and selects the
-Python guide as its package description. Root `package.json` is the npm
-Git-install entry point; `prepare` builds optimized native output and compiles the
-wrapper before packing. Neither package has been published to a registry.
+Binding crates always live at `<language>/native/`. The root virtual workspace
+contains `python/native` and `node/native`, uses resolver 3 and defaults to the
+Python package for compatibility with root developer commands. CI selects
+packages explicitly. Both adapters inherit the exact upstream constraint and
+explicit `indexmap/std`, and share one root `Cargo.lock`.
+
+The lock consolidation required an explicit dependency alignment: 31 shared
+Python package selections moved to the existing newer Node baseline. No versions
+were selected outside the original locks. See the
+[dependency/feature evidence](archive/FINDINGS-WORKSPACE-LAYOUT.md); it is not a
+claim that moving files alone was dependency-neutral.
+
+Root `pyproject.toml` remains the Python Git-install entry point, points to
+`python/native/Cargo.toml`, and uses the Python guide as its package description.
+Python tests/typing/smokes live in `python/tests/`; pytest explicitly discovers
+both test directories. Cross-SDK fixtures do not import Python-private tests.
+
+Root `package.json` remains the npm Git-install entry point. Git `prepare` builds
+optimized native output and compiles the wrapper in a complete checkout before
+packing. The npm payload contains built output, language docs and licenses, not
+Rust sources/manifests or an installed consumer rebuild contract. There are no
+`install`/`postinstall` native build scripts. Neither package has been published.
+
+Python source distributions must build without the checkout. Maturin rewrites
+the packaged workspace to the Python member; normal offline Cargo may prune
+unused Node lock records but must not select new versions. Strict immutable
+sdist-lock support is not promised. Git/workspace Rust gates use `--locked`.
+See [development](development.md) for the independent artifact checks.
+
 Node's calling-thread setup, worker tasks and lock registry remain binding
-implementation details; Python's thread-affine handles retain their own contract.
-See [SDK differences](sdk-differences.md).
+implementation details. Python retains its own thread-affine handle contract;
+see [SDK differences](sdk-differences.md).
 
 ## Shared semantics, not identical interfaces
 
@@ -73,26 +84,14 @@ rollback, automatic retry or a generalized write scheduler.
 Source sharing does not imply shared ABI, shared runtime state or synchronization
 across Python, Node, external processes or separately loaded addon copies.
 
-## Planned structural migration
+## Remaining structural work
 
-Tracked in Radicle issue `edcbbd7`, with review refinements recorded there:
-
-1. Language-owned guides/references/changelogs and current shared documentation.
-2. Python native/test move and a virtual workspace, after proving Python sdist
-   feasibility in an isolated experiment. Rename workflows by language and handle
-   obsolete probes in a distinct cleanup commit.
-3. Matching domain modules in both bindings: `profile`, `project`, `repository`,
-   `issues`, `patches`, `error`; keep binding-specific modules explicit.
-
-Binding crates then live at `<language>/native/`. Root manifests remain for Git
-installation. The workspace should use resolver 3, deliberate default members,
-explicit package selection, one lockfile and inherited exact Radicle constraints.
-Dependency versions/features must be compared per package, not casually refreshed.
-If workspace packaging proves impractical, a separately reviewed fallback keeps
-Node standalone, sacrificing the single lock and inherited constraints for it.
-
-[Development](development.md#architecture-migration-gates) records validation and
-module mapping. This plan is not a claim that the later steps have already landed.
+Radicle issue `edcbbd7` tracks the migration. Language-owned docs and the
+workspace/test layout are implemented. Module alignment remains a separate
+mechanical patch: put profile, project, repository, issues, patches and error
+operations in consistently named modules in each binding, keeping binding-specific
+work explicit. The large existing modules have not been split by this layout
+change. [Development](development.md#module-alignment-map) records the mapping.
 
 ## Shared Rust: only with a real consumer
 
@@ -112,5 +111,5 @@ Send/Sync bounds on Python signers or introduce custom environment/agent adapter
 [Archived plans and findings](README.md#historical-plans-reviews-and-findings)
 record earlier decisions, test counts and support evidence. They are not current
 release checklists. `spike/` and `wheel-probe/` remain historical source until the
-layout step checks references and records exact retrieval commits before removal.
-They must not become maintained workspace members merely through ancestry.
+separate cleanup records exact retrieval commits and removes them. They are
+explicitly excluded from the maintained workspace.

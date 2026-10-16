@@ -7,7 +7,7 @@ import sys
 
 
 def test_readme_quick_start(tmp_path):
-    readme = (Path(__file__).resolve().parents[1] / "python" / "README.md").read_text()
+    readme = (Path(__file__).resolve().parents[2] / "python" / "README.md").read_text()
     section = readme.split("## Runnable local quick start", 1)[1].split("\n## ", 1)[0]
     blocks = re.findall(r"```python\n(.*?)\n```", section, re.DOTALL)
     assert len(blocks) == 1

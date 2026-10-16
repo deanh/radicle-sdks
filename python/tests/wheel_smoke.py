@@ -2,11 +2,11 @@
 
 Run with the INSTALLED artifact's interpreter:
 
-    .venv-smoke/bin/python tests/wheel_smoke.py
+    .venv-smoke/bin/python python/tests/wheel_smoke.py
 
-Exit code 0 means the artifact is release-clean. Deliberately independent
-of pytest and of this repository's test suite (it runs in a venv that has
-only the built artifact installed).
+Exit code 0 means the artifact is release-clean. Uses the source checkout's
+workflow smoke and shared tests/sdk_fixture.py, but no pytest. Run with a venv
+that has only the built artifact installed; SDK imports must resolve there.
 """
 
 import os

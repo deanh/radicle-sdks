@@ -1,13 +1,15 @@
-name: TypeScript alpha (Linux x86_64)
+name: Node SDK (Linux x86_64)
 
 on:
   push:
     branches: [main]
-    paths: ['node/**', 'package.json', 'package-lock.json', '.nvmrc', '.github/workflows/ts-sdk.yml',
-            'examples/**', 'tests/test_examples.py', 'tests/workflow_smoke.py']
+    paths: ['node/**', 'python/**', 'Cargo.toml', 'Cargo.lock', 'pyproject.toml', 'uv.lock',
+            'package.json', 'package-lock.json', '.nvmrc', '.github/workflows/node.yml',
+            'examples/**', 'tests/**']
   pull_request:
-    paths: ['node/**', 'package.json', 'package-lock.json', '.nvmrc', '.github/workflows/ts-sdk.yml',
-            'examples/**', 'tests/test_examples.py', 'tests/workflow_smoke.py']
+    paths: ['node/**', 'python/**', 'Cargo.toml', 'Cargo.lock', 'pyproject.toml', 'uv.lock',
+            'package.json', 'package-lock.json', '.nvmrc', '.github/workflows/node.yml',
+            'examples/**', 'tests/**']
   workflow_dispatch:
 
 jobs:
@@ -26,6 +28,8 @@ jobs:
       - run: npm run build
       - run: npm run check
       - run: npm test
+      - name: Packed consumer (runtime, API docs, README and types; no Rust sources)
+        run: bash node/scripts/tarball-install-smoke.sh
       # examples/ must print identical output from both SDKs; with both builds
       # present the cross-SDK tests must run, so a missing build fails, not skips.
       - uses: astral-sh/setup-uv@v3
@@ -36,15 +40,15 @@ jobs:
           uv sync --dev --locked
           uv run maturin develop --uv
           uv run pytest -q tests/test_examples.py
-      - run: cargo test --release --manifest-path node/native/Cargo.toml --locked
+      - run: cargo test --release -p radicle-sdk-native --locked
       - name: Abort-mode native builds remain rejected
         run: |
-          if cargo rustc --release --manifest-path node/native/Cargo.toml --locked --lib -- -C panic=abort > "$RUNNER_TEMP/abort-build.log" 2>&1; then
+          if cargo rustc --release -p radicle-sdk-native --locked --lib -- -C panic=abort > "$RUNNER_TEMP/abort-build.log" 2>&1; then
             echo 'unexpected successful panic=abort build'
             exit 1
           fi
           grep -F 'radicle-sdk requires panic=unwind' "$RUNNER_TEMP/abort-build.log"
-      - run: cargo clippy --manifest-path node/native/Cargo.toml --all-targets --locked -- -D warnings
+      - run: cargo clippy -p radicle-sdk-native --all-targets --locked -- -D warnings
       - name: Exact-commit root Git install (npm 11)
         run: bash node/scripts/git-install-smoke.sh npm11 "$GITHUB_SHA"
       - name: Exact-commit root Git install (npm 12, explicit Git approval)
@@ -59,4 +63,4 @@ jobs:
       - name: Minimum supported Rust (1.91)
         run: |
           rustup toolchain install 1.91.0 --profile minimal
-          cargo +1.91.0 check --manifest-path node/native/Cargo.toml --locked
+          cargo +1.91.0 check -p radicle-sdk-native --locked

@@ -9,7 +9,7 @@ url=${SDK_GIT_URL:-file://$root}
 spec="git+${url}#${revision}"
 consumer=$(mktemp -d)
 trap 'rm -rf "$consumer"' EXIT
-export CARGO_TARGET_DIR=${CARGO_TARGET_DIR:-$root/node/native/target}
+export CARGO_TARGET_DIR=${CARGO_TARGET_DIR:-$root/target}
 export npm_config_cache="$consumer/npm-cache"
 export BUN_INSTALL_CACHE_DIR="$consumer/bun-cache"
 cd "$consumer"

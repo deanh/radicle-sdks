@@ -8,7 +8,12 @@ test('alpha package/native identities agree and source prepare selects release b
   const pkg = JSON.parse(await text('../../package.json'));
   const lock = JSON.parse(await text('../../package-lock.json'));
   const cargo = await text('../native/Cargo.toml');
-  const cargoLock = await text('../native/Cargo.lock');
+  const cargoLock = await text('../../Cargo.lock');
+  const workspace = await text('../../Cargo.toml');
+  assert.match(workspace, /resolver = "3"/);
+  assert.match(workspace, /radicle = "=0\.25\.1"/);
+  assert.match(cargo, /radicle\.workspace = true/);
+  assert.match(cargo, /indexmap\.workspace = true/);
   const bindings = await text('../dist/native.cjs');
   assert.equal(pkg.name, 'radicle-sdk');
   assert.equal(pkg.version, '0.1.0');
@@ -21,6 +26,10 @@ test('alpha package/native identities agree and source prepare selects release b
   assert.ok(cargoLock.includes(`name = "radicle-sdk-native"\nversion = "${pkg.version}"`));
   assert.match(pkg.scripts['build:native'], /\bnapi build --release\b/);
   assert.equal(pkg.scripts.prepare, 'npm run build');
+  assert.equal(pkg.scripts.install, undefined);
+  assert.equal(pkg.scripts.postinstall, undefined);
+  assert.ok(pkg.files.every(file => !file.startsWith('node/native') && !file.includes('Cargo')));
+  assert.ok(pkg.files.includes('LICENSE-MIT') && pkg.files.includes('LICENSE-APACHE'));
   assert.match(pkg.scripts.build, /^npm run clean && /);
   const addons = (await readdir(new URL('../dist/', import.meta.url))).filter(name => name.endsWith('.node'));
   assert.deepEqual(addons, ['radicle-sdk.linux-x64-gnu.node']); // no leftover T0/debug addon

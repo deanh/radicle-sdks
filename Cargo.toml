@@ -1,31 +1,11 @@
-[package]
-name = "radicle-py"
-version = "0.1.0"
-edition = "2024"
-rust-version = "1.91"
-description = "Python bindings for the radicle crate"
-license = "MIT OR Apache-2.0"
-publish = false
+[workspace]
+members = ["python/native", "node/native"]
+default-members = ["python/native"]
+exclude = ["spike", "wheel-probe"]
+resolver = "3"
 
-[lib]
-name = "radiclepy"
-crate-type = ["cdylib"]
-
-[dependencies]
-pyo3 = { version = "0.23", features = ["extension-module", "abi3-py39"] }
-# Exact pin: the binding is source-coupled to the published 0.25.1 API
-# (see docs/archive/PLAN.md header — crates.io source is authoritative).
+[workspace.dependencies]
+# Both adapters are source-coupled to this exact upstream API.
 radicle = "=0.25.1"
-# Pinned Radicle uses indexmap's std-only default hasher. Enable it explicitly,
-# rather than relying on incidental features from transitive dependencies.
+# Upstream disables defaults but uses indexmap's std-only default hasher.
 indexmap = { version = "2", features = ["std"] }
-# OS RNG for Profile.init()'s secure seed (PLAN §5.7; no upstream Seed::generate()).
-getrandom = "0.3"
-# Raw COB actions are JSON bytes; we validate/inspect them without a private
-# Python type mapping (PLAN §5.5 — actions stay `bytes`; only a type-name probe).
-serde_json = "1"
-
-[features]
-# Deterministic test helpers (Profile._from_seed). NEVER enabled in release
-# wheels — `maturin develop --features test-helpers` for the test build only.
-test-helpers = []

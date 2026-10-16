@@ -14,7 +14,7 @@ import sys
 import pytest
 import radiclepy as rad
 
-from workflow_smoke import project_fixture, add_commit
+from sdk_fixture import project_fixture, add_commit
 
 ROOT = Path(__file__).resolve().parent.parent
 NODE_SDK = ROOT / "node" / "dist" / "index.js"

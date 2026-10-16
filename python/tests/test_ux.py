@@ -152,7 +152,7 @@ def test_reprs_and_runtime_literals(project):
     patch.ready()
     values += [issue.issue, patch.patch]
     # Read the declared Literal members rather than duplicating a second enum.
-    stub = Path(__file__).resolve().parent.parent / "python/radiclepy/__init__.pyi"
+    stub = Path(__file__).resolve().parents[2] / "python/radiclepy/__init__.pyi"
     classes = {n.name: n for n in ast.parse(stub.read_text()).body if isinstance(n, ast.ClassDef)}
     checks = 0
     for value in values:

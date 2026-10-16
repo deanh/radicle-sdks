@@ -1,58 +1,21 @@
-"""Helper-free core workflows, also executed against installed artifacts.
+"""Helper-free Python workflows, also executed against installed artifacts.
 
-Only the standard library, the installed SDK and the Git executable are needed.
+Uses the explicit shared source fixture in tests/sdk_fixture.py, the installed
+SDK, the standard library and Git. No pytest or deterministic Rust helpers.
 Git calls use argument arrays, never a shell or the interactive `rad init` CLI.
 """
 from pathlib import Path
-import subprocess
+import sys
 import tempfile
 import time
 
 import radiclepy as rad
 
 
-def git(path, *args):
-    result = subprocess.run(
-        ["git", "-C", str(path), "-c", "user.name=SDK Test",
-         "-c", "user.email=sdk@example.invalid", *args],
-        check=True, capture_output=True, text=True,
-    )
-    return result.stdout.strip()
-
-
-def signed_refs(stored, node_id):
-    """Read persisted sigrefs without calling the SDK's signing operation."""
-    tip = git(stored, "rev-parse", f"refs/namespaces/{node_id}/refs/rad/sigrefs")
-    refs = dict((name, oid) for oid, name in
-                (line.split() for line in git(stored, "show", f"{tip}:refs").splitlines()))
-    return tip, refs
-
-
-def project_fixture(root):
-    root = Path(root)
-    profile = rad.Profile.init(str(root / "alice"), "alice")
-    peer = rad.Profile.init(str(root / "bob"), "bob")
-    storage = rad.Storage.from_profile(profile)
-    work = root / "work"
-    work.mkdir()
-    git(work, "init", "--initial-branch=main")
-    (work / "hello.txt").write_text("hello\n")
-    git(work, "add", "hello.txt")
-    git(work, "commit", "-m", "initial")
-    base = git(work, "rev-parse", "HEAD")
-    rid = rad.init_project(storage, profile.signer(), work, name="sdk-test", description="SDK fixture", default_branch="main")
-    stored = Path(storage.path) / rid.removeprefix("rad:")
-    return profile, peer, storage, storage.repository(rid), work, stored, base
-
-
-def add_commit(work, stored, signer, text):
-    (work / "hello.txt").write_text(text)
-    git(work, "commit", "-am", text.strip())
-    head = git(work, "rev-parse", "HEAD")
-    # Import real Git commits into the signer's namespace. Generic Git writes
-    # are intentionally not part of this SDK's API.
-    git(work, "push", str(stored), f"HEAD:refs/namespaces/{signer.node_id}/refs/heads/main")
-    return head
+# Direct script execution must find shared support without depending on pytest's
+# import mode, a private conftest ancestor, or the caller's working directory.
+sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "tests"))
+from sdk_fixture import add_commit, git, project_fixture, signed_refs
 
 
 def run_workflows(root):

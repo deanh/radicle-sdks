@@ -1,5 +1,16 @@
 # radicle-sdk changelog
 
+## Workspace and package layout (unreleased)
+
+- Join the root Rust workspace and lock without changing Node's existing package
+  selections/features; inherit the exact Radicle pin and explicit indexmap std.
+- Ship built output, language docs and licenses, not Rust sources/manifests.
+  Git `prepare` still builds from the complete clone; packed consumers load the
+  addon without compiling Rust. Add an independent tarball consumer gate.
+- Rename CI to `node.yml`, include shared workspace/fixture inputs in its filters,
+  and retain release/panic/typing/exact-commit source-install checks.
+- No public API, native domain-module refactor or shared Rust core is included.
+
 ## Documentation ownership (unreleased)
 
 - Split the public contract into the shipped `node/API.md`; keep installation and

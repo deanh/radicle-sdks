@@ -17,7 +17,7 @@ import pytest
 
 import radiclepy as rad
 
-ROOT = Path(__file__).resolve().parent.parent
+ROOT = Path(__file__).resolve().parents[2]
 API_MD = ROOT / "python" / "API.md"
 
 # Documented top-level members and their kinds (mirrors API.md headings).

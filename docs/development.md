@@ -1,9 +1,9 @@
 # Development and validation
 
-Commands below describe the **current checkout**, before the Rust/test-layout
-migration. Run them from repository root. Python owns its guide/reference under
-`python/`, but its Rust crate and tests still live at root. Node remains a
-standalone native crate. See [architecture](architecture.md) for planned paths.
+Run commands from repository root. Both bindings are members of the virtual
+Cargo workspace: `python/native/` and `node/native/`. Python-only tests live in
+`python/tests/`; root `tests/` owns cross-SDK tests and shared fixture support.
+See [architecture](architecture.md) for ownership and remaining follow-ups.
 
 Both packages are `0.1.0`. Pin the full reviewed Git SHA for candidate installs;
 Git installs do not include uncommitted worktree changes. No automated publisher,
@@ -18,12 +18,12 @@ tools through the committed uv lock:
 uv sync --dev --locked
 uv run maturin develop --uv --features test-helpers
 uv run pytest -q
-uv run python -m mypy.stubtest radiclepy --allowlist tests/stubtest-allowlist.txt
-uv run mypy --strict tests/typing/usage.py
-uv run pyright tests/typing/usage.py
+uv run python -m mypy.stubtest radiclepy --allowlist python/tests/stubtest-allowlist.txt
+uv run mypy --strict python/tests/typing/usage.py
+uv run pyright python/tests/typing/usage.py
 uv run pyright --verifytypes radiclepy --ignoreexternal
-cargo clippy --all-targets --locked --features test-helpers -- -D warnings
-cargo clippy --all-targets --locked -- -D warnings
+cargo clippy -p radicle-py --all-targets --locked --features test-helpers -- -D warnings
+cargo clippy -p radicle-py --all-targets --locked -- -D warnings
 ```
 
 `test-helpers` enables deterministic legacy fixtures. Never enable it in release
@@ -33,11 +33,13 @@ require deterministic seeding intentionally skip:
 ```sh
 uv run maturin develop --uv
 uv run pytest -q
-uv run python tests/workflow_smoke.py
+uv run python python/tests/workflow_smoke.py
 ```
 
 The Python guide's actual fenced quick start is extracted by
-`tests/test_readme.py`. API tests check exported names/kinds, not all prose.
+`python/tests/test_readme.py`. Use `uv run pytest -q python/tests` for the
+Python-only suite; plain pytest collects both configured test directories.
+API tests check exported names/kinds, not all prose.
 Stubtest checks installed exports/signatures, with documented introspection
 exceptions; mypy/pyright check consumer examples. `--verifytypes` establishes
 annotation completeness, not semantic correctness. Behavioral tests establish
@@ -53,21 +55,22 @@ npm ci --ignore-scripts
 RUSTUP_TOOLCHAIN=1.91.0 npm run build
 npm run check
 npm test
-cargo +1.91.0 test --release --manifest-path node/native/Cargo.toml --locked
-cargo +1.91.0 clippy --manifest-path node/native/Cargo.toml --all-targets --locked -- -D warnings
-cargo +stable fmt --manifest-path node/native/Cargo.toml -- --check
+bash node/scripts/tarball-install-smoke.sh
+cargo +1.91.0 test --release -p radicle-sdk-native --locked
+cargo +1.91.0 clippy -p radicle-sdk-native --all-targets --locked -- -D warnings
+cargo +stable fmt -p radicle-sdk-native -- --check
 ```
 
 Build clears `node/dist/` before producing optimized native output, generated
 native declarations and the wrapper. Do not hand-edit generated files. Keep the
-standalone graph's explicit `indexmap/std`; Python's features must not accidentally
-make a Node-only build pass. Do not refresh Cargo locks casually.
+explicit inherited `indexmap/std` in both adapters; a combined build must not
+hide missing features in either package. Do not refresh the root lock casually.
 
 A negative build gate must reject abort mode with
 `radicle-sdk requires panic=unwind`:
 
 ```sh
-cargo +1.91.0 rustc --release --manifest-path node/native/Cargo.toml --locked --lib -- -C panic=abort
+cargo +1.91.0 rustc --release -p radicle-sdk-native --locked --lib -- -C panic=abort
 ```
 
 That command is expected to fail. Runtime tests exercise worker and synchronous
@@ -119,8 +122,8 @@ For a Python candidate:
 ```sh
 python -m venv /tmp/radicle-python-consumer
 /tmp/radicle-python-consumer/bin/python -m pip install 'git+file:///ABSOLUTE/CHECKOUT@FULL_COMMIT_SHA'
-/tmp/radicle-python-consumer/bin/python tests/wheel_smoke.py
-/tmp/radicle-python-consumer/bin/python tests/workflow_smoke.py
+/tmp/radicle-python-consumer/bin/python python/tests/wheel_smoke.py
+/tmp/radicle-python-consumer/bin/python python/tests/workflow_smoke.py
 ```
 
 Also extract and execute the Python guide's actual fence with that interpreter;
@@ -132,18 +135,18 @@ pre-cached; self-contained source does not mean all dependencies are vendored.
 
 Git preparation builds Node in a full checkout before packing. Tarball consumers
 load `node/dist`; no `install`/`postinstall` lifecycle builds Rust there. Native
-sources are currently included in the npm file list but are not a supported
-consumer rebuild path. The layout patch will remove them rather than export a
-workspace source-build contract. Validate the unpacked/installed tarball's runtime,
-consumer types, actual README and API/changelog presence independently of Git
+sources/manifests are not in the npm payload: it ships built output, language
+guides/API/changelog and licenses, not a workspace consumer rebuild contract.
+The tarball smoke script checks contents and installed runtime/types/actual
+README with invalid Rust tool paths during installation, independently of Git
 installs. Host-built tarballs are validation artifacts, not portable prebuilt
 platform packages or authorization to publish.
 
 ## CI evidence and platforms
 
-Current workflows are `.github/workflows/wheels.yml` and
-`.github/workflows/ts-sdk.yml`; the layout patch will rename them `python.yml`
-and `node.yml` without dropping gates.
+Current workflows are `.github/workflows/python.yml` and
+`.github/workflows/node.yml`. The Node path filters include both binding
+sources and shared workspace/fixture inputs; package selection remains explicit.
 
 Python workflows define minimum/stable Rust checks, helper/release feature
 checks, typing, source distribution installation, and manylinux_2_28
@@ -153,23 +156,30 @@ establish a platform claim. A locally built wheel can require a newer glibc than
 CI's repaired wheel; do not substitute it as manylinux_2_28 evidence.
 
 Node workflow gates cover release output, native tests/lints, abort rejection,
-consumer types, required digest parity and exact-commit npm/pnpm installation.
+consumer types, packed runtime/docs/types, required digest parity and exact-commit
+npm/pnpm installation.
 Live agent variants, other platforms and transports require their own evidence.
 Report local checks separately from successful remote/native CI jobs.
 
 ## Architecture migration gates
 
-Issue `edcbbd7` tracks three structural patches: docs, workspace/test layout,
-then module alignment. Core/history sharing remains a separate follow-up.
+Issue `edcbbd7` tracks docs, workspace/test layout, then module alignment.
+The first two steps are implemented here; module alignment and core/history
+sharing remain separate follow-ups. Dependency changes and validation are
+recorded in [layout findings](archive/FINDINGS-WORKSPACE-LAYOUT.md).
 
 ### Workspace feasibility first
 
-Before moving tests or workflows, use an isolated throwaway worktree for the
-virtual workspace and Python-crate move only. Build an sdist, unpack it outside
+The initial isolated throwaway experiment used the virtual workspace and
+Python-crate move only, before changing tests/workflows. Repeat this gate for
+future workspace/source-packaging changes. Build an sdist, unpack it outside
 the checkout and build using pre-cached dependencies with Cargo offline. Prevent
 access to original checkout sources. This establishes workspace-member/target
 closure, not vendoring every registry crate. Inspect how maturin includes or
 rewrites workspace manifests; do not assume it trims unused Node members.
+The validated maturin 1.15.0 path trims Node membership and Cargo prunes unused
+Node lock records without adding selections. Source builds may perform that
+pruning offline; Git/workspace build gates continue enforcing `--locked`.
 
 If the sdist cannot build independently, decide a fallback before expanding the
 patch. Excluding Node requires explicit workspace exclusion and retaining its
@@ -180,14 +190,17 @@ end state.
 
 Use resolver 3 and explicit package selection. Seed the merged lock from existing
 selections and record per-package `cargo tree` versions/features before and after.
-MSRV-aware resolution can choose different versions; any unavoidable changes
-must be reviewed, not hidden in a lock regeneration. Verify Node-only features
-independently, including `indexmap/std`, and keep exact Radicle 0.25.1/Rust 1.91.
+MSRV-aware resolution can choose different versions; unavoidable changes must
+be reviewed, not hidden in lock regeneration. The alignment commit adopts the
+existing newer Node selections for 31 shared package names, retaining Python-only
+selections. Verify each adapter's features independently, including explicit
+`indexmap/std`, and keep exact Radicle 0.25.1/Rust 1.91.
 
-Move Python-only fixtures, typing and smokes with their tests. Root cross-SDK
-tests currently import `workflow_smoke` helpers: explicitly place shared fixture
-support where both suites can discover it, rather than relying on an incidental
-`conftest.py` ancestor or pytest import path. Verify both suites are collected.
+Shared public-API fixture construction lives in `tests/sdk_fixture.py`; root
+cross-SDK tests import it directly, without Python-private workflow tests or
+conftest fixtures. Python's workflow smoke imports it through an explicit
+repository-relative support path for direct script execution. Pytest paths are
+configured in `pyproject.toml`; verify each suite independently as well as together.
 
 For the layout patch run all language tests/typing, required digest parity,
 actual guide examples, Rust minimum/stable checks, fresh optimized panic gates,
@@ -200,7 +213,7 @@ in the mechanical migration.
 
 The following mapping is for the later mechanical module patch, not current paths:
 
-| Current Python `src/` | Target `python/native/src/` |
+| Current `python/native/src/` | Planned module ownership |
 | --- | --- |
 | `storage.rs`, `write.rs` | `repository.rs` or `repository/`: storage plus repository reads/writes |
 | `cob_typed.rs` | `issues.rs`, `patches.rs`, with materialization near the corresponding domain |

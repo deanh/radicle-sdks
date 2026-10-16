@@ -29,7 +29,12 @@ dev = [
     "pyright>=1.1.400,<2",
 ]
 
+[tool.pytest.ini_options]
+testpaths = ["python/tests", "tests"]
+pythonpath = ["tests", "python/tests"]
+
 [tool.maturin]
+manifest-path = "python/native/Cargo.toml"
 features = ["pyo3/extension-module"]
 python-source = "python"
 strip = true
