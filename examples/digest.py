@@ -88,7 +88,8 @@ class Digest:
         for patch in active:
             latest = next((r for r in patch.revisions if r.id == patch.latest_revision), None)
             if latest is None:
-                # Only a redacted author revision can be missing from the list.
+                # Upstream picks latest_revision from the same non-redacted list,
+                # so this should not happen; report it rather than crash.
                 self.emit(f"- **{patch.title}** `{short(patch.id)}` ({patch.state}), "
                           f"by {self.who(patch.author)}: latest revision unavailable.")
                 continue

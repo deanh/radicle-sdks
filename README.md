@@ -22,8 +22,12 @@ restating these points.
   publication and prebuilt binaries are deferred.
 - **Not a node.** Fetching, announcing, connections and daemon control are out
   of scope, and nothing in the SDKs talks to the network.
-- **Git owns commits.** The SDKs never create or import commits, move branches
-  or push working copies; use Git (and `git-remote-rad`) for that.
+- **Git owns working-copy content.** The SDKs never create or import content
+  commits and never push a working copy; use Git (and `git-remote-rad`) for
+  that. They do write to local storage: project init, fork and checkout set up
+  namespaces and remotes, the explicit canonical-ref writes (for example
+  `set_default_branch_to_canonical_head` and `sign_refs`) move storage refs,
+  and signed issue/patch writes create change commits of their own.
 - **One operation at a time.** Each write is one upstream transaction. There is
   no multi-call transaction, rollback or automatic retry; after a failure,
   inspect persisted state before continuing.
