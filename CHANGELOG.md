@@ -4,6 +4,10 @@ All notable changes to `radicle-py` are documented here.
 
 ## Post-alpha Python UX (unreleased)
 
+- Fix: `Repository.history(..., offset=N)` now raises `GitError` when the walk
+  fails inside the skipped range (for example, a missing parent object).
+  Previously `offset >= 1` returned an empty page with `has_more=False`, making
+  corrupt history look like its end. Valid history is unaffected. (Issue 8f877ad)
 - Docs: correct `PatchMut.review` (it returns the operation ID; upstream keeps
   an actor's first review per revision and ignores later ones), and state which
   patch lifecycle calls record an operation (`archive()` always does; a `False`

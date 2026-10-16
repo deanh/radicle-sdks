@@ -419,11 +419,17 @@ impl PyRepository {
             .revparse_single(rev)
             .map_err(|err| error::git_err(format!("rev-parse {rev:?}: {err}")))?;
         let head = obj.id();
-        let walk = ReadRepository::revwalk(&repo, Oid::from(head))
+        let mut walk = ReadRepository::revwalk(&repo, Oid::from(head))
             .map_err(error::git_err)?;
+        // Check the skipped entries too: `Iterator::skip` would discard a walk
+        // error (e.g. a missing parent) and end the walk, so a corrupt history
+        // past `offset` would masquerade as an empty, final page.
+        for skipped in walk.by_ref().take(offset) {
+            skipped.map_err(error::git_err)?;
+        }
         // Fetch limit+1 to compute has_more without a second walk.
         let mut page: Vec<String> = Vec::with_capacity(limit + 1);
-        for oid in walk.skip(offset).take(limit + 1) {
+        for oid in walk.take(limit + 1) {
             page.push(oid.map_err(error::git_err)?.to_string());
         }
         let has_more = page.len() > limit;

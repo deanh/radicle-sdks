@@ -1,4 +1,6 @@
 """Release-surface integration tests: no deterministic Rust test helpers."""
+import subprocess
+
 import pytest
 import radiclepy as rad
 
@@ -171,6 +173,28 @@ def test_branch_prefix_preserved(project):
     assert "refs/heads/nested" in repo.branches()
     assert "nested" not in repo.branches()
     assert repo.branch_head("refs/heads/nested") == base
+
+
+def test_history_reports_errors_in_skipped_ancestry(project):
+    # Issue 8f877ad: a walk error inside the skipped range (offset > 0) used to
+    # be discarded, returning an empty page with has_more=False.
+    _, _, _, repo, _, stored, base = project
+    tree = repo.commit(base).tree
+    body = (f"tree {tree}\nparent {'1' * 40}\n"
+            "author A <a@example.invalid> 1700000000 +0000\n"
+            "committer A <a@example.invalid> 1700000000 +0000\n\nbroken parent\n")
+    # Raw object with a missing parent; no refs move.
+    broken = subprocess.run(
+        ["git", "-C", str(stored), "hash-object", "--literally", "-t", "commit", "-w", "--stdin"],
+        input=body, capture_output=True, text=True, check=True,
+    ).stdout.strip()
+    for offset in (0, 1, 10):
+        with pytest.raises(rad.GitError):
+            repo.history(broken, offset=offset)
+    # Valid ancestry is unaffected, including offsets past the end.
+    assert repo.history(base).oids == [base]
+    page = repo.history(base, offset=1)
+    assert page.oids == [] and page.has_more is False
 
 
 def test_checkout_uses_canonical_not_remote_head(project, tmp_path):
