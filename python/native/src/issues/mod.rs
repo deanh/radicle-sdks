@@ -168,25 +168,56 @@ pub struct PyIssueMut {
     snapshot: Issue,
 }
 
-/// One COB transaction against the issue behind the handle: open the write
-/// store, load the entry mutably, run `$body` (which binds `m: &mut IssueMut`,
-/// must evaluate to `PyResult<String>`), then refresh the snapshot from the
-/// upstream-updated entry. Commit-per-call mirrors upstream transactions.
-macro_rules! issue_tx {
-    ($slf:expr, |$m:ident| $body:expr) => {{
-        let repo = $slf.repo.open()?;
+/// The upstream mutable issue, as loaded through a write-mode store.
+type LoadedIssue<'a, 'b, 'g> = issue::IssueMut<
+    'a,
+    'b,
+    'g,
+    radicle::storage::git::Repository,
+    radicle::profile::Signer,
+    NoCache,
+>;
+
+impl PyIssueMut {
+    /// Re-read the issue through a read-only store and refresh the snapshot.
+    fn read(&mut self) -> PyResult<()> {
+        let id = parse_object_id(&self.id)?;
+        let repo = self.repo.open()?;
+        let store = RawIssues::open(&repo, ReadOnly).map_err(cob_err)?;
+        let issue = store
+            .get(&id)
+            .map_err(cob_err)?
+            .ok_or_else(|| cob_err(format!("issue {} not found", self.id)))?;
+        self.snapshot = materialize_issue(&id, &issue);
+        Ok(())
+    }
+
+    /// One COB transaction: open the write store, load the issue mutably, run
+    /// `operation`, then refresh the snapshot from the loaded issue. The
+    /// refresh also happens when the operation failed, so the handle reflects
+    /// what upstream left in memory rather than a stale pre-call view.
+    fn transaction<T>(
+        &mut self,
+        operation: impl FnOnce(&mut LoadedIssue<'_, '_, '_>) -> PyResult<T>,
+    ) -> PyResult<T> {
+        let id = parse_object_id(&self.id)?;
+        let repo = self.repo.open()?;
         let mut store =
-            RawIssues::open(&repo, WriteAs::new(&*$slf.signer.inner)).map_err(cob_err)?;
+            RawIssues::open(&repo, WriteAs::new(&*self.signer.inner)).map_err(cob_err)?;
         let mut cache = NoCache;
-        let id = parse_object_id(&$slf.id)?;
         let mut loaded = store.get_mut(&id, &mut cache).map_err(cob_err)?;
-        let result: PyResult<String> = {
-            let $m = &mut loaded;
-            $body
-        };
-        $slf.snapshot = materialize_issue(&id, &loaded);
+        let result = operation(&mut loaded);
+        self.snapshot = materialize_issue(&id, &loaded);
         result
-    }};
+    }
+
+    /// A transaction whose upstream result is the new change-entry id.
+    fn entry<T: ToString, E: std::fmt::Display>(
+        &mut self,
+        operation: impl FnOnce(&mut LoadedIssue<'_, '_, '_>) -> Result<T, E>,
+    ) -> PyResult<String> {
+        self.transaction(|m| operation(m).map(|id| id.to_string()).map_err(cob_err))
+    }
 }
 
 #[pymethods]
@@ -201,70 +232,45 @@ impl PyIssueMut {
     fn issue(&self) -> Issue {
         self.snapshot.clone()
     }
-    /// Re-read the issue from storage (upstream reload semantics).
+    /// Re-read the issue from storage, observing other writers' changes.
     fn reload(&mut self) -> PyResult<Issue> {
-        issue_tx!(self, |m| {
-            let _ = &*m;
-            Ok(String::new())
-        })?;
+        self.read()?;
         Ok(self.snapshot.clone())
     }
     /// Comment on the issue; returns the new change-entry id.
     /// `reply_to` defaults to the root comment (upstream requires a target).
     #[pyo3(signature = (body, reply_to=None))]
     fn comment(&mut self, body: &str, reply_to: Option<&str>) -> PyResult<String> {
-        let reply_to = match reply_to {
-            Some(id) => parse_comment_id(id)?,
-            None => {
-                let root = self
-                    .snapshot
-                    .comment_ids
-                    .first()
-                    .ok_or_else(|| error::op_err("issue has no root comment"))?;
-                parse_comment_id(root)?
-            }
-        };
+        let reply_to = reply_to.map(parse_comment_id).transpose()?;
         let body = body.to_owned();
-        issue_tx!(self, |m| {
-            let entry = m.comment(body, reply_to, []).map_err(cob_err)?;
-            Ok(entry.to_string())
+        self.entry(|m| {
+            let reply_to = reply_to.unwrap_or_else(|| *m.root().0);
+            m.comment(body, reply_to, [])
         })
     }
     /// Set the issue title; returns the new change-entry id.
     fn edit(&mut self, title: &str) -> PyResult<String> {
         let title = parse_title(title)?;
-        issue_tx!(self, |m| {
-            let entry = m.edit(title).map_err(cob_err)?;
-            Ok(entry.to_string())
-        })
+        self.entry(|m| m.edit(title))
     }
     /// Set the issue description (edits the root comment); returns entry id.
     fn edit_description(&mut self, description: &str) -> PyResult<String> {
         let description = description.to_owned();
-        issue_tx!(self, |m| {
-            let entry = m.edit_description(description, []).map_err(cob_err)?;
-            Ok(entry.to_string())
-        })
+        self.entry(|m| m.edit_description(description, []))
     }
     /// SET the issue's label set; returns the new change-entry id.
     /// Upstream `Action::Label` REPLACES the labels (not additive): this
     /// handle's previous labels are gone after the call.
     fn label(&mut self, labels: Vec<String>) -> PyResult<String> {
         let labels = parse_labels(labels)?;
-        issue_tx!(self, |m| {
-            let entry = m.label(labels).map_err(cob_err)?;
-            Ok(entry.to_string())
-        })
+        self.entry(|m| m.label(labels))
     }
     /// SET the issue's assignee set; returns the new change-entry id.
     /// Upstream `Action::Assign` REPLACES the assignees (not additive,
     /// exactly like `label`); an empty list clears the set.
     fn assign(&mut self, assignees: Vec<String>) -> PyResult<String> {
         let assignees = parse_dids(assignees)?;
-        issue_tx!(self, |m| {
-            let entry = m.assign(assignees).map_err(cob_err)?;
-            Ok(entry.to_string())
-        })
+        self.entry(|m| m.assign(assignees))
     }
     #[pyo3(signature = (reason="unspecified"))]
     fn close(&mut self, reason: &str) -> PyResult<String> {
@@ -304,10 +310,7 @@ impl PyIssueMut {
                 )));
             }
         };
-        issue_tx!(self, |m| {
-            let entry = m.lifecycle(state).map_err(cob_err)?;
-            Ok(entry.to_string())
-        })
+        self.entry(|m| m.lifecycle(state))
     }
     fn __repr__(&self) -> String {
         format!("IssueMut({})", self.id)

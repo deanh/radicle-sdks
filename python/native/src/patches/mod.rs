@@ -31,7 +31,7 @@ impl PyPatches {
         })
     }
     #[allow(clippy::too_many_arguments)]
-    fn _create_or_draft(
+    fn create_or_draft(
         &self,
         title: &str,
         description: &str,
@@ -161,7 +161,7 @@ impl PyPatches {
         target: &str,
         labels: Option<Vec<String>>,
     ) -> PyResult<PyPatchMut> {
-        self._create_or_draft(title, description, target, base, head, labels, false)
+        self.create_or_draft(title, description, target, base, head, labels, false)
     }
 
     /// Create a **draft** patch (upstream `Patches::draft`); use ready()
@@ -176,7 +176,7 @@ impl PyPatches {
         target: &str,
         labels: Option<Vec<String>>,
     ) -> PyResult<PyPatchMut> {
-        self._create_or_draft(title, description, target, base, head, labels, true)
+        self.create_or_draft(title, description, target, base, head, labels, true)
     }
 
     fn __repr__(&self) -> String {
@@ -203,25 +203,68 @@ pub struct PyPatchMut {
     snapshot: Patch,
 }
 
-macro_rules! patch_tx {
-    ($slf:expr, |$m:ident| $body:expr) => {{
-        let repo = $slf.repo.open()?;
-        let mut store =
-            RawPatches::open(&repo, WriteAs::new(&*$slf.signer.inner)).map_err(cob_err)?;
-        let mut cache = NoCache;
-        let id = parse_object_id(&$slf.id)?;
-        let mut loaded = store.get_mut(&id, &mut cache).map_err(cob_err)?;
-        let result = {
-            let $m = &mut loaded;
-            $body
-        };
-        $slf.snapshot = materialize_patch(&id, &loaded);
-        result
-    }};
-}
+/// The upstream mutable patch, as loaded through a write-mode store.
+type LoadedPatch<'a, 'b, 'g> = patch::PatchMut<
+    'a,
+    'b,
+    'g,
+    radicle::storage::git::Repository,
+    radicle::profile::Signer,
+    NoCache,
+>;
 
 fn parse_revision(value: &str) -> PyResult<patch::RevisionId> {
     parse_comment_id(value).map(patch::RevisionId::from)
+}
+
+impl PyPatchMut {
+    /// Re-read the patch through a read-only store and refresh the snapshot.
+    fn read(&mut self) -> PyResult<()> {
+        let id = parse_object_id(&self.id)?;
+        let repo = self.repo.open()?;
+        let store = RawPatches::open(&repo, ReadOnly).map_err(cob_err)?;
+        let patch = store
+            .get(&id)
+            .map_err(cob_err)?
+            .ok_or_else(|| cob_err(format!("patch {} not found", self.id)))?;
+        self.snapshot = materialize_patch(&id, &patch);
+        Ok(())
+    }
+
+    /// One COB transaction: open the write store, load the patch mutably, run
+    /// `operation`, then refresh the snapshot from the loaded patch. The
+    /// refresh also happens when the operation failed, so the handle reflects
+    /// what upstream left in memory rather than a stale pre-call view.
+    fn transaction<T>(
+        &mut self,
+        operation: impl FnOnce(&mut LoadedPatch<'_, '_, '_>) -> PyResult<T>,
+    ) -> PyResult<T> {
+        let id = parse_object_id(&self.id)?;
+        let repo = self.repo.open()?;
+        let mut store =
+            RawPatches::open(&repo, WriteAs::new(&*self.signer.inner)).map_err(cob_err)?;
+        let mut cache = NoCache;
+        let mut loaded = store.get_mut(&id, &mut cache).map_err(cob_err)?;
+        let result = operation(&mut loaded);
+        self.snapshot = materialize_patch(&id, &loaded);
+        result
+    }
+
+    /// A transaction whose upstream result is an id (change entry or revision).
+    fn entry<T: ToString, E: std::fmt::Display>(
+        &mut self,
+        operation: impl FnOnce(&mut LoadedPatch<'_, '_, '_>) -> Result<T, E>,
+    ) -> PyResult<String> {
+        self.transaction(|p| operation(p).map(|id| id.to_string()).map_err(cob_err))
+    }
+
+    /// A lifecycle transaction whose upstream result is its own decision.
+    fn decision(
+        &mut self,
+        operation: impl FnOnce(&mut LoadedPatch<'_, '_, '_>) -> Result<bool, patch::Error>,
+    ) -> PyResult<bool> {
+        self.transaction(|p| operation(p).map_err(cob_err))
+    }
 }
 
 #[pymethods]
@@ -235,65 +278,48 @@ impl PyPatchMut {
         self.snapshot.clone()
     }
 
+    /// Re-read the patch from storage, observing other writers' changes.
     fn reload(&mut self) -> PyResult<Patch> {
-        patch_tx!(self, |m| {
-            let _ = &*m;
-            Ok::<(), PyErr>(())
-        })?;
+        self.read()?;
         Ok(self.snapshot.clone())
     }
     fn edit(&mut self, title: &str, target: &str) -> PyResult<String> {
         let title = parse_title(title)?;
         let target = parse_merge_target(target)?;
-        patch_tx!(self, |m| m
-            .edit(title, target)
-            .map(|id| id.to_string())
-            .map_err(cob_err))
+        self.entry(|p| p.edit(title, target))
     }
     fn label(&mut self, labels: Vec<String>) -> PyResult<String> {
         let labels = parse_labels(labels)?;
-        patch_tx!(self, |m| m
-            .label(labels)
-            .map(|id| id.to_string())
-            .map_err(cob_err))
+        self.entry(|p| p.label(labels))
     }
     fn assign(&mut self, assignees: Vec<String>) -> PyResult<String> {
-        let assignees = parse_dids(assignees)?.into_iter().collect();
-        patch_tx!(self, |m| m
-            .assign(assignees)
-            .map(|id| id.to_string())
-            .map_err(cob_err))
+        let assignees: std::collections::BTreeSet<_> = parse_dids(assignees)?.into_iter().collect();
+        self.entry(|p| p.assign(assignees))
     }
     #[pyo3(signature = (description, *, base, head))]
     fn update(&mut self, description: &str, base: &str, head: &str) -> PyResult<String> {
         let base = crate::ids::parse_git_oid(base)?;
         let head = crate::ids::parse_git_oid(head)?;
-        patch_tx!(self, |m| m
-            .update(description, base, head)
-            .map(|id| id.to_string())
-            .map_err(cob_err))
+        self.entry(|p| p.update(description, base, head))
     }
     fn ready(&mut self) -> PyResult<bool> {
-        patch_tx!(self, |m| m.ready().map_err(cob_err))
+        self.decision(|p| p.ready())
     }
     fn unready(&mut self) -> PyResult<bool> {
-        patch_tx!(self, |m| m.unready().map_err(cob_err))
+        self.decision(|p| p.unready())
     }
     fn archive(&mut self) -> PyResult<bool> {
-        patch_tx!(self, |m| m.archive().map_err(cob_err))
+        self.decision(|p| p.archive())
     }
     fn unarchive(&mut self) -> PyResult<bool> {
-        patch_tx!(self, |m| m.unarchive().map_err(cob_err))
+        self.decision(|p| p.unarchive())
     }
 
     #[pyo3(signature = (revision, body, reply_to=None))]
     fn comment(&mut self, revision: &str, body: &str, reply_to: Option<&str>) -> PyResult<String> {
         let revision = parse_revision(revision)?;
         let reply_to = reply_to.map(parse_comment_id).transpose()?;
-        patch_tx!(self, |m| m
-            .comment(revision, body, reply_to, None, [])
-            .map(|id| id.to_string())
-            .map_err(cob_err))
+        self.entry(|p| p.comment(revision, body, reply_to, None, []))
     }
     #[pyo3(signature = (revision, verdict=None, summary=None))]
     fn review(
@@ -313,19 +339,13 @@ impl PyPatchMut {
                 ));
             }
         };
-        patch_tx!(self, |m| m
-            .review(revision, verdict, summary, vec![])
-            .map(|id| id.to_string())
-            .map_err(cob_err))
+        self.entry(|p| p.review(revision, verdict, summary, vec![]))
     }
     /// Record a merge; does not merge Git, move branches or clean up refs.
     fn merge(&mut self, revision: &str, commit: &str) -> PyResult<String> {
         let revision = parse_revision(revision)?;
         let commit = crate::ids::parse_git_oid(commit)?;
-        patch_tx!(self, |m| m
-            .merge(revision, commit)
-            .map(|merged| merged.entry.to_string())
-            .map_err(cob_err))
+        self.entry(|p| p.merge(revision, commit).map(|merged| merged.entry))
     }
     fn __repr__(&self) -> String {
         format!("PatchMut({})", self.id)
