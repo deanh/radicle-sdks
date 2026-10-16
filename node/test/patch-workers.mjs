@@ -18,7 +18,8 @@ if (isMainThread) {
   } finally { await Promise.all(workers.map(w => w.terminate())); }
 } else {
   const profile = Profile.load();
-  const handle = await Patches.openAs(profile.storage.repository(workerData.rid), profile.signer()).getMut(workerData.id);
+  const repo = profile.storage.repository(workerData.rid);
+  const handle = await Patches.openAs(repo, profile.signer()).getMut(workerData.id);
   const start = once(parentPort, 'message');
   parentPort.postMessage('ready');
   await start;
@@ -28,6 +29,9 @@ if (isMainThread) {
     assert.ok(Object.isFrozen(r.snapshot.revisions));
     assert.ok(Object.isFrozen(r.snapshot.revisions[0].comments));
   }
+  const signed = await repo.signRefs(profile.signer()); // independent signer mutex, same repository lock
+  assert.ok(signed.refs[`refs/cobs/xyz.radicle.patch/${workerData.id}`]);
+  assert.ok(Object.isFrozen(signed.refs));
   parentPort.postMessage(results);
   parentPort.close();
 }

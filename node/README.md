@@ -1,8 +1,8 @@
 # radicle-sdk: TypeScript alpha (in progress)
 
-**Experimental, incomplete TypeScript v0.** Builds on the isolated T0 spike;
-local issue and patch COB workflows are implemented; supporting repository
-expansion remains separate.
+**Experimental TypeScript v0.** Builds on the isolated T0 spike;
+local issue/patch COB workflows and the planned supporting storage/repository
+operations are implemented. The repository increment is pending review.
 The Python package and its root Git-install path are unchanged. No shared core
 has been extracted.
 The native crate lives in `node/native`; the npm manifest is at repository root
@@ -87,7 +87,9 @@ not a replacement for the Git-install gate.
 
 - Async `Profile.init`; synchronous `Profile.load()`/`signer()` setup and profile
   metadata/storage handles.
-- Lazy `storage.repository(rid)`; async repository `head`, `identity`, `commit`.
+- Lazy `storage.repository(rid)`; async storage `contains/repositories`.
+- Async repository `head/identity/branches/branchHead/commit/tree/blob/history`,
+  plus explicit `signRefs(signer)`.
 - Async `initProject` (public project), `forkProject`, `checkoutProject`.
 - Lazy `Issues.open/openAs`; async `all/get/create/getMut`.
 - Mutable issue handle with `id`, async `reload/comment/edit/editDescription`,
@@ -128,7 +130,65 @@ fields are independent, mutable `Uint8Array` copies; changing one cannot alter
 storage or another snapshot. Handles cache no snapshots. A comment result pairs
 its entry ID with the post-operation snapshot built under the write lock.
 Missing `Issues.get`/`Patches.get` returns `null`; missing repositories fail at first I/O.
-This alpha intentionally exposes only a subset of the planned v0 fields/methods.
+This alpha exposes the bounded surface above, not the full upstream crate.
+
+### Storage and repository contract
+
+- `storage.repositories()` eagerly returns a frozen array of RIDs in upstream
+  storage order (not sorted). Storage failures reject `STORAGE`, never an empty
+  success. `contains(rid)` returns a boolean, with malformed RIDs rejected as
+  `ERR_INVALID_ARG_VALUE` and upstream failures as `REPOSITORY`. Repository handles
+  stay lazy: an absent repository fails at first I/O as `REPOSITORY`.
+- `branches()` returns sorted **canonical** short names under `refs/heads/`,
+  not actor namespaced branches. `branchHead(shortName)` follows symbolic refs;
+  only upstream `NotFound` becomes `null`. Names are validated but not normalized:
+  `refs/heads/main` as input means the short name `refs/heads/main`, not `main`.
+  Other Git failures reject `GIT`. Enumeration follows libgit2, including its
+  handling of malformed loose refs; iterator errors are propagated.
+- `commit(oid)` includes tree/parent OIDs, author/committer name/email bytes and
+  lossy `...Str` views, nullable epoch-millisecond times, timezone offsets in
+  minutes, message bytes/lossy text, and optional declared encoding. `tree(oid)`
+  preserves canonical Git entry order (directories sort as `name/`), raw filename
+  bytes/lossy `nameStr`, optional finite object kind, raw Unix mode, and OID.
+  Symlinks are blobs with mode `0o120000`; gitlinks use `0o160000`. No re-sorting,
+  implicit object peeling, text decoding of blobs, or filesystem traversal.
+- `blob(oid)` returns an independent mutable `Uint8Array`. Every byte field in
+  commits/trees also owns its own copy, while DTOs/ordinary arrays remain frozen.
+  Missing/wrong-kind objects reject `GIT`; malformed OIDs reject argument errors.
+- `history(rev, { limit = 100, offset = 0 })` resolves a Git revision expression
+  and returns `{ name, head, oids, offset, hasMore }`. `name` preserves the input;
+  OIDs use libgit2's default revwalk order, **not** a promised chronological or
+  topological sort. It reads at most `limit + 1` entries after skipping offset.
+  Pagination requires finite safe JS integers, `limit >= 1`, `offset >= 0`;
+  larger valid limits clamp to 1000. Invalid values reject `ERR_INVALID_ARG_VALUE`,
+  wrong input types reject `ERR_INVALID_ARG_TYPE`. Revspec/walk errors reject
+  `GIT`, including errors encountered while skipping and a resolved non-commit
+  object that cannot start the walk.
+- `signRefs(signer)` directly calls upstream signing under the shared repository
+  lock, then signer guard, returning a frozen `{ nodeId, at, parent?, featureLevel,
+  refs }`. `featureLevel` is `none | root | parent`; `refs` is a readonly plain
+  refname-to-OID object from the upstream result, not a later racing ref read.
+  The structural `refs/rad/sigrefs-parent` blob entry is omitted upstream; use
+  `parent` for that metadata. Upstream may reuse a sigrefs commit when unchanged.
+  Signing does not import commits, move canonical heads, or sync. Use it after
+  direct Git imports/ref changes; issue/patch COB writes already sign refs.
+  Errors reject `REPOSITORY`; there is no rollback/retry guarantee.
+- Reads remain parallel; signing shares the write lock with issue/patch writes
+  across handles/workers using the same addon. External Git/CLI writes are not
+  coordinated: finish them before asking the SDK to sign/read their results.
+
+```ts
+const commit = await repo.commit((await repo.head()).oid);
+const tree = await repo.tree(commit.tree);
+for (const entry of tree.entries) {
+  if (entry.kind === 'blob') console.log(entry.nameStr, await repo.blob(entry.oid));
+}
+const page = await repo.history('HEAD', { limit: 20 });
+console.log(page.oids, page.hasMore);
+// After a direct Git import, with its namespace refs already updated:
+const signed = await repo.signRefs(signer);
+console.log(signed.at, signed.refs);
+```
 
 ### Issue contract
 

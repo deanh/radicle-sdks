@@ -1,7 +1,8 @@
 import * as raw from '../dist/native.cjs';
 export type { Comment, Commit, HeadInfo, ProjectDoc, Issue, IssueChange, InitOptions, CreateIssueOptions, CloseIssueOptions,
   Patch, Revision, Review, PatchChange, PatchRevisionChange, PatchStateChange,
-  CreatePatchOptions, EditPatchOptions, UpdatePatchOptions, PatchCommentOptions, ReviewPatchOptions } from '../dist/native.cjs';
+  CreatePatchOptions, EditPatchOptions, UpdatePatchOptions, PatchCommentOptions, ReviewPatchOptions,
+  TreeEntry, Tree, HistoryOptions, HistoryPage, SignedRefs } from '../dist/native.cjs';
 
 import { run, sync } from './bridge.js';
 export { RadicleError } from './bridge.js';
@@ -49,6 +50,8 @@ export class Storage {
   /** @internal Native conversion only; obtain storage from Profile.storage. */
   constructor(value: raw.NativeStorage) { storages.set(this, value); }
   repository(rid: string): Repository { return new Repository(sync(() => storage(this).repository(rid))); }
+  contains(rid: string): Promise<boolean> { return run(() => storage(this).contains(rid)); }
+  repositories(): Promise<ReadonlyArray<string>> { return run(() => storage(this).repositories()); }
 }
 export class Repository {
   /** @internal Native conversion only; obtain repositories from Storage. */
@@ -57,6 +60,14 @@ export class Repository {
   head(): Promise<raw.HeadInfo> { return run(() => repository(this).head()); }
   identity(): Promise<raw.ProjectDoc> { return run(() => repository(this).identity()); }
   commit(oid: string): Promise<raw.Commit> { return run(() => repository(this).commit(oid)); }
+  branches(): Promise<ReadonlyArray<string>> { return run(() => repository(this).branches()); }
+  branchHead(name: string): Promise<string | null> { return run(() => repository(this).branchHead(name)); }
+  tree(oid: string): Promise<raw.Tree> { return run(() => repository(this).tree(oid)); }
+  blob(oid: string): Promise<Uint8Array> { return run(() => repository(this).blob(oid)); }
+  history(rev: string, options: raw.HistoryOptions = {}): Promise<raw.HistoryPage> {
+    return run(() => repository(this).history(rev, options));
+  }
+  signRefs(sg: Signer): Promise<raw.SignedRefs> { return run(() => repository(this).signRefs(signer(sg))); }
 }
 export function initProject(s: Storage, sg: Signer, path: string, options: raw.InitOptions): Promise<string> {
   return run(() => raw.initProject(storage(s), signer(sg), path, options));
