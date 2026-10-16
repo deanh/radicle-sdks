@@ -1,4 +1,5 @@
 //! Isolated Node binding. No shared-core extraction or Python changes.
+mod patches;
 #[cfg(not(panic = "unwind"))]
 compile_error!("radicle-sdk requires panic=unwind to contain worker task panics");
 use napi::{
@@ -792,6 +793,8 @@ mod tests {
     static_assertions::assert_impl_all!(radicle::storage::git::Storage: Send, Sync);
     static_assertions::assert_impl_all!(radicle::storage::git::Repository: Send);
     static_assertions::assert_not_impl_any!(radicle::storage::git::Repository: Sync);
+    static_assertions::assert_impl_all!(patches::NativePatches: Send, Sync);
+    static_assertions::assert_impl_all!(patches::NativePatchMut: Send, Sync);
     #[test]
     fn task_panic_fails_closed_without_unwinding_or_clearing_poison() {
         let lock = Arc::new(Mutex::new(()));

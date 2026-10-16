@@ -1,5 +1,7 @@
 import * as raw from '../dist/native.cjs';
-export type { Comment, Commit, HeadInfo, ProjectDoc, Issue, IssueChange, InitOptions, CreateIssueOptions, CloseIssueOptions } from '../dist/native.cjs';
+export type { Comment, Commit, HeadInfo, ProjectDoc, Issue, IssueChange, InitOptions, CreateIssueOptions, CloseIssueOptions,
+  Patch, Revision, Review, PatchChange, PatchRevisionChange, PatchStateChange,
+  CreatePatchOptions, EditPatchOptions, UpdatePatchOptions, PatchCommentOptions, ReviewPatchOptions } from '../dist/native.cjs';
 
 import { run, sync } from './bridge.js';
 export { RadicleError } from './bridge.js';
@@ -64,6 +66,42 @@ export function forkProject(s: Storage, sg: Signer, rid: string): Promise<void> 
 }
 export function checkoutProject(s: Storage, rid: string, remote: string, path: string): Promise<string> {
   return run(() => raw.checkoutProject(storage(s), rid, remote, path));
+}
+export class Patches {
+  readonly #raw: raw.NativePatches;
+  private constructor(value: raw.NativePatches) { this.#raw = value; }
+  static open(repo: Repository): Patches { return new Patches(sync(() => raw.NativePatches.open(repository(repo)))); }
+  static openAs(repo: Repository, sg: Signer): Patches {
+    return new Patches(sync(() => raw.NativePatches.openAs(repository(repo), signer(sg))));
+  }
+  async create(options: raw.CreatePatchOptions): Promise<PatchMut> { return new PatchMut(await run(() => this.#raw.create(options))); }
+  async draft(options: raw.CreatePatchOptions): Promise<PatchMut> { return new PatchMut(await run(() => this.#raw.draft(options))); }
+  async getMut(id: string): Promise<PatchMut> { return new PatchMut(await run(() => this.#raw.getMut(id))); }
+  get(id: string): Promise<raw.Patch | null> { return run(() => this.#raw.get(id)); }
+  all(): Promise<ReadonlyArray<raw.Patch>> { return run(() => this.#raw.all()); }
+}
+export class PatchMut {
+  readonly #raw: raw.NativePatchMut;
+  /** @internal Obtain mutable handles from Patches. No cached snapshot. */
+  constructor(value: raw.NativePatchMut) { this.#raw = value; }
+  get id(): string { return this.#raw.id; }
+  reload(): Promise<raw.Patch> { return run(() => this.#raw.reload()); }
+  edit(options: raw.EditPatchOptions): Promise<raw.PatchChange> { return run(() => this.#raw.edit(options)); }
+  label(labels: ReadonlyArray<string>): Promise<raw.PatchChange> { return run(() => this.#raw.label(labels)); }
+  assign(assignees: ReadonlyArray<string>): Promise<raw.PatchChange> { return run(() => this.#raw.assign(assignees)); }
+  update(options: raw.UpdatePatchOptions): Promise<raw.PatchRevisionChange> { return run(() => this.#raw.update(options)); }
+  ready(): Promise<raw.PatchStateChange> { return run(() => this.#raw.ready()); }
+  unready(): Promise<raw.PatchStateChange> { return run(() => this.#raw.unready()); }
+  archive(): Promise<raw.PatchStateChange> { return run(() => this.#raw.archive()); }
+  unarchive(): Promise<raw.PatchStateChange> { return run(() => this.#raw.unarchive()); }
+  comment(revision: string, body: string, options: raw.PatchCommentOptions = {}): Promise<raw.PatchChange> {
+    return run(() => this.#raw.comment(revision, body, options));
+  }
+  review(revision: string, options: raw.ReviewPatchOptions = {}): Promise<raw.PatchChange> {
+    return run(() => this.#raw.review(revision, options));
+  }
+  /** Record an upstream merge decision; never moves a Git branch. Inspect snapshot.state. */
+  merge(revision: string, commit: string): Promise<raw.PatchChange> { return run(() => this.#raw.merge(revision, commit)); }
 }
 export class Issues {
   readonly #raw: raw.NativeIssues;

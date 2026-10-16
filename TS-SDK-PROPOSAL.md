@@ -1,19 +1,20 @@
 # TypeScript SDK proposal
 
-Status: **T0 locally demonstrated on `ts-t0`; findings await an architecture decision**. Goal: a
+Status: **isolated TypeScript foundation and issue completion merged; bounded
+local patch workflows implemented on `ts-patches-v0`, pending review**. Goal: a
 programmatic TypeScript interface to the same core local Radicle workflows
 radicle-py covers, wrapping the `radicle` crate. The default answer to any extra
 feature is "not until a workflow needs it". rad-pi (the pi extension for
 Radicle) is the **reference consumer for scope decisions**. It is not a gate and
 not a reason to add features.
 
-Next step: **T0 spike → findings → explicit architecture decision** (§7). Core
-extraction and a conformance framework are *candidates* for that decision, not
-foregone conclusions. T0 results are in [`FINDINGS-TS-T0.md`](./FINDINGS-TS-T0.md):
-Linux workflows, concurrency, types and npm/pnpm Git installs pass. The pinned
-upstream's declared Rust 1.88 fails; the measured minimum is 1.91. Bun's own Git prepare fails while its
-runtime can use the Node-built addon. These limitations must inform the next
-decision. No core extraction or full v0 implementation has been authorized.
+Decision: proceed through reviewable local workflow increments **without shared
+core extraction** (§7). T0 evidence remains in
+[`FINDINGS-TS-T0.md`](./FINDINGS-TS-T0.md); current contracts are in
+[`node/README.md`](./node/README.md). The measured Rust minimum is 1.91. Bun's
+Git prepare fails while its runtime can use the Node-built addon. These are
+local Linux results, not broad platform or remote-CI claims. Supporting repository
+expansion, shared core, networking and publication remain separate decisions.
 
 ### Selected package and runtime
 
@@ -267,7 +268,9 @@ These are small, concrete generated object types, not a generalized result
 framework. Freeze result envelopes with the same container/byte policy. On a
 no-op state transition, `changed` is false and the snapshot is the state read
 under the lock; do not invent an operation ID or add a transaction. Otherwise
-preserve the upstream commit-per-operation behavior. Errors reject the Promise
+preserve the upstream commit-per-operation behavior. In particular, upstream
+`archive()` records a transaction even when already archived; `changed` reflects
+that upstream decision, not snapshot inequality. Errors reject the Promise
 rather than returning a success envelope; upstream partial failures do not gain
 rollback guarantees.
 
@@ -331,7 +334,9 @@ lock acquisition order.
 
 ## 6. Mono-repo or separate repositories?
 
-Not decided until after T0 (§7). The analysis to decide it with:
+Current increments keep both SDKs in this repository with isolated native crates
+and no extraction. Any future repository split/shared core is a separate decision.
+The original decision criteria follow:
 
 **For co-development.** Upstream pin bumps are the main thing that keeps the
 SDKs in sync, and they're frequent: Radicle 1.7.0 (March 2026) shipped crate
@@ -367,18 +372,19 @@ Other conditions:
 **Post-T0 decision:** proceed with bounded TypeScript v0 increments in the
 isolated native crate, **without T1/shared-core extraction**. Patch 1 completes
 issues (listing, creation metadata, edits, labels/assignment, close/reopen), using
-upstream transactions and locked `{ entryId, snapshot }` results. Patch workflows
-and supporting repository reads remain separate follow-ups, not part of patch 1.
-No Python restructuring, scheduler, networking or publication work is authorized
-by this increment. Current implemented surface and contracts: `node/README.md`.
+upstream transactions and locked `{ entryId, snapshot }` results. The baseline
+and issue increment are now merged, as is the independent Rust 1.91 minimum
+update (`74a8aed`). The authorized next increment, `ts-patches-v0`, implements
+local patch COB workflows and the three concrete result envelopes above.
+Supporting repository expansion stays separate. No Python restructuring,
+scheduler, networking or publication work is included. Current implemented
+surface and contracts: `node/README.md`.
 
-**Landing gate:** T0 lands as one squashed baseline commit, Radicle patch
-`66702b1` (commit `e284b66`), whose tree is byte-identical to the reviewed T0
-head `adeb55c13a0ebecb4a457252c03e46a822c1c11c`. Issue patch `15cd0e4` is
-rebased onto that baseline commit. Review and merge the baseline first; merge it
-as-is (fast-forward), otherwise rebase `15cd0e4` again. The intermediate T0
-history is not imported; it stays reachable through `15cd0e4`'s earlier
-revisions. No merge is authorized by this increment.
+**Landing history/gate:** baseline patch `66702b1` landed as the single squashed
+commit `e284b66`, whose tree matches reviewed T0 head `adeb55c`. Issue patch
+`15cd0e4` then landed on that baseline at `a7d6bda`; abandoned intermediate T0
+history was not imported. The patch-workflow increment starts from the merged
+`main` (`74a8aed`) and requires its own review and explicit landing authorization.
 
 | Phase | Work | Exit criteria |
 |---|---|---|

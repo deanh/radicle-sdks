@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { probeTimestamp } from '../dist/probes.js';
-import { RadicleError, Issues } from '../dist/index.js';
+import { RadicleError, Issues, Patches } from '../dist/index.js';
 import { execFile, execFileSync } from 'node:child_process';
 import { promisify } from 'node:util';
 import { fileURLToPath } from 'node:url';
@@ -61,6 +61,25 @@ test('signed peer dates outside Date range remain readable and cannot deny issue
   assert.deepEqual(all.map(i => i.id), [normal.id, ...ids].sort());
   assert.deepEqual(await read.get(normal.id), before);
   assert.ok(all.find(i => i.id === normal.id).comments.every(c => typeof c.timestamp === 'number'));
+});
+
+test('patch revisions, comments and reviews with unrepresentable dates stay listable and writable', async t => {
+  const f = await fixture(t), base = (await f.repo.head()).oid;
+  for (const seconds of ['8640000000001', '18446744073709551']) {
+    const { stdout } = await promisify(execFile)(process.execPath, [
+      fileURLToPath(new URL('./metadata-consumer.mjs', import.meta.url)), f.rid, 'patch', base,
+    ], { env: { ...process.env, RAD_HOME: f.home, GIT_COMMITTER_DATE: seconds }, timeout: 15000 });
+    const id = stdout.trim(), read = Patches.open(f.repo);
+    const p = await read.get(id);
+    const r = p.revisions[0];
+    for (const v of [r, ...r.comments, ...r.reviews]) assert.equal(v.timestamp, null);
+    const handle = await Patches.openAs(f.repo, f.signer).getMut(id);
+    const changed = await handle.label(['after-peer']);
+    assert.equal(changed.snapshot.revisions[0].timestamp, null);
+    assert.deepEqual((await read.get(id)).labels, ['after-peer']);
+    assert.equal((await handle.reload()).revisions[0].reviews[0].timestamp, null);
+    assert.ok((await read.all()).some(p => p.id === id));
+  }
 });
 
 test('commit metadata uses number-or-null independently for both dates without rejecting commit()', async t => {
