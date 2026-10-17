@@ -17,7 +17,7 @@ macOS, Windows, other architectures and musl-based Linux are not supported or
 validated yet. Support claims will expand only after source-install and workflow
 validation on those platforms; no multi-platform binary distribution is promised.
 
-Requires Node **26.12.0+** (tested baseline: 26.12.0), **Rust ≥ 1.91**, a C
+Requires Node **26.5.0+** (the oldest release the suite is run on), **Rust ≥ 1.91**, a C
 compiler, and Git. The pinned radicle 0.25.1 declares Rust 1.88.0 but doesn't
 compile on 1.88–1.90. There is no Node upper-version cap.
 npm publication and prebuilt platform packages are deferred.

@@ -9,7 +9,7 @@ issue discussions and common writes, and patch revisions/reviews/lifecycle.
 | SDK | Package / import | Runtime | Documentation |
 | --- | --- | --- | --- |
 | Python | `radicle-py` / `radiclepy` | CPython ≥ 3.9 (abi3) | [Guide](python/README.md), [API](python/API.md), [changelog](python/CHANGELOG.md) |
-| TypeScript | `radicle-sdk` | Node.js ≥ 26.12.0 | [Guide](node/README.md), [API](node/API.md), [changelog](node/CHANGELOG.md) |
+| TypeScript | `radicle-sdk` | Node.js ≥ 26.5.0 | [Guide](node/README.md), [API](node/API.md), [changelog](node/CHANGELOG.md) |
 
 ## Scope and non-goals
 

@@ -10,7 +10,7 @@ full parity. The [Python API](../python/API.md) and
 | Concern | Python | TypeScript / Node |
 | --- | --- | --- |
 | Package/import | `radicle-py` / `radiclepy` | `radicle-sdk` |
-| Runtime | CPython >=3.9, abi3 | Node >=26.12.0, no upper cap |
+| Runtime | CPython >=3.9, abi3 | Node >=26.5.0, no upper cap |
 | Platform boundary | Linux/macOS targets; Windows unsupported/unverified | Linux x86_64 GNU/glibc validated; other platforms unverified/unsupported |
 | Execution | synchronous | repository/COB/project work async; `Profile.load()` and `signer()` synchronous |
 | Repository handle creation | validates existence immediately | lazy; absence fails on first I/O |

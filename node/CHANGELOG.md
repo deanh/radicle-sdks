@@ -2,6 +2,8 @@
 
 ## Assessment fixes (unreleased)
 
+- Lower the Node floor from 26.12.0 to 26.5.0, the oldest release the suite is
+  run on; nothing in the SDK needs a later version.
 - `TreeEntry.kind` is declared and produced as exactly `'blob' | 'tree' | 'commit'`
   (optional); the unreachable `'tag'`/`'any'` members are gone.
 

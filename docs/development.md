@@ -53,7 +53,7 @@ finite domains, snapshot equality/hash, PathLike support and workflow semantics.
 
 ## TypeScript development
 
-Use Node >=26.12.0; the validated native platform is Linux x86_64 GNU/glibc.
+Use Node >=26.5.0; the validated native platform is Linux x86_64 GNU/glibc.
 
 ```sh
 nvm use
