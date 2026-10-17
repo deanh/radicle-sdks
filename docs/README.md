@@ -6,6 +6,7 @@
 - [Architecture](architecture.md): current layers, ownership and migration boundaries.
 - [Workflow semantics](semantics.md): signing, Git/COB writes, revisions and merges.
 - [SDK differences](sdk-differences.md): intentional API/conversion/concurrency differences.
+- [TypeScript parity checklist](node-parity.md): three-patch capability-parity plan and completion gates.
 - [Development and validation](development.md): commands, artifacts and evidence gates.
 - [Examples](../examples/README.md): the read-only digest in both SDKs.
 
