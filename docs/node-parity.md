@@ -1,6 +1,7 @@
 # TypeScript capability parity with Python
 
-Status: planned; implementation checkboxes below are not release claims.
+Status: patch 1 in progress on `node-parity`; no parity patch merged yet.
+Checked capability items mean implemented on this branch, not reviewed/released.
 Tracking issue: `4047bd966f4e39b98d097ff10d34dad649e37195`.
 Baseline: `4aa27eb10d1e6a4598629702086e9c35571340ef`.
 
@@ -37,16 +38,16 @@ regression suite. Presence of a method alone does not establish parity.
 
 ## Patch 1: repository and utilities
 
-- [ ] Repository `description`, `tags`, `revParse`, `remotes`; `TagInfo` and
+- [x] Repository `description`, `tags`, `revParse`, `remotes`; `TagInfo` and
   `RemoteInfo` fields equivalent to Python, with deterministic ordering and
   annotated/lightweight/non-commit tag cases.
-- [ ] Identity snapshot fields currently missing from `ProjectDoc`: `version`,
+- [x] Identity snapshot fields currently missing from `ProjectDoc`: `version`,
   `threshold`, `commit`, `blob`.
-- [ ] `setDefaultBranchToCanonicalHead`, `setIdentityHead`,
+- [x] `setDefaultBranchToCanonicalHead`, `setIdentityHead`,
   `setRemoteIdentityRoot`, including `SetHead` old/new/change information.
   Preserve upstream no-op/idempotence and persisted side effects; use existing
   repository write locking, without acquiring a signer for unsigned operations.
-- [ ] Bare checkout option without changing existing non-bare calls.
+- [x] Bare checkout option without changing existing non-bare calls.
 - [ ] Home construction/loading/resolution and path access; profile home access.
   Keep these local setup operations distinct from a profile environment adapter.
 - [ ] Explicit storage opening and storage path access. `profile.storage` already
@@ -54,7 +55,7 @@ regression suite. Presence of a method alone does not establish parity.
   is required solely to match spelling.
 - [ ] Alias lookup and reverse lookup with equivalent grouped results and missing
   behavior; signer DID access.
-- [ ] Public `parseRepoId`, `parseDid`, `parseNodeId`, `parseOid`, `parseObjectId`:
+- [x] Public `parseRepoId`, `parseDid`, `parseNodeId`, `parseOid`, `parseObjectId`:
   reuse upstream parsers/canonicalization, existing Node argument error codes,
   and synchronous panic containment. Document string ID types, not nominal
   runtime validation through TypeScript annotations.
@@ -166,6 +167,21 @@ Retain these rather than copying Python object mechanics:
 
 New representation differences must be recorded explicitly; this list is not a
 blanket exemption for missing data or unsupported workflows.
+
+## Progress evidence
+
+Patch 1 first implementation slice (not yet ready for whole-patch review):
+repository inspection and metadata, canonical-ref writes, bare checkout and ID
+validators. Profile/home/storage utilities, aliases and typed-store conveniences
+remain unchecked above.
+
+Local Linux x86_64 validation: optimized Rust 1.91 addon build; 34 Node tests;
+208 Python/shared tests with helpers and cross-SDK checks required; 4 native
+release tests; MSRV/stable Clippy and rustfmt; TypeScript and Prettier checks.
+The packed-package gate now runs the new parity consumer and repository type
+fixture outside the checkout, in addition to the existing runtime/README gates.
+No exact-SHA Git installation, minimum-Node runtime or remote CI claim for this
+slice. Evidence: `/tmp/radicle-node-parity-p1/` on the development host.
 
 ## Completion review and evidence
 

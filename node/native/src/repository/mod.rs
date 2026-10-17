@@ -15,7 +15,7 @@ use napi::{Result, bindgen_prelude::AsyncTask};
 use napi_derive::napi;
 use radicle::{
     identity::RepoId,
-    storage::{ReadRepository, ReadStorage, SignRepository},
+    storage::{ReadRepository, ReadStorage, SignRepository, WriteRepository},
 };
 use values::*;
 #[napi]
@@ -107,6 +107,142 @@ impl NativeRepository {
                 Err(e) if e.code() == radicle::git::raw::ErrorCode::NotFound => Ok(None),
                 Err(e) => Err(err("GIT", e)),
             }
+        })
+    }
+    #[napi(catch_unwind, ts_return_type = "Promise<string>")]
+    pub fn rev_parse(&self, rev: String) -> AsyncTask<Work<String>> {
+        let me = self.clone();
+        work(move || {
+            let repo = me.open()?;
+            let object = repo
+                .backend
+                .revparse_single(&rev)
+                .map_err(|e| err("GIT", e))?;
+            Ok(object.id().to_string())
+        })
+    }
+    #[napi(catch_unwind, ts_return_type = "Promise<ReadonlyArray<TagInfo>>")]
+    pub fn tags(&self) -> AsyncTask<Work<Vec<TagInfo>>> {
+        let me = self.clone();
+        work(move || {
+            let repo = me.open()?;
+            let mut refs = Vec::new();
+            for reference in repo.backend.references().map_err(|e| err("GIT", e))? {
+                let reference = reference.map_err(|e| err("GIT", e))?;
+                if let Some(name) = reference
+                    .name()
+                    .map_err(|e| err("GIT", e))?
+                    .strip_prefix("refs/tags/")
+                    && let Some(target) = reference.target()
+                {
+                    refs.push((name.to_owned(), target));
+                }
+            }
+            refs.sort();
+            refs.into_iter()
+                .map(|(name, target)| {
+                    use radicle::git::raw::ObjectType;
+                    let object = repo
+                        .backend
+                        .find_object(target, None)
+                        .map_err(|e| err("GIT", e))?;
+                    let annotated = object.kind() == Some(ObjectType::Tag);
+                    // Only peel tags: peeling a lightweight commit can resolve its tree.
+                    let peeled = if annotated {
+                        object.peel(ObjectType::Any).map_err(|e| err("GIT", e))?
+                    } else {
+                        object
+                    };
+                    let peeled_kind = match peeled.kind() {
+                        Some(ObjectType::Commit) => "commit",
+                        Some(ObjectType::Tree) => "tree",
+                        Some(ObjectType::Blob) => "blob",
+                        _ => {
+                            return Err(err(
+                                "GIT",
+                                format!("tag {name:?} peels to an unexpected object kind"),
+                            ));
+                        }
+                    };
+                    Ok(TagInfo {
+                        name,
+                        target: target.to_string(),
+                        kind: if annotated {
+                            "annotated"
+                        } else {
+                            "lightweight"
+                        }
+                        .into(),
+                        peeled: peeled.id().to_string(),
+                        peeled_kind: peeled_kind.into(),
+                    })
+                })
+                .collect()
+        })
+    }
+    #[napi(catch_unwind, ts_return_type = "Promise<ReadonlyArray<RemoteInfo>>")]
+    pub fn remotes(&self) -> AsyncTask<Work<Vec<RemoteInfo>>> {
+        let me = self.clone();
+        work(move || {
+            let repo = me.open()?;
+            let mut out = Vec::new();
+            for remote in repo.remotes().map_err(|e| err("GIT", e))? {
+                let (fetcher, remote) = remote.map_err(|e| err("GIT", e))?;
+                out.push(RemoteInfo {
+                    fetcher: fetcher.to_string(),
+                    heads: remote
+                        .refs
+                        .iter()
+                        .map(|(name, _)| name.to_string())
+                        .collect(),
+                });
+            }
+            out.sort_by(|a, b| a.fetcher.cmp(&b.fetcher));
+            Ok(out)
+        })
+    }
+    #[napi(catch_unwind, ts_return_type = "Promise<SetHead>")]
+    pub fn set_default_branch_to_canonical_head(&self) -> AsyncTask<Work<SetHead>> {
+        let me = self.clone();
+        work(move || {
+            let lock = repo_lock(&me)?;
+            let _guard = lock.lock().map_err(|e| err("INTERNAL", e))?;
+            let repo = me.open()?;
+            let head = repo
+                .set_default_branch_to_canonical_head()
+                .map_err(|e| err("REPOSITORY", e))?;
+            Ok(SetHead {
+                is_updated: head.old != Some(head.new),
+                old: head.old.map(|id| id.to_string()),
+                new: head.new.to_string(),
+            })
+        })
+    }
+    #[napi(catch_unwind, ts_return_type = "Promise<string>")]
+    pub fn set_identity_head(&self) -> AsyncTask<Work<String>> {
+        let me = self.clone();
+        work(move || {
+            let lock = repo_lock(&me)?;
+            let _guard = lock.lock().map_err(|e| err("INTERNAL", e))?;
+            let repo = me.open()?;
+            Ok(repo
+                .set_identity_head()
+                .map_err(|e| err("REPOSITORY", e))?
+                .to_string())
+        })
+    }
+    #[napi(catch_unwind, ts_return_type = "Promise<string>")]
+    pub fn set_remote_identity_root(&self, remote: String) -> AsyncTask<Work<String>> {
+        let me = self.clone();
+        work(move || {
+            let remote = remote.parse().map_err(|e| err("ARG_VALUE", e))?;
+            let lock = repo_lock(&me)?;
+            let _guard = lock.lock().map_err(|e| err("INTERNAL", e))?;
+            let repo = me.open()?;
+            Ok(repo
+                .set_remote_identity_root(&remote)
+                .map_err(|e| err("REPOSITORY", e))?
+                .to_string())
         })
     }
     #[napi(catch_unwind, ts_return_type = "Promise<Tree>")]
@@ -227,6 +363,10 @@ impl NativeRepository {
                 .map_err(|e| err("IDENTITY", e))?;
             let p = doc.project().map_err(|e| err("IDENTITY", e))?;
             Ok(ProjectDoc {
+                version: doc.version().number().into(),
+                threshold: doc.threshold() as f64,
+                commit: doc.commit.to_string(),
+                blob: doc.blob.to_string(),
                 name: p.name().to_string(),
                 description: p.description().to_owned(),
                 default_branch: p.default_branch().to_string(),

@@ -16,6 +16,14 @@ pub struct HeadInfo {
 #[napi(object)]
 pub struct ProjectDoc {
     #[napi(readonly)]
+    pub version: u32,
+    #[napi(readonly)]
+    pub threshold: f64,
+    #[napi(readonly)]
+    pub commit: String,
+    #[napi(readonly)]
+    pub blob: String,
+    #[napi(readonly)]
     pub name: String,
     #[napi(readonly)]
     pub description: String,
@@ -115,6 +123,36 @@ pub struct SignedRefs {
     pub feature_level: String,
     #[napi(readonly, ts_type = "Readonly<Record<string, string>>")]
     pub refs: BTreeMap<String, String>,
+}
+
+#[napi(object)]
+pub struct TagInfo {
+    #[napi(readonly)]
+    pub name: String,
+    #[napi(readonly)]
+    pub target: String,
+    #[napi(readonly, ts_type = "'annotated' | 'lightweight'")]
+    pub kind: String,
+    #[napi(readonly)]
+    pub peeled: String,
+    #[napi(readonly, ts_type = "'commit' | 'tree' | 'blob'")]
+    pub peeled_kind: String,
+}
+#[napi(object)]
+pub struct RemoteInfo {
+    #[napi(readonly)]
+    pub fetcher: String,
+    #[napi(readonly, ts_type = "ReadonlyArray<string>")]
+    pub heads: Vec<String>,
+}
+#[napi(object)]
+pub struct SetHead {
+    #[napi(readonly)]
+    pub old: Option<String>,
+    #[napi(readonly)]
+    pub new: String,
+    #[napi(readonly)]
+    pub is_updated: bool,
 }
 
 pub(super) fn page_number(value: f64, name: &str, minimum: f64) -> Result<usize> {

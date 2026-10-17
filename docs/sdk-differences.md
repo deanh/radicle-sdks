@@ -17,8 +17,8 @@ full parity. The [Python API](../python/API.md) and
 | Typed COB store creation | `open/open_as`, lazy | `open/openAs`, lazy |
 | Missing issue/patch/branch lookup | `None` | `null` |
 | Filesystem input | `str` or `os.PathLike[str]`; no bytes paths | string paths |
-| Extra surfaces | policy management, routing reads, raw COB inspection, more repository metadata/ref maintenance, bare checkout | those additions deferred; checkout non-bare |
-| Aliases and ID validators | public lookup facade and `parse_*` functions | no equivalent public convenience surface |
+| Extra surfaces | policy management, routing reads, raw COB inspection | those additions deferred; repository metadata/ref maintenance and bare checkout are now available |
+| Aliases and ID validators | public lookup facade and `parse_*` functions | aliases deferred; synchronous `parseRepoId/parseDid/parseNodeId/parseOid/parseObjectId` available |
 
 Neither SDK loads a custom profile environment adapter. Upstream resolves home,
 passphrase and agent settings from the native process environment. Configure them

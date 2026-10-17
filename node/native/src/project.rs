@@ -102,6 +102,7 @@ pub fn checkout_project(
     repo_id: String,
     remote: String,
     path: String,
+    bare: bool,
 ) -> AsyncTask<Work<String>> {
     let storage = storage.inner.clone();
     work(move || {
@@ -115,7 +116,7 @@ pub fn checkout_project(
             &remote,
             std::path::Path::new(&path),
             &repo.storage,
-            false,
+            bare,
         )
         .map_err(|e| err("REPOSITORY", e))?;
         Ok(path)

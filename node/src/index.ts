@@ -25,11 +25,31 @@ export type {
   HistoryOptions,
   HistoryPage,
   SignedRefs,
+  TagInfo,
+  RemoteInfo,
+  SetHead,
 } from '../dist/native.cjs';
 
 import { run, sync } from './bridge.js';
 export { RadicleError } from './bridge.js';
 export type { ErrorCode } from './bridge.js';
+
+/** Validate and canonicalize IDs synchronously; annotations do not validate IDs. */
+export function parseRepoId(value: string): string {
+  return sync(() => raw.parseRepoId(value));
+}
+export function parseDid(value: string): string {
+  return sync(() => raw.parseDid(value));
+}
+export function parseNodeId(value: string): string {
+  return sync(() => raw.parseNodeId(value));
+}
+export function parseOid(value: string): string {
+  return sync(() => raw.parseOid(value));
+}
+export function parseObjectId(value: string): string {
+  return sync(() => raw.parseObjectId(value));
+}
 
 // Module-private factories keep native conversion out of emitted public signatures.
 const constructionKey = Symbol('SDK handle construction');
@@ -153,6 +173,27 @@ export class Repository {
   identity(): Promise<raw.ProjectDoc> {
     return run(() => repository(this).identity());
   }
+  async description(): Promise<string> {
+    return (await this.identity()).description;
+  }
+  tags(): Promise<ReadonlyArray<raw.TagInfo>> {
+    return run(() => repository(this).tags());
+  }
+  revParse(rev: string): Promise<string> {
+    return run(() => repository(this).revParse(rev));
+  }
+  remotes(): Promise<ReadonlyArray<raw.RemoteInfo>> {
+    return run(() => repository(this).remotes());
+  }
+  setDefaultBranchToCanonicalHead(): Promise<raw.SetHead> {
+    return run(() => repository(this).setDefaultBranchToCanonicalHead());
+  }
+  setIdentityHead(): Promise<string> {
+    return run(() => repository(this).setIdentityHead());
+  }
+  setRemoteIdentityRoot(remote: string): Promise<string> {
+    return run(() => repository(this).setRemoteIdentityRoot(remote));
+  }
   commit(oid: string): Promise<raw.Commit> {
     return run(() => repository(this).commit(oid));
   }
@@ -196,8 +237,15 @@ export function checkoutProject(
   rid: string,
   remote: string,
   path: string,
+  options: { bare?: boolean } = {},
 ): Promise<string> {
-  return run(() => raw.checkoutProject(storage(s), rid, remote, path));
+  return run(() => {
+    if (options === null || typeof options !== 'object' || Array.isArray(options))
+      throw new TypeError('checkout options must be an object');
+    if (options.bare !== undefined && typeof options.bare !== 'boolean')
+      throw new TypeError('bare must be a boolean');
+    return raw.checkoutProject(storage(s), rid, remote, path, options.bare ?? false);
+  });
 }
 export class Patches {
   readonly #raw: raw.NativePatches;

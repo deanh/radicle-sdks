@@ -1,5 +1,14 @@
 # radicle-sdk changelog
 
+## Python capability parity (in progress, unreleased)
+
+- Add repository description, tags, revision parsing and signed-remote inspection;
+  include identity version, quorum threshold and commit/blob IDs.
+- Add explicit canonical branch/identity-head and remote identity-root writes,
+  under the existing repository lock without implicit signing.
+- Add opt-in bare checkout and synchronous upstream-backed public ID validators.
+- This is the first slice of parity patch 1, not a claim of completed parity.
+
 ## Assessment fixes (unreleased)
 
 - Lower the Node floor from 26.12.0 to 26.5.0, the oldest release the suite is

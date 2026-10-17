@@ -11,10 +11,12 @@ native bridge and probe files are internal, not supported import paths.
 - Async `Profile.init`; synchronous `Profile.load()`/`signer()` setup and profile
   metadata/storage handles.
 - Lazy `storage.repository(rid)`; async storage `contains/repositories`.
-- Async repository `head/identity/branches/branchHead/commit/tree/blob/history`,
-  plus explicit `signRefs(signer)`.
+- Async repository `head/identity/description/branches/branchHead/tags/revParse`,
+  `commit/tree/blob/history/remotes`, explicit `signRefs(signer)` and canonical-ref
+  maintenance (`setDefaultBranchToCanonicalHead/setIdentityHead/setRemoteIdentityRoot`).
+- Synchronous `parseRepoId/parseDid/parseNodeId/parseOid/parseObjectId` validators.
 - Async `initProject` (public by default, or `visibility: 'private'`),
-  `forkProject`, `checkoutProject` (non-bare only; bare checkout remains deferred).
+  `forkProject`, `checkoutProject` (non-bare by default, optional `{ bare: true }`).
 - Lazy `Issues.open/openAs`; async `all/get/create/getMut`.
 - Mutable issue handle with `id`, async `reload/comment/edit/editDescription`,
   `label/assign/close/reopen`.
@@ -42,7 +44,17 @@ with an empty allowlist. This is identity/access metadata, **not encryption** or
 a network publication operation. Other string values reject
 `ERR_INVALID_ARG_VALUE`; wrong input types reject `ERR_INVALID_ARG_TYPE`.
 An existing `rad` remote is preserved and reinitialization rejected. Initialization
-has no general rollback guarantee. Checkout remains non-bare.
+has no general rollback guarantee.
+`checkoutProject(storage, rid, remote, path, { bare?: boolean })` defaults to a
+non-bare checkout; `{ bare: true }` requests upstream bare checkout. Existing
+four-argument calls are unchanged. Wrong option types, including `bare: null`,
+reject `ERR_INVALID_ARG_TYPE`; no truthiness coercion is performed.
+
+`parseRepoId`, `parseDid`, `parseNodeId`, `parseOid` and `parseObjectId` validate
+and return canonical strings using upstream parsers. They throw synchronously:
+malformed strings produce `ERR_INVALID_ARG_VALUE`; non-strings produce
+`ERR_INVALID_ARG_TYPE`. They perform no repository I/O. TypeScript string types
+do not replace these runtime checks.
 
 Snapshots/result envelopes recursively freeze ordinary objects/arrays. Byte
 fields are independent, mutable `Uint8Array` copies; changing one cannot alter
@@ -64,6 +76,26 @@ This alpha exposes the bounded surface above, not the full upstream crate.
   `refs/heads/main` as input means the short name `refs/heads/main`, not `main`.
   Other Git failures reject `GIT`. Enumeration follows libgit2, including its
   handling of malformed loose refs; iterator errors are propagated.
+- `identity()` includes project name/description/default branch, identity `version`,
+  delegates/quorum `threshold`, visibility, identity `commit` and document `blob`
+  OIDs. `description()` reads that verified identity; failures reject `IDENTITY`,
+  not a missing description sentinel (repository-open failures remain `REPOSITORY`).
+- `tags()` returns name-sorted `TagInfo` values: `name`, raw `target`,
+  `kind: 'annotated' | 'lightweight'`, `peeled`, and
+  `peeledKind: 'commit' | 'tree' | 'blob'`. Symbolic tag refs are skipped. Only tag
+  objects are peeled; lightweight commit targets do not accidentally become trees.
+  Git/peeling failures reject `GIT`. `revParse(rev)` resolves arbitrary Git revision
+  expressions without implicit peeling and rejects invalid/unresolved revspecs as
+  `GIT`, not argument-value errors.
+- `remotes()` returns fetcher-sorted `{ fetcher, heads }` snapshots of upstream
+  signed ref names (not just branches). Git/remote decoding failures reject `GIT`.
+- `setDefaultBranchToCanonicalHead()` returns `{ old?, new, isUpdated }`;
+  `setIdentityHead()` and `setRemoteIdentityRoot(nodeId)` return OIDs. Each maps
+  directly to one upstream write under the shared repository lock and takes no
+  signer. They do not implicitly sign refs or compose a transaction with other
+  calls. Remote-root writes do not require membership and are idempotent upstream.
+  Invalid node IDs reject argument errors; operational failures reject
+  `REPOSITORY`. There is no rollback/retry or external-writer coordination.
 - `commit(oid)` includes tree/parent OIDs, author/committer name/email bytes and
   lossy `...Str` views, nullable epoch-millisecond times, timezone offsets in
   minutes, message bytes/lossy text, and optional declared encoding. `tree(oid)`
@@ -92,7 +124,7 @@ This alpha exposes the bounded surface above, not the full upstream crate.
   Signing does not import commits, move canonical heads, or sync. Use it after
   direct Git imports/ref changes; issue/patch COB writes already sign refs.
   Errors reject `REPOSITORY`; there is no rollback/retry guarantee.
-- Reads remain parallel; signing shares the write lock with issue/patch writes
+- Reads remain parallel; signing and canonical-ref maintenance share the write lock with issue/patch writes
   across handles/workers using the same addon. External Git/CLI writes are not
   coordinated: finish them before asking the SDK to sign/read their results.
 

@@ -7,8 +7,45 @@ import {
   type HistoryPage,
   type HistoryOptions,
   type SignedRefs,
+  type TagInfo,
+  type RemoteInfo,
+  type SetHead,
+  checkoutProject,
+  parseOid,
 } from '../dist/index.js';
 async function usage(storage: Storage, repo: Repository, signer: Signer): Promise<void> {
+  const id: string = parseOid('oid');
+  const description: string = await repo.description();
+  const tags: ReadonlyArray<TagInfo> = await repo.tags();
+  const remotes: ReadonlyArray<RemoteInfo> = await repo.remotes();
+  const changed: SetHead = await repo.setDefaultBranchToCanonicalHead();
+  const updated: boolean = changed.isUpdated;
+  const previous: string | undefined = changed.old;
+  const identity = await repo.identity();
+  const version: number = identity.version;
+  const threshold: number = identity.threshold;
+  const identityCommit: string = identity.commit;
+  const identityBlob: string = identity.blob;
+  await repo.revParse('HEAD');
+  await repo.setIdentityHead();
+  await repo.setRemoteIdentityRoot(signer.nodeId);
+  await checkoutProject(storage, repo.rid, signer.nodeId, '/tmp/checkout', { bare: true });
+  // @ts-expect-error bare does not coerce strings
+  await checkoutProject(storage, repo.rid, signer.nodeId, '/tmp/checkout', { bare: 'true' });
+  // @ts-expect-error tag snapshots are readonly
+  tags[0].peeled = id;
+  // @ts-expect-error metadata snapshots are readonly
+  identity.threshold = 2;
+  console.log(
+    description,
+    remotes,
+    updated,
+    previous,
+    version,
+    threshold,
+    identityCommit,
+    identityBlob,
+  );
   const ids: ReadonlyArray<string> = await storage.repositories();
   const present: boolean = await storage.contains(repo.rid);
   const branches: ReadonlyArray<string> = await repo.branches();
