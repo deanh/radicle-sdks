@@ -87,17 +87,25 @@ writes, bare/non-bare destinations, private construction and public type checks.
 - [ ] `RoutingEntry` fields, ordering, missing timestamps and numeric limits.
 - [ ] Database/policy/read-only errors mapped to documented Node codes.
 
-Before implementation, record connection ownership, open-versus-operation error
-timing, serialization scope and busy/error behavior in this document. Do not
-send a thread-affine SQLite handle between worker jobs or claim cross-process
-coordination. Prefer asynchronous database I/O and retain the no-retry contract;
-verify upstream connection traits and transaction behavior before choosing the
-mechanism. Read-only operations must not create a writable database accidentally.
+Connection ownership decision: policy handles retain only the database path and
+access mode, not an open SQLite connection. Each asynchronous worker operation
+opens, uses and drops its own upstream policy store, mirroring repository
+reopening. A read-only handle must use upstream `Store::reader` (read-only open
+flags), never the writable opener; opening per call alone does not prevent file
+creation. No connection is transferred between jobs. Accept one open per call;
+retain the no-retry contract and do not claim cross-process coordination.
+Routing can use upstream `node::Database`'s thread-safe shared connection, subject
+to verifying the wrapper's worker ownership and error handling.
 
-Timestamp proposal: follow existing Node millisecond/Date-safe conversion with
-`null` for unrepresentable stored values, explicitly distinguishing this from
-Python's arbitrary-precision integers. Confirm and document this as an intentional
-representation difference when the patch is reviewed.
+Before implementation, finish specifying factory-versus-operation error timing,
+serialization scope and busy/error propagation. Per-operation connections do not
+by themselves serialize concurrent writes. Tests must prove a missing read-only
+database remains absent and that writable access is never obtained as fallback.
+
+Routing timestamp decision: use the existing Node millisecond/Date-safe conversion
+with `null` for unrepresentable stored values. Record this as an intentional
+representation difference from Python's arbitrary-precision integers; preserve
+the established missing-value behavior.
 
 Required evidence: Python-to-Node and Node-to-Python policy visibility, read-only
 failures, replacement/no-op booleans, missing/empty databases, concurrent handles
@@ -115,14 +123,26 @@ and workers, and routing fixtures that do not require a network daemon.
 - [ ] Independent action byte copies and immutable surrounding snapshots; no
   accidental claim that individual COB refs authenticate their contents.
 
-Before implementation, specify raw timestamp units and JSON numeric behavior.
-Python raw timestamps are seconds, unlike typed COB milliseconds. Existing Node
-Date-safe milliseconds must not silently dictate this low-level format. Preserve
-raw bytes regardless of the decoded representation. Ordinary `JSON.parse` loses
-large-integer precision: either offer a lossless decoding representation or
-explicitly document and test a deliberate representation difference. A silent
-rounded number does not satisfy this checklist. Review this choice before adding
-a dependency or a second public decoding convention.
+Action JSON decision: retain independent action byte copies and provide a
+no-dependency decoding helper that preserves integers outside JavaScript's safe
+integer range as `bigint`, with safe integers represented as `number`. Determine
+the integer from its original JSON token, never from an already-rounded Number.
+A string-aware number scanner is an option; prefer the standard JSON.parse reviver
+source text if verified on the minimum supported Node version. This facility was
+locally verified on Node 26.12, not yet on the 26.5 floor.
+
+Specify decimal/exponent behavior before implementing the helper: BigInt cannot
+represent fractional values, so integer preservation must not be advertised as
+arbitrary-decimal losslessness. Python itself decodes decimal/exponent tokens as
+floats. Test positive/negative safe-integer boundaries, nested arrays/objects,
+escaped strings containing number-like text, negative zero, fractional/exponent
+tokens, invalid JSON and overflow behavior. Do not introduce a dependency or
+silently round out-of-range integer tokens. Document that decoded BigInts cannot
+be passed directly to ordinary JSON.stringify; original bytes remain available.
+
+Raw timestamp representation remains to be specified. Python raw timestamps are
+seconds, unlike typed COB milliseconds; the routing decision does not silently
+apply to this low-level format.
 
 Required evidence: shared histories covering multiple actors/refs, identity and
 related links that must not be traversed, deterministic ordering, malformed refs,
