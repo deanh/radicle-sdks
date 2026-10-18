@@ -48,6 +48,8 @@ pub struct Revision {
 #[napi(object)]
 pub struct Patch {
     #[napi(readonly)]
+    pub revision_count: f64,
+    #[napi(readonly)]
     pub id: String,
     #[napi(readonly)]
     pub title: String,
@@ -106,6 +108,7 @@ pub(super) fn snapshot(id: &ObjectId, p: &RawPatch) -> Patch {
     assignees.sort();
     let (latest, revision) = p.latest();
     Patch {
+        revision_count: p.revisions().count() as f64,
         id: id.to_string(),
         title: p.title().to_owned(),
         description: revision.description().to_owned(),

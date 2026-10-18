@@ -25,6 +25,21 @@ pub struct NativeStorage {
 }
 #[napi]
 impl NativeStorage {
+    #[napi(catch_unwind, ts_return_type = "Promise<NativeStorage>")]
+    pub fn open(path: String, alias: String, node_id: String) -> AsyncTask<Work<NativeStorage>> {
+        work(move || {
+            let alias = alias.parse().map_err(|e| err("ARG_VALUE", e))?;
+            let key = node_id.parse().map_err(|e| err("ARG_VALUE", e))?;
+            let inner =
+                radicle::storage::git::Storage::open(path, radicle::git::UserInfo { alias, key })
+                    .map_err(|e| err("STORAGE", e))?;
+            Ok(Self { inner })
+        })
+    }
+    #[napi(getter, catch_unwind)]
+    pub fn path(&self) -> Result<String> {
+        crate::profile::path_string(self.inner.path())
+    }
     #[napi(catch_unwind, ts_return_type = "Promise<boolean>")]
     pub fn contains(&self, repo_id: String) -> AsyncTask<Work<bool>> {
         let storage = self.inner.clone();

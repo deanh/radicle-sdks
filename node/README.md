@@ -155,6 +155,13 @@ try {
 
 The [API reference](API.md) describes handles, repository/issue/patch operations,
 snapshots, timestamps, errors, concurrency, environment setup and panic limits.
+Repository utilities include tags, revision parsing, signed remotes and explicit
+canonical-ref maintenance. Checkout supports `{ bare: true }`. Use async
+`Home.create/load/resolve`, `profile.home`, `profile.aliases`, and
+`Storage.open(path, alias, nodeId)` for local setup/lookup; `profile.storage`
+remains the usual storage entry. Public synchronous `parse*` functions validate
+IDs. Typed stores expose `rid`, `count()` and `isEmpty()`. Policy/routing and raw
+COB inspection are still deferred.
 
 In a source checkout, `docs/semantics.md` and `docs/sdk-differences.md` explain
 cross-SDK behavior. Repository build/test commands and exact-commit npm/pnpm

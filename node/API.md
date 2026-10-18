@@ -10,6 +10,8 @@ native bridge and probe files are internal, not supported import paths.
 
 - Async `Profile.init`; synchronous `Profile.load()`/`signer()` setup and profile
   metadata/storage handles.
+- Async `Home.create/load/resolve`, `profile.home`, `profile.aliases`, storage
+  path access and explicit async `Storage.open(path, alias, nodeId)`.
 - Lazy `storage.repository(rid)`; async storage `contains/repositories`.
 - Async repository `head/identity/description/branches/branchHead/tags/revParse`,
   `commit/tree/blob/history/remotes`, explicit `signRefs(signer)` and canonical-ref
@@ -17,10 +19,10 @@ native bridge and probe files are internal, not supported import paths.
 - Synchronous `parseRepoId/parseDid/parseNodeId/parseOid/parseObjectId` validators.
 - Async `initProject` (public by default, or `visibility: 'private'`),
   `forkProject`, `checkoutProject` (non-bare by default, optional `{ bare: true }`).
-- Lazy `Issues.open/openAs`; async `all/get/create/getMut`.
+- Lazy `Issues.open/openAs`; store `rid`, async `all/get/count/isEmpty/create/getMut`.
 - Mutable issue handle with `id`, async `reload/comment/edit/editDescription`,
   `label/assign/close/reopen`.
-- Lazy `Patches.open/openAs`; async `all/get/create/draft/getMut`.
+- Lazy `Patches.open/openAs`; store `rid`, async `all/get/count/isEmpty/create/draft/getMut`.
 - Mutable patch handle with `id`, async `reload/edit/label/assign/update`,
   `ready/unready/archive/unarchive`, revision `comment/review`, and merge records.
 - Generated readonly DTOs, literal state/visibility domains and copied byte fields.
@@ -32,7 +34,7 @@ and limits below supplement those types rather than promising upstream parity.
 ## Handle and snapshot contract
 
 Handles have private constructors in the emitted consumer declarations and reject
-direct JavaScript construction. Use `Profile.init/load`, `profile.signer()`,
+direct JavaScript construction. Use `Home.create/load/resolve`, `Profile.init/load`, `profile.signer()`,
 `profile.storage`, `storage.repository()`, `Issues.open/openAs` and
 `Patches.open/openAs`; obtain mutable handles from `create/draft/getMut`.
 No native conversion constructors or public `fromNative` helpers are exposed.
@@ -62,6 +64,35 @@ storage or another snapshot. Handles cache no snapshots. A comment result pairs
 its entry ID with the post-operation snapshot built under the write lock.
 Missing `Issues.get`/`Patches.get` returns `null`; missing repositories fail at first I/O.
 This alpha exposes the bounded surface above, not the full upstream crate.
+
+### Home, profile utilities and explicit storage
+
+`Home.create(path)` creates/canonicalizes the home and required subdirectories;
+`Home.load(path)` validates an existing layout without creating it.
+`Home.resolve()` uses the native process environment (`RAD_HOME`, otherwise
+`HOME/.radicle` on Unix) and creates missing directories, just like upstream.
+These factories are asynchronous and return private-construction `Home` handles
+with a synchronous `path` getter. Failures reject `STORAGE`. `profile.home`
+provides its existing home without re-resolving the environment.
+
+`profile.aliases` is an async lookup facade, not an enumerable database:
+`get(nodeId)` returns a string or `null`; `reverseLookup(alias)` returns a frozen
+`Readonly<Record<string, ReadonlyArray<string>>>` with upstream grouped matches.
+Keys such as `__proto__` are preserved as own data properties, not interpreted as
+prototype setters. Missing matches yield `{}`; upstream alias lookup semantics,
+including its handling of unavailable sources, are retained. Invalid IDs/aliases
+reject `ERR_INVALID_ARG_VALUE`; non-string inputs reject `ERR_INVALID_ARG_TYPE`.
+The profile and its storage are retained safely across worker jobs. `signer.did`
+is synchronous public metadata, like `signer.nodeId`.
+
+`Storage.open(path, alias, nodeId)` asynchronously opens/creates upstream local
+storage with explicit Git user identity; most callers should use
+`profile.storage`. Alias and node ID are validated before filesystem creation.
+`storage.path` preserves the upstream path, which need not be absolute for explicit
+opening. Opening does not validate the inventory: even an existing file path can
+be accepted upstream and fail on the first discovery call. Operational opening
+and discovery failures reject `STORAGE`; invalid inputs use argument errors.
+String paths are required; no PathLike or native-handle constructors are exposed.
 
 ### Storage and repository contract
 
@@ -140,6 +171,20 @@ console.log(page.oids, page.hasMore);
 const signed = await repo.signRefs(signer);
 console.log(signed.at, signed.refs);
 ```
+
+### Typed store conveniences
+
+`Issues` and `Patches` expose synchronous `rid` metadata plus async `count()` and
+`isEmpty()`. They call the upstream count/emptiness operations, not a binding
+`all().length` shortcut, and reopen a read-only store per call. No snapshot is
+cached and no operation is recorded. Repository-open failures reject `REPOSITORY`,
+store failures reject `COB`; counts outside the JS safe-integer range reject
+`INVALID_DATA` rather than round.
+
+Issue snapshots include `commentCount` and frozen `commentIds` in non-redacted
+thread order, including the root; these match `comments.length` and the comment
+IDs in `comments`. Patch `revisionCount` counts non-redacted revisions by all
+authors, matching `revisions.length`, **not** `version + 1` after redactions.
 
 ### Issue contract
 

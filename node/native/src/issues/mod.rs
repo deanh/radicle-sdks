@@ -44,6 +44,28 @@ pub struct NativeIssues {
 }
 #[napi]
 impl NativeIssues {
+    #[napi(getter, catch_unwind)]
+    pub fn rid(&self) -> String {
+        self.repo.rid.to_string()
+    }
+    #[napi(catch_unwind, ts_return_type = "Promise<number>")]
+    pub fn count(&self) -> AsyncTask<Work<f64>> {
+        let me = self.clone();
+        work(move || {
+            let repo = me.repo.open()?;
+            let store = RawIssues::open(&repo, ReadOnly).map_err(|e| err("COB", e))?;
+            crate::tasks::count_number(store.count().map_err(|e| err("COB", e))?)
+        })
+    }
+    #[napi(catch_unwind, ts_return_type = "Promise<boolean>")]
+    pub fn is_empty(&self) -> AsyncTask<Work<bool>> {
+        let me = self.clone();
+        work(move || {
+            let repo = me.repo.open()?;
+            let store = RawIssues::open(&repo, ReadOnly).map_err(|e| err("COB", e))?;
+            store.is_empty().map_err(|e| err("COB", e))
+        })
+    }
     #[napi(factory, catch_unwind)]
     pub fn open(repo: &NativeRepository) -> Self {
         Self {

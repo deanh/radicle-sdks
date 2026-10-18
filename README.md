@@ -32,8 +32,9 @@ restating these points.
   no multi-call transaction, rollback or automatic retry; after a failure,
   inspect persisted state before continuing.
 - **Thin adapters, no shared core.** Each binding adapts the upstream crate
-  directly; no common Rust crate has been extracted, and full API parity is not
-  a goal. Python additionally exposes policy management, routing reads and raw
+  directly; no common Rust crate has been extracted. Upstream API completeness
+  is not a goal; [Python capability parity](docs/node-parity.md) is in progress.
+  Python additionally exposes policy management, routing reads and raw
   COB inspection.
 - **Platforms.** Building from Git needs **Rust ≥ 1.91**, Git and a C toolchain,
   and a cold build takes minutes. Python targets Linux and macOS (Windows is

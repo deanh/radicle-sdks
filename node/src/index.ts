@@ -57,6 +57,8 @@ function checkConstruction(key: symbol): void {
   if (key !== constructionKey)
     throw new TypeError('SDK handles must be obtained from their factories');
 }
+let wrapHome: (value: raw.NativeHome) => Home;
+let wrapAliases: (value: raw.NativeAliases) => Aliases;
 let wrapSigner: (value: raw.NativeSigner) => Signer;
 let wrapStorage: (value: raw.NativeStorage) => Storage;
 let wrapRepository: (value: raw.NativeRepository) => Repository;
@@ -89,6 +91,47 @@ function repository(r: Repository): raw.NativeRepository {
   return value;
 }
 
+export class Home {
+  readonly #raw: raw.NativeHome;
+  private constructor(key: symbol, value: raw.NativeHome) {
+    checkConstruction(key);
+    this.#raw = value;
+  }
+  static {
+    wrapHome = (value) => new Home(constructionKey, value);
+  }
+  static async create(path: string): Promise<Home> {
+    return wrapHome(await run(() => raw.NativeHome.create(path)));
+  }
+  static async load(path: string): Promise<Home> {
+    return wrapHome(await run(() => raw.NativeHome.load(path)));
+  }
+  static async resolve(): Promise<Home> {
+    return wrapHome(await run(() => raw.NativeHome.resolve()));
+  }
+  get path(): string {
+    return sync(() => this.#raw.path);
+  }
+}
+export class Aliases {
+  readonly #raw: raw.NativeAliases;
+  private constructor(key: symbol, value: raw.NativeAliases) {
+    checkConstruction(key);
+    this.#raw = value;
+  }
+  static {
+    wrapAliases = (value) => new Aliases(constructionKey, value);
+  }
+  get(nodeId: string): Promise<string | null> {
+    return run(() => this.#raw.get(nodeId));
+  }
+  async reverseLookup(alias: string): Promise<Readonly<Record<string, ReadonlyArray<string>>>> {
+    const groups = await run(() => this.#raw.reverseLookup(alias));
+    // Define own data properties, even for aliases such as __proto__.
+    return Object.freeze(Object.fromEntries(groups.map((g) => [g.alias, g.nodeIds])));
+  }
+}
+
 export class Profile {
   readonly #raw: raw.NativeProfile;
   private constructor(key: symbol, value: raw.NativeProfile) {
@@ -118,6 +161,12 @@ export class Profile {
   get nodeId(): string {
     return this.#raw.nodeId;
   }
+  get home(): Home {
+    return wrapHome(sync(() => this.#raw.home));
+  }
+  get aliases(): Aliases {
+    return wrapAliases(sync(() => this.#raw.aliases));
+  }
   get storage(): Storage {
     return wrapStorage(this.#raw.storage);
   }
@@ -134,11 +183,20 @@ export class Signer {
   static {
     wrapSigner = (value) => new Signer(constructionKey, value);
   }
+  get did(): string {
+    return sync(() => signer(this).did);
+  }
   get nodeId(): string {
     return signer(this).nodeId;
   }
 }
 export class Storage {
+  static async open(path: string, alias: string, nodeId: string): Promise<Storage> {
+    return wrapStorage(await run(() => raw.NativeStorage.open(path, alias, nodeId)));
+  }
+  get path(): string {
+    return sync(() => storage(this).path);
+  }
   private constructor(key: symbol, value: raw.NativeStorage) {
     checkConstruction(key);
     storages.set(this, value);
@@ -248,6 +306,15 @@ export function checkoutProject(
   });
 }
 export class Patches {
+  get rid(): string {
+    return sync(() => this.#raw.rid);
+  }
+  count(): Promise<number> {
+    return run(() => this.#raw.count());
+  }
+  isEmpty(): Promise<boolean> {
+    return run(() => this.#raw.isEmpty());
+  }
   readonly #raw: raw.NativePatches;
   private constructor(key: symbol, value: raw.NativePatches) {
     checkConstruction(key);
@@ -336,6 +403,15 @@ export class PatchMut {
   }
 }
 export class Issues {
+  get rid(): string {
+    return sync(() => this.#raw.rid);
+  }
+  count(): Promise<number> {
+    return run(() => this.#raw.count());
+  }
+  isEmpty(): Promise<boolean> {
+    return run(() => this.#raw.isEmpty());
+  }
   readonly #raw: raw.NativeIssues;
   private constructor(key: symbol, value: raw.NativeIssues) {
     checkConstruction(key);

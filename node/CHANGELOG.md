@@ -1,13 +1,19 @@
 # radicle-sdk changelog
 
-## Python capability parity (in progress, unreleased)
+## Python capability parity: repository and utilities (unreleased)
 
 - Add repository description, tags, revision parsing and signed-remote inspection;
   include identity version, quorum threshold and commit/blob IDs.
 - Add explicit canonical branch/identity-head and remote identity-root writes,
   under the existing repository lock without implicit signing.
 - Add opt-in bare checkout and synchronous upstream-backed public ID validators.
-- This is the first slice of parity patch 1, not a claim of completed parity.
+- Add async home creation/loading/resolution, profile home and alias facades,
+  explicit storage opening/path access and signer DID metadata. Alias reverse
+  lookup preserves special keys such as `__proto__` safely.
+- Add typed-store RID/count/emptiness, issue comment count/IDs and patch revision
+  count. Preserve upstream read-only operations and redaction counting semantics.
+- Complete parity patch 1; policy/routing and raw COB inspection remain deferred.
+  No upstream/dependency change, publication or platform expansion.
 
 ## Assessment fixes (unreleased)
 

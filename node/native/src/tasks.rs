@@ -4,6 +4,17 @@ use napi::{
     Env, Result, Task,
     bindgen_prelude::{AsyncTask, ToNapiValue, TypeName},
 };
+/// Convert a store cardinality without silently rounding an upstream count.
+pub(crate) fn count_number(value: usize) -> Result<f64> {
+    if value as u128 > 9_007_199_254_740_991 {
+        return Err(err(
+            "INVALID_DATA",
+            "store count exceeds the JavaScript safe integer range",
+        ));
+    }
+    Ok(value as f64)
+}
+
 type Job<T> = Box<dyn FnOnce() -> Result<T> + Send>;
 pub struct Work<T>(Option<Job<T>>);
 impl<T: Send + ToNapiValue + TypeName + 'static> Task for Work<T> {
@@ -47,6 +58,14 @@ pub(crate) fn work<T: Send + ToNapiValue + TypeName + 'static>(
 mod tests {
     use super::*;
     use std::sync::{Arc, Mutex};
+    #[test]
+    fn counts_preserve_safe_integers() {
+        assert_eq!(count_number(0).unwrap(), 0.0);
+        if let Ok(boundary) = usize::try_from(9_007_199_254_740_991u64) {
+            assert_eq!(count_number(boundary).unwrap(), 9_007_199_254_740_991.0);
+            assert!(count_number(boundary + 1).is_err());
+        }
+    }
     #[test]
     fn task_panic_fails_closed_without_unwinding_or_clearing_poison() {
         let lock = Arc::new(Mutex::new(()));

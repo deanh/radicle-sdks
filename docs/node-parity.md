@@ -1,6 +1,6 @@
 # TypeScript capability parity with Python
 
-Status: patch 1 in progress on `node-parity`; no parity patch merged yet.
+Status: patch 1 implemented on `node-parity`, review pending; no parity patch merged yet.
 Checked capability items mean implemented on this branch, not reviewed/released.
 Tracking issue: `4047bd966f4e39b98d097ff10d34dad649e37195`.
 Baseline: `4aa27eb10d1e6a4598629702086e9c35571340ef`.
@@ -48,30 +48,65 @@ regression suite. Presence of a method alone does not establish parity.
   Preserve upstream no-op/idempotence and persisted side effects; use existing
   repository write locking, without acquiring a signer for unsigned operations.
 - [x] Bare checkout option without changing existing non-bare calls.
-- [ ] Home construction/loading/resolution and path access; profile home access.
+- [x] Home construction/loading/resolution and path access; profile home access.
   Keep these local setup operations distinct from a profile environment adapter.
-- [ ] Explicit storage opening and storage path access. `profile.storage` already
+- [x] Explicit storage opening and storage path access. `profile.storage` already
   provides the capability of Python `Storage.from_profile`; no redundant factory
   is required solely to match spelling.
-- [ ] Alias lookup and reverse lookup with equivalent grouped results and missing
+- [x] Alias lookup and reverse lookup with equivalent grouped results and missing
   behavior; signer DID access.
 - [x] Public `parseRepoId`, `parseDid`, `parseNodeId`, `parseOid`, `parseObjectId`:
   reuse upstream parsers/canonicalization, existing Node argument error codes,
   and synchronous panic containment. Document string ID types, not nominal
   runtime validation through TypeScript annotations.
-- [ ] Typed issue/patch store RID access, count and emptiness. Match upstream
+- [x] Typed issue/patch store RID access, count and emptiness. Match upstream
   operations and error behavior rather than silently replacing count with an
   evaluated `all().length`.
-- [ ] Issue comment count/IDs and patch revision count: retain Python's actual
+- [x] Issue comment count/IDs and patch revision count: retain Python's actual
   counting semantics, including redaction cases, whether exposed as snapshot
   fields or documented equivalent access. Do not assume all counts equal array
   lengths without checking the implementation.
-- [ ] Audit all existing shared snapshot fields and option domains, not just
+- [x] Audit all existing shared snapshot fields and option domains, not just
   the additions above; record any further gap here before declaring completion.
 
 Required evidence: same-storage Git/identity/tag/ref fixtures, missing and invalid
 inputs, readonly versus write effects, concurrency/failure recovery for new
 writes, bare/non-bare destinations, private construction and public type checks.
+
+### Patch 1 public-surface audit
+
+Audited the baseline Python stubs against public Node declarations and both
+implementations (including field materialization, not only method names):
+
+| Python surface | Node equivalent / disposition |
+| --- | --- |
+| Five `parse_*` functions | Five synchronous camelCase `parse*` functions |
+| `RepoId/Did/NodeId/Oid/ObjectId/Alias` string aliases | Ordinary string domains; no Python runtime `str` alias objects or new nominal types |
+| `Home` constructor/load/resolve/path | Async `Home.create/load/resolve`; synchronous `path` |
+| `Profile` init/load/did/node_id/home/storage/aliases/signer | Equivalent camelCase members; existing synchronous load/signer and async init preserved |
+| Profile policy/routing conveniences | Reserved for patch 2, with equivalent factories allowed |
+| `Aliases.get/reverse_lookup` | Async `get/reverseLookup`, frozen grouped results; own-property preservation for `__proto__` |
+| `Signer.did/node_id` | Synchronous `did/nodeId` |
+| Storage profile factory/open/path/repository/contains/repositories | `profile.storage`, async `Storage.open`, path and existing operations |
+| All repository reads and four writes | Equivalent camelCase methods; description from verified identity |
+| `HeadInfo`, Commit, Tree/TreeEntry, TagInfo, RemoteInfo | All data fields mapped; bytes/timestamps/optional kind follow established Node conventions |
+| ProjectDoc and HistoryPage | All fields mapped; camelCase and existing pagination contract retained |
+| SetHead and SignedRefs | All fields; `isUpdated` boolean replaces `is_updated()`; readonly `refs` object replaces `refs()` dict |
+| Issues/Patches open/open_as/rid/all/get/count/is_empty/create/get_mut, patch draft | Equivalent store methods, with `openAs/getMut/isEmpty` and options objects |
+| Issue/Patch snapshots | All fields, including comment count/IDs and revision count; absent states remain Node optional fields |
+| IssueMut ID/reload/comment/edit/edit_description/label/assign/close/reopen/lifecycle | All capabilities; close/reopen replace generic lifecycle dispatch; envelopes instead of cached `.issue` |
+| PatchMut ID/reload/edit/label/assign/update/ready/unready/archive/unarchive/comment/review/merge | All capabilities; envelopes instead of cached `.patch` |
+| Comment/Review/Revision | All fields; timestamps use the existing Date-safe nullable milliseconds convention |
+| PolicyStore/RoutingStore and their values | Patch 2, still unchecked below |
+| Raw/CobRef/CobManifest/RawOp | Patch 3, still unchecked below |
+| Python exceptions/protocols/repr/hash/equality | Explicit language differences below; not missing workflows |
+
+Comment IDs/counts use `issue.comments()` in both implementations, excluding
+redacted slots and including the root; patch revision count uses
+`patch.revisions().count()` in both, excluding redacted slots but including other
+authors. Existing `version` still counts all revision slots minus one and is not
+an array index. Counts use upstream count/emptiness, not extra binding evaluation
+or filtering. No unassigned patch-1 gaps remain from this inventory.
 
 ## Patch 2: policy and routing
 
@@ -128,9 +163,9 @@ Action JSON decision: retain independent action byte copies and provide a
 no-dependency decoding helper that preserves integers outside JavaScript's safe
 integer range as `bigint`, with safe integers represented as `number`. Determine
 the integer from its original JSON token, never from an already-rounded Number.
-A string-aware number scanner is an option; prefer the standard JSON.parse reviver
-source text if verified on the minimum supported Node version. This facility was
-locally verified on Node 26.12, not yet on the 26.5 floor.
+Use standard JSON.parse reviver source text rather than a custom scanner; the
+source facility was locally verified on both Node 26.5.0 and 26.12.0. The helper
+itself remains patch-3 work and still needs numeric boundary tests.
 
 Specify decimal/exponent behavior before implementing the helper: BigInt cannot
 represent fractional values, so integer preservation must not be advertised as
@@ -170,18 +205,21 @@ blanket exemption for missing data or unsupported workflows.
 
 ## Progress evidence
 
-Patch 1 first implementation slice (not yet ready for whole-patch review):
-repository inspection and metadata, canonical-ref writes, bare checkout and ID
-validators. Profile/home/storage utilities, aliases and typed-store conveniences
-remain unchecked above.
+Patch 1 implementation is complete: repository inspection/metadata, canonical-ref
+writes, bare checkout, ID validators, home/profile/storage utilities, aliases,
+typed-store conveniences and the baseline public-surface audit above. Patches 2
+and 3 remain unimplemented, not implicitly included in this completion claim.
 
-Local Linux x86_64 validation: optimized Rust 1.91 addon build; 34 Node tests;
-208 Python/shared tests with helpers and cross-SDK checks required; 4 native
-release tests; MSRV/stable Clippy and rustfmt; TypeScript and Prettier checks.
-The packed-package gate now runs the new parity consumer and repository type
-fixture outside the checkout, in addition to the existing runtime/README gates.
-No exact-SHA Git installation, minimum-Node runtime or remote CI claim for this
-slice. Evidence: `/tmp/radicle-node-parity-p1/` on the development host.
+Local Linux x86_64 validation: fresh optimized Rust 1.91 addon build; 36 Node tests
+on both Node 26.5.0 and 26.12.0; 209 Python/shared tests with helpers and cross-SDK
+checks required; 5 native release tests; MSRV/stable Clippy and rustfmt;
+TypeScript and Prettier checks. The packed-package gates on npm 12/Node 26.5 and
+npm 11/Node 26.12 execute new parity runtime and type consumers outside the
+checkout in addition to the existing runtime/actual README gates, without Rust
+rebuilding. Lockfiles are unchanged. Exact committed-source installation evidence
+and submitted/reviewed heads are recorded in the tracking issue. Remote CI,
+macOS, manylinux and additional platform support are not established by these
+local results. Evidence: `/tmp/radicle-node-parity-p1/` on the development host.
 
 ## Completion review and evidence
 

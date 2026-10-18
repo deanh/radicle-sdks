@@ -14,6 +14,10 @@ use radicle::{
 #[napi(object)]
 pub struct Issue {
     #[napi(readonly)]
+    pub comment_count: f64,
+    #[napi(readonly, ts_type = "ReadonlyArray<string>")]
+    pub comment_ids: Vec<String>,
+    #[napi(readonly)]
     pub id: String,
     #[napi(readonly)]
     pub title: String,
@@ -44,7 +48,10 @@ pub(super) fn snapshot(id: &ObjectId, issue: &RawIssue) -> Issue {
     let mut assignees: Vec<_> = issue.assignees().map(ToString::to_string).collect();
     labels.sort();
     assignees.sort();
+    let comment_ids: Vec<_> = issue.comments().map(|(id, _)| id.to_string()).collect();
     Issue {
+        comment_count: comment_ids.len() as f64,
+        comment_ids,
         id: id.to_string(),
         title: issue.title().to_string(),
         description: issue.description().to_owned(),

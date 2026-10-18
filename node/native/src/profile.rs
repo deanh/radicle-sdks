@@ -7,7 +7,92 @@ use crate::{
 use napi::{Result, bindgen_prelude::AsyncTask};
 use napi_derive::napi;
 use radicle::crypto::Signer as _;
+use radicle::node::AliasStore;
 use std::sync::{Arc, Mutex};
+
+pub(crate) fn path_string(path: &std::path::Path) -> Result<String> {
+    path.to_str()
+        .map(str::to_owned)
+        .ok_or_else(|| err("ARG_VALUE", "path is not valid UTF-8"))
+}
+
+#[napi]
+pub struct NativeHome {
+    inner: radicle::profile::Home,
+}
+#[napi]
+impl NativeHome {
+    #[napi(catch_unwind, ts_return_type = "Promise<NativeHome>")]
+    pub fn create(path: String) -> AsyncTask<Work<NativeHome>> {
+        work(move || {
+            Ok(Self {
+                inner: radicle::profile::Home::new(path).map_err(|e| err("STORAGE", e))?,
+            })
+        })
+    }
+    #[napi(catch_unwind, ts_return_type = "Promise<NativeHome>")]
+    pub fn load(path: String) -> AsyncTask<Work<NativeHome>> {
+        work(move || {
+            Ok(Self {
+                inner: radicle::profile::Home::load(path).map_err(|e| err("STORAGE", e))?,
+            })
+        })
+    }
+    #[napi(catch_unwind, ts_return_type = "Promise<NativeHome>")]
+    pub fn resolve() -> AsyncTask<Work<NativeHome>> {
+        work(move || {
+            Ok(Self {
+                inner: radicle::profile::home().map_err(|e| err("STORAGE", e))?,
+            })
+        })
+    }
+    #[napi(getter, catch_unwind)]
+    pub fn path(&self) -> Result<String> {
+        path_string(self.inner.path())
+    }
+}
+
+// Transport entries instead of a map: JS setters such as __proto__ must not
+// consume aliases before the public wrapper creates own data properties.
+#[napi(object)]
+pub struct AliasMatch {
+    #[napi(readonly)]
+    pub alias: String,
+    #[napi(readonly, ts_type = "ReadonlyArray<string>")]
+    pub node_ids: Vec<String>,
+}
+#[napi]
+pub struct NativeAliases {
+    profile: Arc<radicle::Profile>,
+}
+#[napi]
+impl NativeAliases {
+    #[napi(catch_unwind, ts_return_type = "Promise<string | null>")]
+    pub fn get(&self, node_id: String) -> AsyncTask<Work<Option<String>>> {
+        let profile = self.profile.clone();
+        work(move || {
+            let id = node_id.parse().map_err(|e| err("ARG_VALUE", e))?;
+            Ok(profile.aliases().alias(&id).map(|a| a.to_string()))
+        })
+    }
+    #[napi(catch_unwind, ts_return_type = "Promise<ReadonlyArray<AliasMatch>>")]
+    pub fn reverse_lookup(&self, alias: String) -> AsyncTask<Work<Vec<AliasMatch>>> {
+        let profile = self.profile.clone();
+        work(move || {
+            let alias = alias.parse().map_err(|e| err("ARG_VALUE", e))?;
+            Ok(profile
+                .aliases()
+                .reverse_lookup(&alias)
+                .into_iter()
+                .map(|(a, ids)| AliasMatch {
+                    alias: a.to_string(),
+                    node_ids: ids.into_iter().map(|id| id.to_string()).collect(),
+                })
+                .collect())
+        })
+    }
+}
+
 #[napi]
 #[derive(Clone)]
 pub struct NativeProfile {
@@ -58,6 +143,18 @@ impl NativeProfile {
             inner: self.inner.storage.clone(),
         }
     }
+    #[napi(getter, catch_unwind)]
+    pub fn home(&self) -> NativeHome {
+        NativeHome {
+            inner: self.inner.home.clone(),
+        }
+    }
+    #[napi(getter, catch_unwind)]
+    pub fn aliases(&self) -> NativeAliases {
+        NativeAliases {
+            profile: self.inner.clone(),
+        }
+    }
     #[napi(catch_unwind)]
     pub fn signer(&self) -> Result<NativeSigner> {
         let signer = self.inner.signer().map_err(|e| err("SIGNER", e))?;
@@ -75,6 +172,10 @@ pub struct NativeSigner {
 }
 #[napi]
 impl NativeSigner {
+    #[napi(getter, catch_unwind)]
+    pub fn did(&self) -> String {
+        format!("did:key:{}", self.node_id)
+    }
     #[napi(getter, catch_unwind)]
     pub fn node_id(&self) -> String {
         self.node_id.clone()

@@ -18,7 +18,8 @@ full parity. The [Python API](../python/API.md) and
 | Missing issue/patch/branch lookup | `None` | `null` |
 | Filesystem input | `str` or `os.PathLike[str]`; no bytes paths | string paths |
 | Extra surfaces | policy management, routing reads, raw COB inspection | those additions deferred; repository metadata/ref maintenance and bare checkout are now available |
-| Aliases and ID validators | public lookup facade and `parse_*` functions | aliases deferred; synchronous `parseRepoId/parseDid/parseNodeId/parseOid/parseObjectId` available |
+| Aliases and ID validators | synchronous lookup facade and `parse_*` functions | async lookup facade; synchronous `parseRepoId/parseDid/parseNodeId/parseOid/parseObjectId` |
+| Home/storage setup | Home constructor/load/resolve; explicit storage opening | async `Home.create/load/resolve`, `Storage.open`; path getters synchronous |
 
 Neither SDK loads a custom profile environment adapter. Upstream resolves home,
 passphrase and agent settings from the native process environment. Configure them

@@ -1,6 +1,8 @@
 // Compile against emitted declarations, never implementation files.
 import {
   Profile,
+  Home,
+  Aliases,
   Signer,
   Storage,
   Repository,
@@ -12,6 +14,10 @@ import {
   type InitOptions,
 } from 'radicle-sdk';
 
+// @ts-expect-error obtain from Home.create/load/resolve or profile.home
+new Home();
+// @ts-expect-error obtain from profile.aliases
+new Aliases();
 // @ts-expect-error handles have private constructors, not implicit public zero-arg ones
 new Profile();
 // @ts-expect-error obtain from profile.signer()
@@ -57,12 +63,31 @@ void invalid;
 const nullVisibility: InitOptions = { ...defaults, visibility: null };
 void nullVisibility;
 async function useFactories(profile: Profile): Promise<void> {
-  const storage: Storage = profile.storage;
+  const home: Home = await Home.load(profile.home.path);
+  const created: Home = await Home.create('/tmp/radicle-home');
+  const resolved: Home = await Home.resolve();
+  const storage: Storage = await Storage.open(profile.storage.path, 'alice', profile.nodeId);
+  const alias: string | null = await profile.aliases.get(profile.nodeId);
+  const grouped: Readonly<Record<string, ReadonlyArray<string>>> =
+    await profile.aliases.reverseLookup('alice');
+  const did: string = profile.signer().did;
+  // @ts-expect-error alias results are frozen
+  grouped.alice.push(profile.nodeId);
+  // @ts-expect-error setup work returns a Promise
+  const immediate: Home = Home.load('/tmp/radicle-home');
+  void [home, created, resolved, alias, grouped, did, immediate];
   const signer: Signer = profile.signer();
   const rid = await initProject(storage, signer, '/work', privateOptions);
   const repo: Repository = storage.repository(rid);
   const issues: Issues = Issues.openAs(repo, signer);
+  const count: number = await issues.count();
+  const empty: boolean = await issues.isEmpty();
+  const issueRid: string = issues.rid;
   const issue: IssueMut = await issues.create({ title: 'First', description: '' });
+  const value = await issue.reload();
+  const commentCount: number = value.commentCount;
+  const commentIds: ReadonlyArray<string> = value.commentIds;
+  void [count, empty, issueRid, commentCount, commentIds];
   const patches: Patches = Patches.openAs(repo, signer);
   const patch: PatchMut = await patches.draft({
     title: 'First',
@@ -70,6 +95,10 @@ async function useFactories(profile: Profile): Promise<void> {
     base: '',
     head: '',
   });
-  void [issue, patch, publicOptions];
+  const patchCount: number = await patches.count();
+  const patchEmpty: boolean = await patches.isEmpty();
+  const patchRid: string = patches.rid;
+  const revisionCount: number = (await patch.reload()).revisionCount;
+  void [issue, patch, publicOptions, patchCount, patchEmpty, patchRid, revisionCount];
 }
 void useFactories;

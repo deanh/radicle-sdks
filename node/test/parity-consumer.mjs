@@ -6,6 +6,10 @@ import { join } from 'node:path';
 import { execFileSync } from 'node:child_process';
 import {
   Profile,
+  Home,
+  Storage,
+  Issues,
+  Patches,
   initProject,
   checkoutProject,
   parseRepoId,
@@ -49,6 +53,13 @@ try {
     description: 'parity smoke',
     defaultBranch: 'main',
   });
+  assert.equal((await Home.load(p.home.path)).path, p.home.path);
+  assert.equal((await Home.create(join(root, 'new-home'))).path, join(root, 'new-home'));
+  const reopened = await Storage.open(storage.path, 'consumer', p.nodeId);
+  assert.equal(await reopened.contains(rid), true);
+  assert.equal(signer.did, p.did);
+  assert.equal(await p.aliases.get(p.nodeId), 'consumer');
+  assert.deepEqual(await p.aliases.reverseLookup('consumer'), { consumer: [p.nodeId] });
   const repo = storage.repository(rid),
     doc = await repo.identity();
   assert.equal(doc.threshold, 1);
@@ -70,6 +81,23 @@ try {
   const bare = join(root, 'bare');
   await checkoutProject(storage, rid, p.nodeId, bare, { bare: true });
   assert.equal(git(bare, 'rev-parse', '--is-bare-repository'), 'true');
+  const issues = Issues.openAs(repo, signer),
+    patches = Patches.openAs(repo, signer);
+  assert.equal(issues.rid, rid);
+  assert.equal(patches.rid, rid);
+  assert.equal(await issues.isEmpty(), true);
+  assert.equal(await patches.count(), 0);
+  const issue = await issues.create({ title: 'test', description: 'root' });
+  const issueValue = await issue.reload();
+  assert.equal(issueValue.commentCount, 1);
+  assert.deepEqual(
+    issueValue.commentIds,
+    issueValue.comments.map((c) => c.id),
+  );
+  assert.equal(await issues.count(), 1);
+  const patch = await patches.create({ title: 'patch', description: 'd', base: head, head });
+  assert.equal((await patch.reload()).revisionCount, 1);
+  assert.equal(await patches.isEmpty(), false);
   console.log('Parity public consumer OK');
 } finally {
   await rm(root, { recursive: true, force: true });
