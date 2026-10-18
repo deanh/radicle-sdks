@@ -13,7 +13,7 @@ use std::sync::{Arc, Mutex};
 pub(crate) fn path_string(path: &std::path::Path) -> Result<String> {
     path.to_str()
         .map(str::to_owned)
-        .ok_or_else(|| err("ARG_VALUE", "path is not valid UTF-8"))
+        .ok_or_else(|| err("INVALID_DATA", "stored path is not valid UTF-8"))
 }
 
 #[napi]
@@ -96,7 +96,7 @@ impl NativeAliases {
 #[napi]
 #[derive(Clone)]
 pub struct NativeProfile {
-    inner: Arc<radicle::Profile>,
+    pub(crate) inner: Arc<radicle::Profile>,
 }
 #[napi]
 impl NativeProfile {
@@ -160,6 +160,7 @@ impl NativeProfile {
         let signer = self.inner.signer().map_err(|e| err("SIGNER", e))?;
         Ok(NativeSigner {
             node_id: signer.public_key().to_string(),
+            did: radicle::identity::Did::from(*signer.public_key()).to_string(),
             inner: Arc::new(Mutex::new(signer)),
         })
     }
@@ -169,15 +170,46 @@ impl NativeProfile {
 pub struct NativeSigner {
     pub(crate) inner: Arc<Mutex<radicle::profile::Signer>>,
     node_id: String,
+    did: String,
 }
 #[napi]
 impl NativeSigner {
     #[napi(getter, catch_unwind)]
     pub fn did(&self) -> String {
-        format!("did:key:{}", self.node_id)
+        self.did.clone()
     }
     #[napi(getter, catch_unwind)]
     pub fn node_id(&self) -> String {
         self.node_id.clone()
+    }
+}
+
+#[cfg(all(test, unix))]
+mod tests {
+    use super::*;
+    use std::os::unix::ffi::OsStringExt;
+    #[test]
+    fn non_utf8_home_and_storage_paths_are_invalid_data() {
+        let root = std::env::temp_dir().join(format!("sdk-path-test-{}", std::process::id()));
+        let path = root.join(std::ffi::OsString::from_vec(vec![0xff]));
+        let home = NativeHome {
+            inner: radicle::profile::Home::new(&path).unwrap(),
+        };
+        let storage = NativeStorage {
+            inner: radicle::storage::git::Storage::open(
+                &path,
+                radicle::git::UserInfo {
+                    alias: "test".parse().unwrap(),
+                    key: "z6MkhaXgBZDvotDkL5257faiztiGiC2QtKLGpbnnEGta2doK"
+                        .parse()
+                        .unwrap(),
+                },
+            )
+            .unwrap(),
+        };
+        for error in [home.path().unwrap_err(), storage.path().unwrap_err()] {
+            assert!(error.reason.starts_with("RADICLE:INVALID_DATA:"));
+        }
+        std::fs::remove_dir_all(root).unwrap();
     }
 }

@@ -4,6 +4,8 @@ import { readFile } from 'node:fs/promises';
 import {
   Home,
   Aliases,
+  PolicyStore,
+  RoutingStore,
   Profile,
   Signer,
   Storage,
@@ -19,6 +21,8 @@ test('handles reject direct JavaScript construction and expose no native convers
   for (const Handle of [
     Home,
     Aliases,
+    PolicyStore,
+    RoutingStore,
     Profile,
     Signer,
     Storage,
@@ -40,6 +44,8 @@ test('handles reject direct JavaScript construction and expose no native convers
   assert.ok(f.profile instanceof Profile);
   assert.ok(f.profile.home instanceof Home);
   assert.ok(f.profile.aliases instanceof Aliases);
+  assert.ok((await f.profile.policyStore()) instanceof PolicyStore);
+  assert.ok((await f.profile.routingStore()) instanceof RoutingStore);
   assert.ok(f.signer instanceof Signer);
   assert.ok(f.storage instanceof Storage);
   assert.ok(f.repo instanceof Repository);
@@ -55,9 +61,9 @@ test('handles reject direct JavaScript construction and expose no native convers
   assert.ok(patch instanceof PatchMut);
   assert.ok((await patches.getMut(patch.id)) instanceof PatchMut);
   const declarations = await readFile(new URL('../dist/index.d.ts', import.meta.url), 'utf8');
-  assert.equal((declarations.match(/private constructor\(\);/g) || []).length, 10);
+  assert.equal((declarations.match(/private constructor\(\);/g) || []).length, 12);
   assert.doesNotMatch(
     declarations,
-    /raw\.Native|wrapHome|wrapAliases|wrapSigner|wrapStorage|wrapRepository|wrapIssue|wrapPatch|constructionKey/,
+    /raw\.Native|wrapHome|wrapAliases|wrapSigner|wrapStorage|wrapRepository|wrapIssue|wrapPatch|profileRaw|constructionKey/,
   );
 });

@@ -17,9 +17,11 @@ full parity. The [Python API](../python/API.md) and
 | Typed COB store creation | `open/open_as`, lazy | `open/openAs`, lazy |
 | Missing issue/patch/branch lookup | `None` | `null` |
 | Filesystem input | `str` or `os.PathLike[str]`; no bytes paths | string paths |
-| Extra surfaces | policy management, routing reads, raw COB inspection | those additions deferred; repository metadata/ref maintenance and bare checkout are now available |
+| Extra surfaces | raw COB inspection | raw inspection deferred; policy/routing and repository metadata/ref maintenance/bare checkout are available |
 | Aliases and ID validators | synchronous lookup facade and `parse_*` functions | async lookup facade; synchronous `parseRepoId/parseDid/parseNodeId/parseOid/parseObjectId` |
 | Home/storage setup | Home constructor/load/resolve; explicit storage opening | async `Home.create/load/resolve`, `Storage.open`; path getters synchronous |
+| Stored non-UTF-8 path | `ValueError` on `.path` | `RadicleError` / `INVALID_DATA` on `.path` |
+| Policy connection | thread-affine held SQLite connection; explicit open spelling retained | worker-local connection per call; factory canonicalizes path; reads always open read-only |
 
 Neither SDK loads a custom profile environment adapter. Upstream resolves home,
 passphrase and agent settings from the native process environment. Configure them
@@ -37,7 +39,7 @@ are not automatically converted into Python datetime objects.
 | Commit author/committer time | `int`, seconds | required `number \| null`, milliseconds |
 | Typed comment/revision/review time | `int`, milliseconds | required `number \| null`, milliseconds |
 | Raw COB operation time | `int`, seconds | raw API not exposed |
-| Routing last-seen time | `int \| None`, milliseconds | routing API not exposed |
+| Routing last-seen time | `int \| None`, milliseconds | required `number \| null`, Date-safe milliseconds |
 
 Node checks overflow and the ECMAScript Date range (absolute milliseconds at
 most 8,640,000,000,000,000). Stored times outside that range become `null`, not
@@ -65,6 +67,13 @@ for branch targets in both SDKs.
 ## Concurrency and failure handling
 
 Python signers, mutable COB stores/handles and policy stores are thread-affine.
+Node policy handles retain a canonical path and access mode only; connections
+open/drop inside each worker job, with upstream SQLite busy timeouts and no SDK
+retry. Readers never fall back to a writable connection. Node routing uses the
+upstream thread-safe shared database, read-only; entry listings perform N+1
+queries, not a transactionally coherent snapshot. These operations do not take
+repository/signer mutexes. See the Node reference for SQLite client/process
+boundaries and error behavior.
 There is no async/thread-pool contract; project init/checkout retain the GIL,
 including while upstream invokes Git. Repository handles hold no live Git
 handles and reopen per operation; that is not an external-writer coordination

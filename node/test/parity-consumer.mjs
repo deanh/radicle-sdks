@@ -10,6 +10,8 @@ import {
   Storage,
   Issues,
   Patches,
+  PolicyStore,
+  RoutingStore,
   initProject,
   checkoutProject,
   parseRepoId,
@@ -98,6 +100,34 @@ try {
   const patch = await patches.create({ title: 'patch', description: 'd', base: head, head });
   assert.equal((await patch.reload()).revisionCount, 1);
   assert.equal(await patches.isEmpty(), false);
+  const policy = await p.policyStore(),
+    reader = await PolicyStore.reader(p);
+  assert.equal(await policy.follow(p.nodeId, { alias: 'friend' }), true);
+  assert.equal(await reader.isFollowing(p.nodeId), true);
+  assert.deepEqual(await reader.nodesByAlias('RIE'), [[p.nodeId, 'friend']]);
+  assert.equal((await reader.followPolicies())[0].policy, 'allow');
+  assert.equal(await policy.seed(rid, { scope: 'followed' }), true);
+  assert.equal((await reader.seedPolicies())[0].scope, 'followed');
+  assert.equal(await policy.setFollowPolicy(p.nodeId, 'block'), true);
+  assert.equal(await reader.isBlocked(p.nodeId), true);
+  assert.equal((await reader.followPolicy(p.nodeId)).policy, 'block');
+  assert.equal(await policy.unblockNid(p.nodeId), true);
+  assert.equal(await policy.setSeedPolicy(rid, 'block'), true);
+  assert.equal((await reader.seedPolicy(rid)).scope, undefined);
+  assert.equal(await policy.unblockRid(rid), true);
+  assert.equal(await policy.isSeeding(rid), false);
+  assert.equal(await policy.unfollow(p.nodeId), false);
+  assert.equal(await policy.unseed(rid), false);
+  await assert.rejects(reader.follow(p.nodeId), (e) => e.code === 'READ_ONLY');
+  const routes = await RoutingStore.fromProfile(p);
+  assert.deepEqual(await routes.entries(), []);
+  assert.deepEqual(await routes.get(rid), []);
+  assert.deepEqual(await routes.getInventory(p.nodeId), []);
+  assert.equal(await routes.entry(rid, p.nodeId), null);
+  assert.equal(await routes.count(rid), 0);
+  assert.equal(await routes.total(), 0);
+  assert.equal(await routes.isEmpty(), true);
+  assert.equal(await (await PolicyStore.open(policy.path)).isFollowing(p.nodeId), false);
   console.log('Parity public consumer OK');
 } finally {
   await rm(root, { recursive: true, force: true });

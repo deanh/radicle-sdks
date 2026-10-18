@@ -1,5 +1,21 @@
 # radicle-sdk changelog
 
+## Python capability parity: policy and routing (unreleased)
+
+- Add async raw policy stores with follow/seed/block writes and read-only lookup,
+  listings and fuzzy alias search; open/drop a connection per worker operation.
+  Read-only factories/reads never create or repair missing databases. Add `POLICY`
+  and `DATABASE` operational error codes and profile convenience factories.
+- Add read-only routing inventories, entries, counts and last-seen timestamps over
+  upstream's shared thread-safe database. Valid times outside the Date range are
+  `null`; negative/invalid stored times remain decoding failures.
+- Carry patch-1 review nits: upstream DID and SetHead helpers; `INVALID_DATA` for
+  unrepresentable stored paths with tests/docs; handle member/import ordering;
+  comments explaining snapshot count conversion; primitive-only JSON reviver
+  source notes for future raw decoding. No raw COB API is added yet.
+- No dependency refresh, networking, node control, automatic retry or merge of
+  the policy/routing databases with repository transactions.
+
 ## Python capability parity: repository and utilities (unreleased)
 
 - Add repository description, tags, revision parsing and signed-remote inspection;

@@ -227,7 +227,7 @@ impl NativeRepository {
                 .set_default_branch_to_canonical_head()
                 .map_err(|e| err("REPOSITORY", e))?;
             Ok(SetHead {
-                is_updated: head.old != Some(head.new),
+                is_updated: head.is_updated(),
                 old: head.old.map(|id| id.to_string()),
                 new: head.new.to_string(),
             })

@@ -1,6 +1,8 @@
 /** Internal conversion policy. Not exported as a package subpath. */
 export type ErrorCode =
   | 'STORAGE'
+  | 'DATABASE'
+  | 'POLICY'
   | 'REPOSITORY'
   | 'GIT'
   | 'IDENTITY'
@@ -19,6 +21,8 @@ export class RadicleError extends Error {
 }
 const codes = new Set<string>([
   'STORAGE',
+  'DATABASE',
+  'POLICY',
   'REPOSITORY',
   'GIT',
   'IDENTITY',

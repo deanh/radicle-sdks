@@ -108,6 +108,8 @@ pub(super) fn snapshot(id: &ObjectId, p: &RawPatch) -> Patch {
     assignees.sort();
     let (latest, revision) = p.latest();
     Patch {
+        // Like version, bounded by slots already allocated in this loaded patch;
+        // separate upstream store counts are checked with count_number instead.
         revision_count: p.revisions().count() as f64,
         id: id.to_string(),
         title: p.title().to_owned(),

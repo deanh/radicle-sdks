@@ -48,6 +48,9 @@ pub(super) fn snapshot(id: &ObjectId, issue: &RawIssue) -> Issue {
     let mut assignees: Vec<_> = issue.assignees().map(ToString::to_string).collect();
     labels.sort();
     assignees.sort();
+    // Snapshot counts are lengths of already-materialized collections (well
+    // below JS's safe-integer bound). Store counts are separate upstream results:
+    // count_number checks those without relying on upstream's allocation strategy.
     let comment_ids: Vec<_> = issue.comments().map(|(id, _)| id.to_string()).collect();
     Issue {
         comment_count: comment_ids.len() as f64,

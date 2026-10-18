@@ -28,6 +28,9 @@ export type {
   TagInfo,
   RemoteInfo,
   SetHead,
+  FollowPolicyInfo,
+  SeedPolicyInfo,
+  RoutingEntry,
 } from '../dist/native.cjs';
 
 import { run, sync } from './bridge.js';
@@ -57,6 +60,8 @@ function checkConstruction(key: symbol): void {
   if (key !== constructionKey)
     throw new TypeError('SDK handles must be obtained from their factories');
 }
+// Factory-only access to Profile's private native state; never public conversion.
+let profileRaw: (value: Profile) => raw.NativeProfile;
 let wrapHome: (value: raw.NativeHome) => Home;
 let wrapAliases: (value: raw.NativeAliases) => Aliases;
 let wrapSigner: (value: raw.NativeSigner) => Signer;
@@ -68,7 +73,8 @@ let wrapPatch: (value: raw.NativePatchMut) => PatchMut;
 // Handles that other classes or free functions must unwrap (initProject takes a
 // Storage and a Signer; the store factories take a Repository) keep their native
 // object in these module-private maps, reachable through the accessors below.
-// Handles only their own methods unwrap keep it in a private #raw field instead.
+// Other handles use private #raw fields; Profile grants database factories
+// access only through the module-private closure above.
 const storages = new WeakMap<Storage, raw.NativeStorage>();
 const signers = new WeakMap<Signer, raw.NativeSigner>();
 const repositories = new WeakMap<Repository, raw.NativeRepository>();
@@ -89,6 +95,122 @@ function repository(r: Repository): raw.NativeRepository {
   if (!value)
     throw Object.assign(new TypeError('expected Repository'), { code: 'ERR_INVALID_ARG_TYPE' });
   return value;
+}
+
+function optionString(options: unknown, name: string): string | undefined {
+  if (options === null || typeof options !== 'object' || Array.isArray(options))
+    throw new TypeError('options must be an object');
+  const value = (options as Record<string, unknown>)[name];
+  if (value !== undefined && typeof value !== 'string')
+    throw new TypeError(`${name} must be a string or omitted`);
+  return value;
+}
+export class PolicyStore {
+  readonly #raw: raw.NativePolicyStore;
+  private constructor(key: symbol, value: raw.NativePolicyStore) {
+    checkConstruction(key);
+    this.#raw = value;
+  }
+  static async fromProfile(profile: Profile): Promise<PolicyStore> {
+    return new PolicyStore(
+      constructionKey,
+      await run(() => raw.NativePolicyStore.fromProfile(profileRaw(profile))),
+    );
+  }
+  static async reader(profile: Profile): Promise<PolicyStore> {
+    return new PolicyStore(
+      constructionKey,
+      await run(() => raw.NativePolicyStore.reader(profileRaw(profile))),
+    );
+  }
+  static async open(path: string): Promise<PolicyStore> {
+    return new PolicyStore(constructionKey, await run(() => raw.NativePolicyStore.open(path)));
+  }
+  get path(): string {
+    return sync(() => this.#raw.path);
+  }
+  follow(nodeId: string, options: { alias?: string } = {}): Promise<boolean> {
+    return run(() => this.#raw.follow(nodeId, optionString(options, 'alias')));
+  }
+  seed(rid: string, options: { scope?: 'all' | 'followed' } = {}): Promise<boolean> {
+    return run(() => this.#raw.seed(rid, optionString(options, 'scope') ?? 'all'));
+  }
+  setFollowPolicy(nodeId: string, policy: 'allow' | 'block'): Promise<boolean> {
+    return run(() => this.#raw.setFollowPolicy(nodeId, policy));
+  }
+  setSeedPolicy(rid: string, policy: 'allow' | 'block'): Promise<boolean> {
+    return run(() => this.#raw.setSeedPolicy(rid, policy));
+  }
+  unfollow(nodeId: string): Promise<boolean> {
+    return run(() => this.#raw.unfollow(nodeId));
+  }
+  unseed(rid: string): Promise<boolean> {
+    return run(() => this.#raw.unseed(rid));
+  }
+  unblockRid(rid: string): Promise<boolean> {
+    return run(() => this.#raw.unblockRid(rid));
+  }
+  unblockNid(nodeId: string): Promise<boolean> {
+    return run(() => this.#raw.unblockNid(nodeId));
+  }
+  isFollowing(nodeId: string): Promise<boolean> {
+    return run(() => this.#raw.isFollowing(nodeId));
+  }
+  isSeeding(rid: string): Promise<boolean> {
+    return run(() => this.#raw.isSeeding(rid));
+  }
+  isBlocked(nodeId: string): Promise<boolean> {
+    return run(() => this.#raw.isBlocked(nodeId));
+  }
+  followPolicy(nodeId: string): Promise<raw.FollowPolicyInfo | null> {
+    return run(() => this.#raw.followPolicy(nodeId));
+  }
+  seedPolicy(rid: string): Promise<raw.SeedPolicyInfo | null> {
+    return run(() => this.#raw.seedPolicy(rid));
+  }
+  followPolicies(): Promise<ReadonlyArray<raw.FollowPolicyInfo>> {
+    return run(() => this.#raw.followPolicies());
+  }
+  seedPolicies(): Promise<ReadonlyArray<raw.SeedPolicyInfo>> {
+    return run(() => this.#raw.seedPolicies());
+  }
+  nodesByAlias(alias: string): Promise<ReadonlyArray<readonly [string, string]>> {
+    return run(() => this.#raw.nodesByAlias(alias));
+  }
+}
+export class RoutingStore {
+  readonly #raw: raw.NativeRoutingStore;
+  private constructor(key: symbol, value: raw.NativeRoutingStore) {
+    checkConstruction(key);
+    this.#raw = value;
+  }
+  static async fromProfile(profile: Profile): Promise<RoutingStore> {
+    return new RoutingStore(
+      constructionKey,
+      await run(() => raw.NativeRoutingStore.fromProfile(profileRaw(profile))),
+    );
+  }
+  get(rid: string): Promise<ReadonlyArray<string>> {
+    return run(() => this.#raw.get(rid));
+  }
+  getInventory(nodeId: string): Promise<ReadonlyArray<string>> {
+    return run(() => this.#raw.getInventory(nodeId));
+  }
+  entry(rid: string, nodeId: string): Promise<number | null> {
+    return run(() => this.#raw.entry(rid, nodeId));
+  }
+  entries(): Promise<ReadonlyArray<raw.RoutingEntry>> {
+    return run(() => this.#raw.entries());
+  }
+  count(rid: string): Promise<number> {
+    return run(() => this.#raw.count(rid));
+  }
+  total(): Promise<number> {
+    return run(() => this.#raw.total());
+  }
+  isEmpty(): Promise<boolean> {
+    return run(() => this.#raw.isEmpty());
+  }
 }
 
 export class Home {
@@ -134,6 +256,9 @@ export class Aliases {
 
 export class Profile {
   readonly #raw: raw.NativeProfile;
+  static {
+    profileRaw = (value) => value.#raw;
+  }
   private constructor(key: symbol, value: raw.NativeProfile) {
     checkConstruction(key);
     this.#raw = value;
@@ -169,6 +294,12 @@ export class Profile {
   }
   get storage(): Storage {
     return wrapStorage(this.#raw.storage);
+  }
+  policyStore(): Promise<PolicyStore> {
+    return PolicyStore.fromProfile(this);
+  }
+  routingStore(): Promise<RoutingStore> {
+    return RoutingStore.fromProfile(this);
   }
   /** Synchronous setup: key decryption or agent communication can block. */
   signer(): Signer {
@@ -306,6 +437,11 @@ export function checkoutProject(
   });
 }
 export class Patches {
+  readonly #raw: raw.NativePatches;
+  private constructor(key: symbol, value: raw.NativePatches) {
+    checkConstruction(key);
+    this.#raw = value;
+  }
   get rid(): string {
     return sync(() => this.#raw.rid);
   }
@@ -314,11 +450,6 @@ export class Patches {
   }
   isEmpty(): Promise<boolean> {
     return run(() => this.#raw.isEmpty());
-  }
-  readonly #raw: raw.NativePatches;
-  private constructor(key: symbol, value: raw.NativePatches) {
-    checkConstruction(key);
-    this.#raw = value;
   }
   static open(repo: Repository): Patches {
     return new Patches(
@@ -403,6 +534,11 @@ export class PatchMut {
   }
 }
 export class Issues {
+  readonly #raw: raw.NativeIssues;
+  private constructor(key: symbol, value: raw.NativeIssues) {
+    checkConstruction(key);
+    this.#raw = value;
+  }
   get rid(): string {
     return sync(() => this.#raw.rid);
   }
@@ -411,11 +547,6 @@ export class Issues {
   }
   isEmpty(): Promise<boolean> {
     return run(() => this.#raw.isEmpty());
-  }
-  readonly #raw: raw.NativeIssues;
-  private constructor(key: symbol, value: raw.NativeIssues) {
-    checkConstruction(key);
-    this.#raw = value;
   }
   static open(repo: Repository): Issues {
     return new Issues(

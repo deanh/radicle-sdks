@@ -31,6 +31,7 @@ cp "$root/node/test/install-smoke.mjs" smoke.mjs
 cp "$root/node/test/readme-consumer.mjs" readme.mjs
 cp "$root/node/test/handle-types.ts" handle-types.ts
 cp "$root/node/test/repository-types.ts" repository-types.ts
+cp "$root/node/test/policy-types.ts" policy-types.ts
 cp "$root/node/test/parity-consumer.mjs" parity.mjs
 # Type fixtures normally resolve the checkout's dist entry; use the public
 # package name here so this gate cannot accidentally type-check the checkout.
@@ -41,5 +42,5 @@ JS
 node smoke.mjs
 node readme.mjs
 node parity.mjs
-npm exec --yes --package typescript@5.9.3 -- tsc --strict --noEmit --target ES2023 --module NodeNext --moduleResolution NodeNext handle-types.ts repository-types.ts
+npm exec --yes --package typescript@5.9.3 -- tsc --strict --noEmit --target ES2023 --module NodeNext --moduleResolution NodeNext handle-types.ts repository-types.ts policy-types.ts
 printf 'Packed consumer runtime, docs and types OK (no Rust source build)\n'

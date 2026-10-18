@@ -115,6 +115,14 @@ try {
   await checkoutProject(storage, rid, signer.nodeId, checkout);
   assert.equal(git(checkout, 'rev-parse', 'HEAD'), base);
 
+  // These update local raw policy tables only: no node, fetch or announcement.
+  const policy = await profile.policyStore();
+  await policy.follow(signer.nodeId, { alias: 'alice' });
+  assert.equal(await policy.seed(rid, { scope: 'all' }), true);
+  assert.equal(await policy.isSeeding(rid), true);
+  const routing = await profile.routingStore();
+  assert.deepEqual(await routing.entries(), []); // no daemon has advertised seeds
+
   const issues = Issues.openAs(repo, signer);
   const issue = await issues.create({ title: 'First issue', description: 'Root', labels: ['demo'] });
   const comment = await issue.comment('A reply');
@@ -160,8 +168,11 @@ canonical-ref maintenance. Checkout supports `{ bare: true }`. Use async
 `Home.create/load/resolve`, `profile.home`, `profile.aliases`, and
 `Storage.open(path, alias, nodeId)` for local setup/lookup; `profile.storage`
 remains the usual storage entry. Public synchronous `parse*` functions validate
-IDs. Typed stores expose `rid`, `count()` and `isEmpty()`. Policy/routing and raw
-COB inspection are still deferred.
+IDs. Typed stores expose `rid`, `count()` and `isEmpty()`.
+`PolicyStore.fromProfile/reader/open` and `profile.policyStore()` expose local
+follow/seed/block tables; `RoutingStore.fromProfile` and `profile.routingStore()`
+read the local routing database. These are async database operations, not node
+commands. Only raw COB inspection remains deferred.
 
 In a source checkout, `docs/semantics.md` and `docs/sdk-differences.md` explain
 cross-SDK behavior. Repository build/test commands and exact-commit npm/pnpm

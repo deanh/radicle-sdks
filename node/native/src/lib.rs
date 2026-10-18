@@ -8,10 +8,12 @@ mod ids;
 mod issues;
 mod locks;
 mod patches;
+mod policy;
 mod probes;
 mod profile;
 mod project;
 mod repository;
+mod routing;
 mod tasks;
 mod timestamps;
 
@@ -25,6 +27,10 @@ mod tests {
     static_assertions::assert_impl_all!(radicle::profile::Signer: Send);
     static_assertions::assert_not_impl_any!(radicle::profile::Signer: Sync);
     static_assertions::assert_impl_all!(radicle::Profile: Send, Sync);
+    static_assertions::assert_impl_all!(radicle::node::Database: Send, Sync);
+    static_assertions::assert_impl_all!(crate::policy::NativePolicyStore: Send, Sync);
+    static_assertions::assert_not_impl_any!(radicle::node::policy::store::Store<radicle::node::policy::store::Write>: Sync);
+    static_assertions::assert_impl_all!(crate::routing::NativeRoutingStore: Send, Sync);
     static_assertions::assert_impl_all!(radicle::storage::git::Storage: Send, Sync);
     static_assertions::assert_impl_all!(radicle::storage::git::Repository: Send);
     static_assertions::assert_not_impl_any!(radicle::storage::git::Repository: Sync);

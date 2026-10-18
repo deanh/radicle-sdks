@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { join } from 'node:path';
-import { writeFile } from 'node:fs/promises';
+import { writeFile, unlink } from 'node:fs/promises';
 import { Profile, checkoutProject, RadicleError } from 'radicle-sdk';
 import { fixture, git } from './helpers.mjs';
 
@@ -97,7 +97,6 @@ test('canonical writes move refs, report no-ops, need no signer and recover afte
   const lock = join(dir, 'refs', 'rad', 'id.lock');
   await writeFile(lock, 'locked');
   await assert.rejects(f.repo.setIdentityHead(), category('REPOSITORY'));
-  const { unlink } = await import('node:fs/promises');
   await unlink(lock);
   assert.equal(await f.repo.setIdentityHead(), doc.commit);
 });

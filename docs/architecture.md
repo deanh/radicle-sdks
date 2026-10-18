@@ -91,8 +91,9 @@ entry points register/export the bindings rather than implementing workflows.
 Snapshots live near their domains, with a small collaboration comment type in
 each adapter. Python's `hashing.rs` contains only process-local hashing,
 not another shared DTO schema. Node tasks, repository locks, Date conversion and
-native probes remain explicitly binding-specific. Python-only policy, routing
-and raw access remain independent. [Migration gates](archive/MIGRATION-GATES.md#module-alignment-map)
+native probes remain explicitly binding-specific. Both SDKs own policy/routing
+adapters; Node policy connections are worker-local and routing retains upstream's
+thread-safe database. Raw access remains Python-only pending the parity patch. [Migration gates](archive/MIGRATION-GATES.md#module-alignment-map)
 records the mapping. No shared Rust extraction is included in these moves.
 
 ## Shared Rust: only with a real consumer

@@ -10,6 +10,8 @@ native bridge and probe files are internal, not supported import paths.
 
 - Async `Profile.init`; synchronous `Profile.load()`/`signer()` setup and profile
   metadata/storage handles.
+- Async policy factories/reads/writes and read-only routing inspection; profile
+  conveniences `policyStore()` and `routingStore()`.
 - Async `Home.create/load/resolve`, `profile.home`, `profile.aliases`, storage
   path access and explicit async `Storage.open(path, alias, nodeId)`.
 - Lazy `storage.repository(rid)`; async storage `contains/repositories`.
@@ -93,6 +95,9 @@ opening. Opening does not validate the inventory: even an existing file path can
 be accepted upstream and fail on the first discovery call. Operational opening
 and discovery failures reject `STORAGE`; invalid inputs use argument errors.
 String paths are required; no PathLike or native-handle constructors are exposed.
+A stored home/storage path containing non-UTF-8 bytes cannot be represented as a
+JS string; reading `.path` throws `RadicleError` with `INVALID_DATA` (not an
+argument error).
 
 ### Storage and repository contract
 
@@ -171,6 +176,86 @@ console.log(page.oids, page.hasMore);
 const signed = await repo.signRefs(signer);
 console.log(signed.at, signed.refs);
 ```
+
+### Policy and routing databases
+
+All operations below return Promises except `.path`. Obtain private-construction
+`PolicyStore` handles from `PolicyStore.fromProfile(profile)` (writable),
+`PolicyStore.reader(profile)` (read-only), `PolicyStore.open(path)` (writable),
+or `profile.policyStore()`. Profile paths use upstream `node/policies.db`.
+Factories eagerly run upstream opening/schema checks and close the connection;
+queries can still fail later. Writable
+factories may create its schema/file, but do not create missing parent directories.
+Inputs are filesystem paths, not SQLite connection URIs. Empty paths and the
+special `:memory:` name reject `ERR_INVALID_ARG_VALUE`: per-operation connections
+require a persistent file (Python's held connection can support those SQLite
+special names, but they are not part of this Node file-backed contract).
+The resulting path is canonicalized once, fixing relative paths and symlink
+resolution for later operations. `.path` is that absolute path (unlike Python's
+explicit-path spelling); an unrepresentable stored path throws `INVALID_DATA`.
+
+Policy handles retain **only path and access mode**. Each worker call opens,
+uses and drops its own connection. Reads always use the upstream read-only
+opener, even on writable handles; a missing/incompatible file rejects, with no
+writable fallback or schema repair. A permitted write may recreate a deleted
+file. Existing handles observe later committed writes/replacement databases,
+not a permanently held SQLite connection. A read-only write rejects `READ_ONLY`
+after validating its arguments, even if the file has disappeared.
+
+| Policy operation | Result / meaning |
+| --- | --- |
+| `follow(nodeId, { alias? })`, `unfollow(nodeId)` | upstream changed-state boolean |
+| `seed(rid, { scope?: 'all' \| 'followed' })`, `unseed(rid)` | changed-state boolean; default scope `all` |
+| `setFollowPolicy(nodeId, 'allow' \| 'block')`, `setSeedPolicy(rid, 'allow' \| 'block')` | changed-state boolean |
+| `unblockRid(rid)`, `unblockNid(nodeId)` | remove only block rows |
+| `isFollowing(nodeId)`, `isSeeding(rid)`, `isBlocked(nodeId)` | boolean; blocked is not simply unfollowed |
+| `followPolicy(nodeId)`, `seedPolicy(rid)` | frozen value or `null` when no explicit row |
+| `followPolicies()`, `seedPolicies()` | eager frozen arrays in upstream storage order |
+| `nodesByAlias(alias)` | frozen array of readonly `[nodeId, alias]` pairs |
+
+`FollowPolicyInfo` has `nodeId`, optional `alias`, and `policy: 'allow' | 'block'`.
+`SeedPolicyInfo` has `rid`, `policy` and optional `scope: 'all' | 'followed'`;
+blocked rows omit scope. These are the **raw tables**, not upstream's combined
+file-config/effective-policy facade. Fuzzy alias lookup uses upstream SQL
+`UPPER`/`LIKE` substring behavior, not general Unicode case folding.
+`unfollow`/`unseed` delete block rows too. `seed` changes scope but does not clear
+a block policy; the SDK does not invent allow/unblock operations or changed-state
+optimizations. Policy store/open/iteration failures reject `POLICY`, not a fake
+empty list. Argument domains use the established `ERR_INVALID_ARG_*` codes;
+explicit `null` options/alias/scope are not treated as omission.
+
+Policy connections use upstream SQLite busy timeouts (read: 3 seconds; write:
+6 seconds), not SDK retries or a JS queue. Concurrent operations/handles/workers
+rely on the same addon's SQLite locking and cross-process SQLite locks. They do
+not acquire repository/signer mutexes or promise fairness, multi-call atomicity,
+read latency, cross-addon coordination or rollback. Do not mix independent SQLite
+builds against the same file concurrently within one process (for example
+`node:sqlite` and the addon): they have separate in-process VFS lock registries.
+External clients should use separate processes and finish writes before expecting
+read-your-write results. Connection-open/schema work is part of each operation.
+
+`RoutingStore.fromProfile(profile)` / `profile.routingStore()` eagerly open the
+upstream node database read-only. A missing file rejects `DATABASE` and is never
+created. Upstream performs connection configuration but runs no migrations;
+incompatible databases can fail during opening/configuration or later queries,
+without schema repair. A handle retains upstream's
+thread-safe shared `Database` connection and clones it for worker jobs. There is
+no inventory-write API, daemon access or automatic network discovery.
+
+- `get(rid)` and `getInventory(nodeId)` return sorted frozen ID arrays.
+- `entry(rid, nodeId)` returns Date-safe epoch milliseconds or `null` (absent or
+  unrepresentable). `entries()` returns frozen `{ rid, nodeId, timestamp }` values,
+  sorted by RID then node ID, with required `number | null` timestamps. Oversized
+  valid timestamps never hide the entry. Python retains their exact integers.
+- `count(rid)`, `total()`, `isEmpty()` return upstream counts/emptiness; unsafe
+  integer counts reject `INVALID_DATA`. `entries()` eagerly performs a timestamp
+  lookup per pair (N+1 queries), not an atomic snapshot across queries/writers.
+- Returned SQLite/decoding errors reject `DATABASE`; malformed argument strings
+  reject argument errors. A negative stored timestamp is a decoding failure,
+  not an unrepresentable valid timestamp. Some pinned upstream routing queries
+  use unchecked row decoding; a corrupt ID can panic and is contained as
+  `INTERNAL` by the common worker boundary, not converted into an empty listing.
+  Upstream iterator behavior is retained; this is not a general SQL validation API.
 
 ### Typed store conveniences
 
@@ -288,12 +373,15 @@ There is no SDK commit-import API or merge-base default.
 
 ## Concurrency and environment boundaries
 
-- A Rust registry shares locks by canonical storage path + RID across handles
+- Repository/COB writes: a Rust registry shares locks by canonical storage path + RID across handles
   and `worker_threads` loading the same addon. Write-side reload, transaction,
   signing and result snapshot run under that lock. Reads remain parallel and do
   not wait on the write mutex; repository handles are reopened inside each task.
 - Signer guard follows the repository lock and is retained for the upstream
   transaction. Signer getters use cached public metadata and never wait on it.
+- Policy/routing use their database contracts above, not the repository mutex.
+  SQLite busy waits can also occupy worker threads. No cross-database or
+  repository-plus-policy transaction is provided.
 - No JS write queue. Waiting writers occupy threads in Node's worker pool and can
   delay reads;
   no ordering/fairness or read-latency guarantee is made.
