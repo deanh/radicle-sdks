@@ -1,9 +1,11 @@
 # Local issue/comment observer spike
 
-Tracking issue: Python `e911911af3c628fb93b14948145bf7158d7a057c`.
-[`watch_issues.py`](watch_issues.py) uses installed **public** `radiclepy` exports.
-This is application code exploring event semantics, not a new SDK event API.
-The TypeScript counterpart is tracked separately in `856fc04543eb5c59e70b8294fbd40f74c641c687`.
+Tracking issues: Python `e911911af3c628fb93b14948145bf7158d7a057c` and
+TypeScript `856fc04543eb5c59e70b8294fbd40f74c641c687`.
+[`watch_issues.py`](watch_issues.py) and [`watch-issues.mjs`](watch-issues.mjs) use
+installed **public** `radiclepy` / `radicle-sdk` exports. They share the event and
+version-1 checkpoint format; either can resume the other's checkpoint (never run
+both writers on the same file). These are application spikes, not SDK event APIs.
 
 ## Run
 
@@ -44,6 +46,30 @@ dictionaries after all SDK reads have completed, without repository locks held.
 The CLI stops on read, handler, output or checkpoint errors; it does not retry
 application side effects. Ctrl-C exits; restart using the same checkpoint.
 
+## TypeScript counterpart
+
+```sh
+node examples/watch-issues.mjs --state /tmp/my-issues.json --once rad:z...
+node examples/watch-issues.mjs --state /tmp/my-issues.json --interval 2 rad:z...
+node examples/watch-issues.mjs --state /tmp/my-replay.json --once --replay rad:z...
+```
+
+Importing `pollOnce` does not load a profile or start a loop:
+
+```js
+import { pollOnce } from './examples/watch-issues.mjs';
+await pollOnce(profile, rid, checkpoint, async event => {
+  console.log(event.type, event.id);
+});
+```
+
+Both synchronous and asynchronous handlers are supported; each is awaited before
+the next one. SIGINT/SIGTERM request a graceful stop after the current batch;
+the interval sleep is cancellable. Python's Ctrl-C can instead interrupt the
+current batch, leaving its checkpoint unchanged. CLI argument-error exit codes
+and JSON whitespace/key ordering are language-specific; parsed event data agree.
+Both CLIs fail rather than silently acknowledge handler/output/checkpoint errors.
+
 ## Event/checkpoint contract
 
 Events share `id`, `type`, `rid`, `issueId`, `title`, `author`. Comment events add
@@ -58,7 +84,9 @@ Version-1 checkpoint shape is `{version, storage, rid, seen}`, where `storage` i
 the canonical storage path and `seen` maps issue IDs to sorted comment-ID arrays.
 Wrong scopes, malformed files/IDs and unsupported versions fail closed; they are
 never silently reset. Missing checkpoints baseline unless `--replay` is set;
-that flag does not replay an existing checkpoint. Keep a separate file per RID.
+that flag does not replay an existing checkpoint. If an initial replay fails
+before creating the checkpoint, restart with `--replay` again; omitting it
+intentionally establishes a new silent baseline. Keep a separate file per RID.
 Existing symlink checkpoints and paths inside Radicle data are rejected. Parent
 symlinks are resolved before the location check. This is accidental-overwrite
 protection, **not a hostile-filesystem sandbox**.
@@ -86,6 +114,6 @@ checkpoint**; no multi-process file lock is implemented.
 - Never execute repository text as code/shell commands. Default output is JSON
   data, including potentially untrusted peer text, not executable instructions.
 
-Tests execute the actual CLI and importable callback API against public SDK
-fixtures, including baseline/replay, restart, failure, invalid state and unchanged
+Tests execute both actual CLIs and importable callback APIs against public SDK
+fixtures, compare same-storage event data and cross-language checkpoint handoff, including baseline/replay, restart, failure, invalid state and unchanged
 Git refs. No production watcher/reliable message-delivery contract is claimed.

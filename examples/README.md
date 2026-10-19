@@ -10,9 +10,9 @@ what read-only tooling such as `radicle-httpd` cannot do.
 
 ## Issue/comment observer spike (read-only)
 
-[`watch_issues.py`](watch_issues.py) polls one local repository, reports newly
-observed issues/comments through a callback or JSON-lines CLI, and checkpoints
-successful batches. See the [contract and failure/replay limits](watch_issues.md).
+[`watch_issues.py`](watch_issues.py) and [`watch-issues.mjs`](watch-issues.mjs)
+poll one local repository, report newly observed issues/comments through a
+callback or JSON-lines CLI, and checkpoint successful batches. See the [contract and failure/replay limits](watch_issues.md).
 It writes only an external checkpoint, never replies or connects to a node.
 
 ## Project digest (read-only)
