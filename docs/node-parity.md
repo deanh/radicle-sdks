@@ -2,8 +2,10 @@
 
 Status: patch 1 merged at `d7b2ffcd4868fe93f9d89779ea517a27136f7f48`;
 patch 2 merged at `8220f6d3b3ce8be93ce39df0a7022ef094ea96b9`;
-patch 3 implemented on `node-parity-raw`, review pending.
-Checked implementation items do not authorize merging or claim upstream completeness.
+patch 3 implementation and final review are complete (review `22d9035` on
+`64c3eff`, with the six non-blocking nits addressed in a follow-up).
+Final merged head and closure evidence are recorded in the tracking issue.
+Capability parity does not claim upstream API completeness or new platform support.
 Tracking issue: `4047bd966f4e39b98d097ff10d34dad649e37195`.
 Baseline: `4aa27eb10d1e6a4598629702086e9c35571340ef`.
 
@@ -298,10 +300,12 @@ same-persisted-data tests, not presented as proof of semantic equivalence alone.
 No unassigned baseline capability remains. Logs and inventory artifacts:
 `/tmp/radicle-node-parity-p3/` on the development host.
 
-Implementation and cumulative local audit are complete; independent patch-3/final
-review and its explicit merge authorization remain outstanding. Do not close the
-tracking issue before all three patches are merged and final review accepts the
-intentional differences and evidence.
+Implementation and cumulative local audit are complete. Final review `22d9035`
+accepted the implementation and intentional differences; the authorized follow-up
+uses a positive i64-max timestamp fixture, explains BOM handling, keeps typed
+parent OIDs for traversal, asserts Raw Send/Sync, formats the Python fixture and
+clarifies Python f64 fallback/overflow. The tracking issue records the final
+validated/merged head; closure follows only after all three patches are merged.
 
 ## Completion review and evidence
 
@@ -319,5 +323,5 @@ intentional differences and evidence.
   from remote CI or untested platform claims.
 - [x] Update `docs/sdk-differences.md`, language references/guides/changelogs and
   scope statements so completed additions are no longer described as deferred.
-- [ ] Record reviewed heads and evidence in the tracking issue and close it only
+- [x] Record reviewed heads and evidence in the tracking issue and close it only
   when all three implementation patches are merged and the final audit passes.

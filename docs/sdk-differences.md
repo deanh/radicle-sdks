@@ -50,7 +50,8 @@ Raw manifest schema versions are BigInts too.
 
 Raw `actions_json()` / `actionsJson()` both retain independent original bytes.
 Node preserves arbitrary integer tokens as number/BigInt; Python's serde_json
-path preserves i64/u64 integers and may use floats beyond those. Decimal/exponent
+path preserves i64/u64 integers and uses f64 for integer tokens outside those
+ranges when representable, rejecting floating-point overflow. Decimal/exponent
 tokens use floating-point numbers, not arbitrary-decimal arithmetic. Node decoded
 containers are frozen; Python's decoded dict/list values are mutable. BigInts
 need explicit conversion before ordinary JSON.stringify. Node decodes its current

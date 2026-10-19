@@ -16,6 +16,8 @@ export interface RawOp extends RawOpData {
   /** Decode the current action byte views; no storage reads or writes. */
   readonly actionsJson: () => ReadonlyArray<RawJsonValue>;
 }
+// ignoreBOM keeps the BOM in decoded text, so JSON.parse rejects it just as
+// serde_json does; the option disables BOM stripping, not BOM validation.
 const decoder = new TextDecoder('utf-8', { fatal: true, ignoreBOM: true });
 const integer = /^-?(?:0|[1-9][0-9]*)$/;
 const badSurrogate = /[\uD800-\uDBFF](?![\uDC00-\uDFFF])|(?<![\uD800-\uDBFF])[\uDC00-\uDFFF]/;

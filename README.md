@@ -33,7 +33,8 @@ restating these points.
   inspect persisted state before continuing.
 - **Thin adapters, no shared core.** Each binding adapts the upstream crate
   directly; no common Rust crate has been extracted. Upstream API completeness
-  is not a goal; [Python capability parity](docs/node-parity.md) is in progress.
+  is not a goal; [Python capability parity](docs/node-parity.md) is implemented
+  with explicit language differences and recorded validation boundaries.
   Both SDKs expose local policy management, routing reads and generic raw COB
   inspection, with intentional language-specific representations.
 - **Platforms.** Building from Git needs **Rust ≥ 1.91**, Git and a C toolchain,

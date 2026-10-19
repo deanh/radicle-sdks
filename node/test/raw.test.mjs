@@ -189,7 +189,10 @@ test('bad entry tips reject whole history and raw timestamps keep exact upstream
     { raw, op, issue } = await largeOp(f);
   const ref = `refs/namespaces/${f.profile.nodeId}/refs/cobs/${ISSUE}/${issue.id}`;
   const original = git(stored(f), 'cat-file', 'commit', op.id);
-  const altered = original.replace(/(committer .*?> )\d+ ([+-]\d{4})/, '$1-1 $2');
+  const altered = original.replace(
+    /(committer .*?> )\d+ ([+-]\d{4})/,
+    (_, prefix, zone) => `${prefix}9223372036854775807 ${zone}`,
+  );
   const id = execFileSync(
     'git',
     ['-C', stored(f), 'hash-object', '--literally', '-t', 'commit', '-w', '--stdin'],
@@ -198,7 +201,7 @@ test('bad entry tips reject whole history and raw timestamps keep exact upstream
   // Raw loading parses signature metadata, not authentication. Copied signatures
   // do not authenticate these altered fixture commits; sigrefs are unchanged.
   git(stored(f), 'update-ref', ref, id);
-  assert.equal((await raw.history(ISSUE, issue.id))[0].timestamp, 18446744073709551615n);
+  assert.equal((await raw.history(ISSUE, issue.id))[0].timestamp, 9223372036854775807n);
   git(stored(f), 'update-ref', ref, (await f.repo.head()).oid);
   await assert.rejects(raw.history(ISSUE, issue.id), category('COB'));
   git(stored(f), 'update-ref', ref, op.id);

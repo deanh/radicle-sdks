@@ -63,11 +63,11 @@ fn typed_id(name: &str) -> Option<cob::TypedId> {
             .and_then(|r| cob::TypedId::from_qualified(&r).ok().flatten()),
     }
 }
-fn load(repo: &radicle::storage::git::Repository, id: Oid) -> Result<RawOpData> {
+fn load(repo: &radicle::storage::git::Repository, id: Oid) -> Result<(RawOpData, Vec<Oid>)> {
     let entry = repo
         .load(id)
         .map_err(|e| err("COB", format!("load entry {id}: {e}")))?;
-    Ok(RawOpData {
+    let op = RawOpData {
         id: id.to_string(),
         actor: entry.author().to_string(),
         timestamp: entry.timestamp.into(),
@@ -81,7 +81,8 @@ fn load(repo: &radicle::storage::git::Repository, id: Oid) -> Result<RawOpData> 
                 .map_err(|e| err("INVALID_DATA", e))?
                 .into(),
         },
-    })
+    };
+    Ok((op, entry.parents))
 }
 // Kahn ordering with the same lexicographically-smallest ready ID tie-break as
 // Python. Keep graph ordering separate from byte materialization for unit tests.
@@ -203,10 +204,8 @@ impl NativeRaw {
                 if ops.contains_key(&id.to_string()) {
                     continue;
                 }
-                let op = load(&repo, id)?;
-                for parent in &op.parents {
-                    stack.push(parent.parse().map_err(|e| err("COB", e))?);
-                }
+                let (op, parents) = load(&repo, id)?;
+                stack.extend(parents);
                 ops.insert(op.id.clone(), op);
             }
             let graph = ops
