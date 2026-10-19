@@ -8,6 +8,13 @@ Planned in Radicle issue `6595eea`: this read-only digest first, then a
 write-side example (a review bot in a sandbox), since signed local writes are
 what read-only tooling such as `radicle-httpd` cannot do.
 
+## Issue/comment observer spike (read-only)
+
+[`watch_issues.py`](watch_issues.py) polls one local repository, reports newly
+observed issues/comments through a callback or JSON-lines CLI, and checkpoints
+successful batches. See the [contract and failure/replay limits](watch_issues.md).
+It writes only an external checkpoint, never replies or connects to a node.
+
 ## Project digest (read-only)
 
 [`digest.py`](digest.py) and [`digest.mjs`](digest.mjs) are the same program in
@@ -69,4 +76,4 @@ Default branch `main` at `d774ba0`.
 ```
 
 Other actors are shown by the last eight characters of their DID; the SDKs'
-alias lookup isn't used because only the Python SDK has it.
+alias lookup isn't used here; both SDKs provide it.
