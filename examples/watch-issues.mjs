@@ -31,6 +31,8 @@ async function checkpointPath(profile, filename) {
 function record(value) {
   return value !== null && typeof value === 'object' && !Array.isArray(value);
 }
+// operation-events.mjs reuses these for its cursor files.
+export { loadCheckpoint as loadState, saveCheckpoint as saveState, record, checkpointPath };
 async function loadCheckpoint(path, storage, rid) {
   let text;
   try {

@@ -12,6 +12,8 @@ This is research application code, not an SDK event API or a production watcher.
 - `operation_events.py --source scan` is the operation-level reference. It lists
   issue/patch refs using public Raw APIs, diffs aggregate tip frontiers, and reads
   changed COB histories. Unchanged refs require no history evaluation.
+  `operation-events.mjs` is the TypeScript port of the same contract; cursors and
+  parsed events are shared across languages (JSON key order differs by language).
 - `operation_events.py --source sigrefs` is the compact-checkpoint candidate.
   Its cursor contains namespace -> sigrefs OID, not every ref tip/operation ID.
   It compares current namespace tips, then parses historical/current `refs` blobs
@@ -20,6 +22,7 @@ This is research application code, not an SDK event API or a production watcher.
 ```sh
 python examples/operation_events.py --state /tmp/ops-scan.json --source scan rad:z...
 python examples/operation_events.py --state /tmp/ops-signed.json --source sigrefs rad:z...
+node examples/operation-events.mjs --state /tmp/ops-signed.json --source sigrefs rad:z...
 # Initial replay instead of a silent baseline (only on a missing cursor):
 python examples/operation_events.py --state /tmp/ops-replay.json --replay rad:z...
 python examples/bench_events.py --rounds 5 rad:z...
@@ -75,11 +78,16 @@ operations or call a raw merge record "patch merged".
 ## Change detection and resume findings
 
 Both sources produce identical events on the same **signed, fast-forward** issue/
-patch fixtures, including multi-action creation and two-actor review histories.
-Signing is a material contract difference: a fixture advances a COB ref while
-restoring its previous sigrefs. Scan sees it; sigrefs emits nothing until the new
-set is signed. The candidate clips the returned history to the selected signed
-tips, so it does not accidentally emit raw descendants beyond that frontier.
+patch fixtures, including multi-action creation and two-actor review histories,
+in both languages and from either language's cursor. The cross-language test
+resumes a Python cursor from Node and vice versa, compares full replay sets, and
+replays a Python-produced delta through the Node CLI. Signing is a material
+contract difference: a fixture advances a COB ref while restoring its previous
+sigrefs. Scan sees it; sigrefs emits nothing until the new set is signed.
+Re-signing the unchanged signed set still does not advertise it; the next signed
+COB write does, delivering both operations. The candidate clips the returned
+history to the selected signed tips, so it does not accidentally emit raw
+descendants beyond that frontier.
 
 The prototype cannot honestly implement all of the proposed efficient/lossless
 resume contract using today's public exports:
