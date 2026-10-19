@@ -4,6 +4,18 @@ Related issues: events design `089606916a4c782f0eb210cc9d8d5d3bb46ace33`,
 Python spike `e911911af3c628fb93b14948145bf7158d7a057c`.
 This is research application code, not an SDK event API or a production watcher.
 
+Historical record: the amended direction in events issue `0896069`, comment
+`af7b3f81d649a652b4be619fbe19d6136a23543a` (amending `bb370ff`), supersedes
+this prototype's recovery and cursor policies. Here a problematic COB frontier
+halts the whole poll with `ResyncRequired` and suppresses delivery; the intended
+feed instead reports namespace-level history-unavailable conditions separately
+from per-COB created/updated/forced/deleted records, and emits the `^old new`
+operation range even for forced updates. It uses union-of-namespace tip sets and
+a strict repository-bound refs-style text cursor, not this experiment's JSON
+cursor. Signing metadata is read, not signature verification. Keep this code as
+experimental evidence; implement the three read-only primitives in both bindings
+before rebuilding the experiment and specifying an SDK event API.
+
 ## What is being compared
 
 - `watch_issues.py` is the evaluated **appearance/state delivery baseline**:
