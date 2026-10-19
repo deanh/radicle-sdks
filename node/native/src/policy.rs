@@ -77,7 +77,7 @@ fn parse_policy(value: &str) -> Result<Policy> {
         _ => Err(err("ARG_VALUE", "policy must be 'allow' or 'block'")),
     }
 }
-fn scope(value: &str) -> Result<Scope> {
+fn parse_scope(value: &str) -> Result<Scope> {
     match value {
         "all" => Ok(Scope::All),
         "followed" => Ok(Scope::Followed),
@@ -107,6 +107,8 @@ impl NativePolicyStore {
         } else {
             Writer::open(&path).map_err(|e| err("POLICY", e))?;
         }
+        // Writable opening may already have created the file if canonicalization
+        // now fails (e.g. an external writer removed it); no rollback is promised.
         // Freeze relative paths/symlinks at factory time before reopening later.
         let path = path.canonicalize().map_err(|e| err("POLICY", e))?;
         Ok(Self { path, read_only })
@@ -167,11 +169,11 @@ impl NativePolicyStore {
         })
     }
     #[napi(catch_unwind, ts_return_type = "Promise<boolean>")]
-    pub fn seed(&self, repo_id: String, value: String) -> AsyncTask<Work<bool>> {
+    pub fn seed(&self, repo_id: String, scope: String) -> AsyncTask<Work<bool>> {
         let me = self.clone();
         work(move || {
             let id = rid(&repo_id)?;
-            let scope = scope(&value)?;
+            let scope = parse_scope(&scope)?;
             me.write(|s| s.seed(&id, scope))
         })
     }
@@ -184,20 +186,20 @@ impl NativePolicyStore {
         })
     }
     #[napi(catch_unwind, ts_return_type = "Promise<boolean>")]
-    pub fn set_follow_policy(&self, node_id: String, value: String) -> AsyncTask<Work<bool>> {
+    pub fn set_follow_policy(&self, node_id: String, policy: String) -> AsyncTask<Work<bool>> {
         let me = self.clone();
         work(move || {
             let id = nid(&node_id)?;
-            let policy = parse_policy(&value)?;
+            let policy = parse_policy(&policy)?;
             me.write(|s| s.set_follow_policy(&id, policy))
         })
     }
     #[napi(catch_unwind, ts_return_type = "Promise<boolean>")]
-    pub fn set_seed_policy(&self, repo_id: String, value: String) -> AsyncTask<Work<bool>> {
+    pub fn set_seed_policy(&self, repo_id: String, policy: String) -> AsyncTask<Work<bool>> {
         let me = self.clone();
         work(move || {
             let id = rid(&repo_id)?;
-            let policy = parse_policy(&value)?;
+            let policy = parse_policy(&policy)?;
             me.write(|s| s.set_seed_policy(&id, policy))
         })
     }

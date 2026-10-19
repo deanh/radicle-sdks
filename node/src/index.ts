@@ -1,4 +1,7 @@
 import * as raw from '../dist/native.cjs';
+import { rawOp } from './raw.js';
+import type { RawOp } from './raw.js';
+export type { RawOp, RawJsonValue } from './raw.js';
 export type {
   Comment,
   Commit,
@@ -31,6 +34,8 @@ export type {
   FollowPolicyInfo,
   SeedPolicyInfo,
   RoutingEntry,
+  CobRef,
+  CobManifest,
 } from '../dist/native.cjs';
 
 import { run, sync } from './bridge.js';
@@ -210,6 +215,35 @@ export class RoutingStore {
   }
   isEmpty(): Promise<boolean> {
     return run(() => this.#raw.isEmpty());
+  }
+}
+
+export class Raw {
+  readonly #raw: raw.NativeRaw;
+  private constructor(key: symbol, value: raw.NativeRaw) {
+    checkConstruction(key);
+    this.#raw = value;
+  }
+  static open(repo: Repository): Raw {
+    return new Raw(
+      constructionKey,
+      sync(() => raw.NativeRaw.open(repository(repo))),
+    );
+  }
+  get rid(): string {
+    return sync(() => this.#raw.rid);
+  }
+  typenames(): Promise<ReadonlyArray<string>> {
+    return run(() => this.#raw.typenames());
+  }
+  entities(typename: string): Promise<ReadonlyArray<string>> {
+    return run(() => this.#raw.entities(typename));
+  }
+  refs(typename: string, entityId: string): Promise<ReadonlyArray<raw.CobRef>> {
+    return run(() => this.#raw.refs(typename, entityId));
+  }
+  async history(typename: string, entityId: string): Promise<ReadonlyArray<RawOp>> {
+    return Object.freeze((await run(() => this.#raw.history(typename, entityId))).map(rawOp));
   }
 }
 

@@ -12,6 +12,7 @@ mod policy;
 mod probes;
 mod profile;
 mod project;
+mod raw;
 mod repository;
 mod routing;
 mod tasks;

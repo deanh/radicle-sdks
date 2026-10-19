@@ -1,5 +1,21 @@
 # radicle-sdk changelog
 
+## Python capability parity: raw COB inspection (unreleased)
+
+- Add `Raw.open`, typename/entity/ref enumeration and deterministic causal history,
+  deduplicated across tips and excluding identity/related links from traversal.
+- Add frozen raw entry/ref/manifest DTOs with independent action bytes; raw seconds
+  and schema versions are exact BigInts. `actionsJson()` preserves unsafe integer
+  tokens as BigInt; decimal/exponent tokens remain finite IEEE-754 numbers.
+- Preserve raw data when JSON decoding fails; reject invalid JSON/UTF-8/surrogates
+  and float overflow without adding a dependency or a custom JSON scanner.
+- Carry patch-2 review nits: isolated policy worker coordinator, expected busy-test
+  duration comment, scope/policy parameter names, API wording and writable-factory
+  partial-effect comment. No patch-2 behavior expansion or new synchronization.
+- Complete the baseline Python-to-Node member inventory and cumulative local
+  conformance audit. Final approval/merge remains separate; no registry/platform
+  or upstream-completeness claim is introduced.
+
 ## Python capability parity: policy and routing (unreleased)
 
 - Add async raw policy stores with follow/seed/block writes and read-only lookup,

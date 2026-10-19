@@ -34,8 +34,8 @@ restating these points.
 - **Thin adapters, no shared core.** Each binding adapts the upstream crate
   directly; no common Rust crate has been extracted. Upstream API completeness
   is not a goal; [Python capability parity](docs/node-parity.md) is in progress.
-  Both SDKs expose local policy management and routing reads; raw COB inspection
-  remains Python-only pending the third parity patch.
+  Both SDKs expose local policy management, routing reads and generic raw COB
+  inspection, with intentional language-specific representations.
 - **Platforms.** Building from Git needs **Rust ≥ 1.91**, Git and a C toolchain,
   and a cold build takes minutes. Python targets Linux and macOS (Windows is
   unverified); the TypeScript alpha is validated on Linux x86_64 GNU/glibc only.

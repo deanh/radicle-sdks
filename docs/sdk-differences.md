@@ -1,8 +1,8 @@
 # Intentional SDK differences
 
 Both SDKs bind Radicle **`=0.25.1`** for local signed workflows. Shared
-[workflow semantics](semantics.md) do not require identical public interfaces or
-full parity. The [Python API](../python/API.md) and
+[workflow semantics](semantics.md) and [capability inventory](node-parity.md) do
+not require identical public interfaces or full upstream API coverage. The [Python API](../python/API.md) and
 [TypeScript API](../node/API.md) remain the language-specific contracts.
 
 ## Surface and setup
@@ -17,7 +17,7 @@ full parity. The [Python API](../python/API.md) and
 | Typed COB store creation | `open/open_as`, lazy | `open/openAs`, lazy |
 | Missing issue/patch/branch lookup | `None` | `null` |
 | Filesystem input | `str` or `os.PathLike[str]`; no bytes paths | string paths |
-| Extra surfaces | raw COB inspection | raw inspection deferred; policy/routing and repository metadata/ref maintenance/bare checkout are available |
+| Capability boundary | bounded local Python surface in the parity inventory | equivalent capabilities; representation/concurrency differences below |
 | Aliases and ID validators | synchronous lookup facade and `parse_*` functions | async lookup facade; synchronous `parseRepoId/parseDid/parseNodeId/parseOid/parseObjectId` |
 | Home/storage setup | Home constructor/load/resolve; explicit storage opening | async `Home.create/load/resolve`, `Storage.open`; path getters synchronous |
 | Stored non-UTF-8 path | `ValueError` on `.path` | `RadicleError` / `INVALID_DATA` on `.path` |
@@ -38,13 +38,24 @@ are not automatically converted into Python datetime objects.
 | --- | --- | --- |
 | Commit author/committer time | `int`, seconds | required `number \| null`, milliseconds |
 | Typed comment/revision/review time | `int`, milliseconds | required `number \| null`, milliseconds |
-| Raw COB operation time | `int`, seconds | raw API not exposed |
+| Raw COB operation time | `int`, seconds | exact `bigint`, seconds |
 | Routing last-seen time | `int \| None`, milliseconds | required `number \| null`, Date-safe milliseconds |
 
 Node checks overflow and the ECMAScript Date range (absolute milliseconds at
 most 8,640,000,000,000,000). Stored times outside that range become `null`, not
 rounded numbers, and do not hide an object or reject a whole listing. Genuine
-store/decoding errors still reject. No raw/BigInt timestamp API is promised.
+store/decoding errors still reject. Raw COB operation time is deliberately exempt
+from Date conversion; it preserves the underlying integer seconds as BigInt.
+Raw manifest schema versions are BigInts too.
+
+Raw `actions_json()` / `actionsJson()` both retain independent original bytes.
+Node preserves arbitrary integer tokens as number/BigInt; Python's serde_json
+path preserves i64/u64 integers and may use floats beyond those. Decimal/exponent
+tokens use floating-point numbers, not arbitrary-decimal arithmetic. Node decoded
+containers are frozen; Python's decoded dict/list values are mutable. BigInts
+need explicit conversion before ordinary JSON.stringify. Node decodes its current
+mutable byte views; Python bytes cannot be mutated. Neither helper authenticates
+or validates typed action schemas.
 
 ## Values, mutations and errors
 

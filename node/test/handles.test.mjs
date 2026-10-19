@@ -6,6 +6,7 @@ import {
   Aliases,
   PolicyStore,
   RoutingStore,
+  Raw,
   Profile,
   Signer,
   Storage,
@@ -23,6 +24,7 @@ test('handles reject direct JavaScript construction and expose no native convers
     Aliases,
     PolicyStore,
     RoutingStore,
+    Raw,
     Profile,
     Signer,
     Storage,
@@ -49,6 +51,7 @@ test('handles reject direct JavaScript construction and expose no native convers
   assert.ok(f.signer instanceof Signer);
   assert.ok(f.storage instanceof Storage);
   assert.ok(f.repo instanceof Repository);
+  assert.ok(Raw.open(f.repo) instanceof Raw);
   const issues = Issues.openAs(f.repo, f.signer);
   const issue = await issues.create({ title: 'Factory', description: '' });
   assert.ok(issues instanceof Issues);
@@ -61,7 +64,7 @@ test('handles reject direct JavaScript construction and expose no native convers
   assert.ok(patch instanceof PatchMut);
   assert.ok((await patches.getMut(patch.id)) instanceof PatchMut);
   const declarations = await readFile(new URL('../dist/index.d.ts', import.meta.url), 'utf8');
-  assert.equal((declarations.match(/private constructor\(\);/g) || []).length, 12);
+  assert.equal((declarations.match(/private constructor\(\);/g) || []).length, 13);
   assert.doesNotMatch(
     declarations,
     /raw\.Native|wrapHome|wrapAliases|wrapSigner|wrapStorage|wrapRepository|wrapIssue|wrapPatch|profileRaw|constructionKey/,

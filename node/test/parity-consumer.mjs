@@ -12,6 +12,7 @@ import {
   Patches,
   PolicyStore,
   RoutingStore,
+  Raw,
   initProject,
   checkoutProject,
   parseRepoId,
@@ -128,6 +129,22 @@ try {
   assert.equal(await routes.total(), 0);
   assert.equal(await routes.isEmpty(), true);
   assert.equal(await (await PolicyStore.open(policy.path)).isFollowing(p.nodeId), false);
+  const raw = Raw.open(repo),
+    ops = await raw.history('xyz.radicle.issue', issue.id);
+  assert.equal(raw.rid, rid);
+  assert.ok((await raw.typenames()).includes('xyz.radicle.issue'));
+  assert.ok((await raw.entities('xyz.radicle.issue')).includes(issue.id));
+  assert.ok((await raw.refs('xyz.radicle.issue', issue.id)).length > 0);
+  assert.equal(typeof ops[0].timestamp, 'bigint');
+  assert.equal(ops[0].manifest.version, 1n);
+  assert.ok(ops[0].actionsJson().length > 0);
+  ops[0].actions[0].fill(32);
+  ops[0].actions[0].set(new TextEncoder().encode('9007199254740993'));
+  assert.equal(ops[0].actionsJson()[0], 9007199254740993n);
+  assert.equal(
+    typeof (await raw.history('xyz.radicle.issue', issue.id))[0].actionsJson()[0],
+    'object',
+  );
   console.log('Parity public consumer OK');
 } finally {
   await rm(root, { recursive: true, force: true });

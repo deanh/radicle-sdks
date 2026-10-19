@@ -2,8 +2,9 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { join, relative } from 'node:path';
 import { access, writeFile, unlink, symlink } from 'node:fs/promises';
-import { Worker } from 'node:worker_threads';
-import { spawn } from 'node:child_process';
+import { spawn, execFile } from 'node:child_process';
+import { promisify } from 'node:util';
+import { fileURLToPath } from 'node:url';
 import { DatabaseSync } from 'node:sqlite';
 import { Profile, PolicyStore, RadicleError } from 'radicle-sdk';
 import { fixture } from './helpers.mjs';
@@ -163,6 +164,7 @@ test('policy reopening pins relative/symlink paths; validators and corrupt rows 
 test('SQLite busy failures propagate without application retries and later operations recover', async (t) => {
   const f = await fixture(t),
     policy = await f.profile.policyStore();
+  // Expected duration: about 6 seconds, waiting out upstream's write timeout.
   // Hold the lock in a different process. Independent SQLite builds inside one
   // process have separate VFS lock registries, so node:sqlite is not a valid
   // in-process lock arbiter for the addon's bundled SQLite.
@@ -217,45 +219,23 @@ test('independent handles and worker realms use per-operation policy connections
   const peers = await Promise.all(
     Array.from({ length: 3 }, (_, i) => Profile.init(join(f.root, `peer-${i}`), `peer-${i}`)),
   );
-  const previous = process.env.RAD_HOME;
-  process.env.RAD_HOME = f.home; // configure native environment before starting workers
-  try {
-    const outcomes = await Promise.allSettled(
-      peers.map(
-        (p, i) =>
-          new Promise((resolve, reject) => {
-            const worker = new Worker(new URL('./policy-worker.mjs', import.meta.url), {
-              workerData: { path: policy.path, nodeId: p.nodeId, alias: `worker-${i}` },
-            });
-            let message, failure;
-            worker.once('error', (error) => {
-              failure = error;
-            });
-            worker.once('message', (value) => {
-              message = value;
-            });
-            worker.once('exit', (code) =>
-              code === 0 && !failure && message && !message.error
-                ? resolve(message)
-                : reject(failure ?? new Error(JSON.stringify(message ?? { code }))),
-            );
-          }),
-      ),
-    );
-    // All realms have exited before restoring the native process environment.
-    const results = outcomes.map((outcome) => {
-      assert.equal(outcome.status, 'fulfilled');
-      return outcome.value;
+  const { stdout } = await promisify(execFile)(
+    process.execPath,
+    [
+      fileURLToPath(new URL('./policy-coordinator.mjs', import.meta.url)),
+      JSON.stringify({
+        path: policy.path,
+        peers: peers.map((p, i) => ({ nodeId: p.nodeId, alias: `worker-${i}` })),
+      }),
+    ],
+    { env: { ...process.env, RAD_HOME: f.home }, timeout: 45000 },
+  );
+  const results = JSON.parse(stdout);
+  for (let i = 0; i < results.length; i++) {
+    assert.deepEqual(results[i], {
+      policy: { nodeId: peers[i].nodeId, alias: `worker-${i}`, policy: 'allow' },
+      total: 0,
     });
-    for (let i = 0; i < results.length; i++) {
-      assert.deepEqual(results[i], {
-        policy: { nodeId: peers[i].nodeId, alias: `worker-${i}`, policy: 'allow' },
-        total: 0,
-      });
-    }
-    assert.equal((await policy.followPolicies()).length, 4);
-  } finally {
-    if (previous === undefined) delete process.env.RAD_HOME;
-    else process.env.RAD_HOME = previous;
   }
+  assert.equal((await policy.followPolicies()).length, 4);
 });

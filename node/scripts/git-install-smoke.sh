@@ -44,12 +44,13 @@ cp "$root/node/test/parity-consumer.mjs" parity.mjs
 node parity.mjs
 cp "$root/node/test/repository-types.ts" repository-types.ts
 cp "$root/node/test/policy-types.ts" policy-types.ts
+cp "$root/node/test/raw-types.ts" raw-types.ts
 node --input-type=module - <<'JS'
 import { readFileSync, writeFileSync } from 'node:fs';
 writeFileSync('repository-types.ts', readFileSync('repository-types.ts', 'utf8').replace('../dist/index.js', 'radicle-sdk'));
 JS
 cp "$root/node/test/handle-types.ts" handle-types.ts
-npm exec --yes --package typescript@5.9.3 -- tsc --strict --noEmit --target ES2023 --module NodeNext --moduleResolution NodeNext handle-types.ts repository-types.ts policy-types.ts
+npm exec --yes --package typescript@5.9.3 -- tsc --strict --noEmit --target ES2023 --module NodeNext --moduleResolution NodeNext handle-types.ts repository-types.ts policy-types.ts raw-types.ts
 printf 'Installed consumer handle types OK\n'
 if [ "$manager" = bun ]; then
   npm exec --yes --package bun@1.4.3 -- bun smoke.mjs

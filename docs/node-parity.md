@@ -1,8 +1,9 @@
 # TypeScript capability parity with Python
 
 Status: patch 1 merged at `d7b2ffcd4868fe93f9d89779ea517a27136f7f48`;
-patch 2 implemented on `node-parity-policy`, review pending.
-Checked items for patch 2 mean implemented, not yet approved/merged.
+patch 2 merged at `8220f6d3b3ce8be93ce39df0a7022ef094ea96b9`;
+patch 3 implemented on `node-parity-raw`, review pending.
+Checked implementation items do not authorize merging or claim upstream completeness.
 Tracking issue: `4047bd966f4e39b98d097ff10d34dad649e37195`.
 Baseline: `4aa27eb10d1e6a4598629702086e9c35571340ef`.
 
@@ -99,7 +100,7 @@ implementations (including field materialization, not only method names):
 | PatchMut ID/reload/edit/label/assign/update/ready/unready/archive/unarchive/comment/review/merge | All capabilities; envelopes instead of cached `.patch` |
 | Comment/Review/Revision | All fields; timestamps use the existing Date-safe nullable milliseconds convention |
 | PolicyStore/RoutingStore and their values | Implemented in patch 2 below |
-| Raw/CobRef/CobManifest/RawOp | Patch 3, still unchecked below |
+| Raw/CobRef/CobManifest/RawOp | Implemented in patch 3 below |
 | Python exceptions/protocols/repr/hash/equality | Explicit language differences below; not missing workflows |
 
 Comment IDs/counts use `issue.comments()` in both implementations, excluding
@@ -171,14 +172,14 @@ and workers, and routing fixtures that do not require a network daemon.
 
 ## Patch 3: raw COB inspection
 
-- [ ] `Raw.open`, RID, `typenames`, `entities`, `refs`, `history`.
-- [ ] `CobRef` name/target; `CobManifest` type name/version.
-- [ ] `RawOp` ID, actor, timestamp, action bytes, parents, related links, identity
+- [x] `Raw.open`, RID, `typenames`, `entities`, `refs`, `history`.
+- [x] `CobRef` name/target; `CobManifest` type name/version.
+- [x] `RawOp` ID, actor, timestamp, action bytes, parents, related links, identity
   link and manifest, plus JSON decoding capability.
-- [ ] Preserve strict ref/identifier acceptance, deterministic enumeration,
+- [x] Preserve strict ref/identifier acceptance, deterministic enumeration,
   causal-parent-only traversal, cross-ref deduplication, topological order and
   deterministic ties, and backend/decode/cycle error propagation.
-- [ ] Independent action byte copies and immutable surrounding snapshots; no
+- [x] Independent action byte copies and immutable surrounding snapshots; no
   accidental claim that individual COB refs authenticate their contents.
 
 Action JSON decision: retain independent action byte copies and provide a
@@ -189,20 +190,30 @@ Use standard JSON.parse reviver source text rather than a custom scanner; the
 source facility was locally verified on both Node 26.5.0 and 26.12.0. Source text
 is provided for primitive tokens only, not object/array reviver visits; the
 helper must check this and never infer a composite value from `context.source`.
-The helper itself remains patch-3 work and still needs numeric boundary tests.
+The helper is implemented with numeric boundary, nested container, prototype-key,
+UTF-8/surrogate and invalid/overflow tests.
 
-Specify decimal/exponent behavior before implementing the helper: BigInt cannot
-represent fractional values, so integer preservation must not be advertised as
-arbitrary-decimal losslessness. Python itself decodes decimal/exponent tokens as
-floats. Test positive/negative safe-integer boundaries, nested arrays/objects,
-escaped strings containing number-like text, negative zero, fractional/exponent
-tokens, invalid JSON and overflow behavior. Do not introduce a dependency or
-silently round out-of-range integer tokens. Document that decoded BigInts cannot
-be passed directly to ordinary JSON.stringify; original bytes remain available.
+Decimal/exponent decision: preserve finite IEEE-754 Number semantics (including
+rounding/underflow), as Python uses floats for those tokens. Reject floating-point
+overflow as COB. BigInt preservation is for integer tokens, including tokens
+outside Python serde_json's i64/u64 integer paths; do not advertise arbitrary
+lossless decimal parsing. Tests explicitly distinguish a large integer from its
+exponent-spelled floating-point equivalent and preserve negative zero. Original
+bytes remain available; ordinary JSON.stringify needs explicit BigInt conversion.
+Decoded Node containers are frozen and actionsJson reads the snapshot's current
+mutable byte views, not storage. Invalid UTF-8, unpaired escapes and invalid JSON
+reject COB without hiding the original raw entry.
 
-Raw timestamp representation remains to be specified. Python raw timestamps are
-seconds, unlike typed COB milliseconds; the routing decision does not silently
-apply to this low-level format.
+Graph corruption check: Node rejects synthetic self-parent cycles too. The
+baseline Python sorter filters self-edges; this distinction cannot arise in valid
+content-addressed history and is not a valid-workflow parity gap. Tests cover
+both self-cycles and multi-entry cycles without returning partial output.
+
+Raw metadata decision: exact bigint epoch seconds, not Date-safe milliseconds;
+manifest schema versions are exact bigints as well, so a valid usize version
+cannot force rounding or an artificial u32 limit. Same-storage tests include
+large raw seconds/schema versions and invalid action payloads. No timestamp-input
+API or signature-authentication API is added.
 
 Required evidence: shared histories covering multiple actors/refs, identity and
 related links that must not be traversed, deterministic ordering, malformed refs,
@@ -225,6 +236,9 @@ Retain these rather than copying Python object mechanics:
 - Existing typed timestamp conversions and documented runtime/platform boundaries.
 - File-backed Node policy connections reopened per operation, canonical `.path`,
   and no ephemeral `:memory:`/empty connection names; Python holds its connection.
+- Raw timestamps/schema versions use exact Node BigInts; decoded integer tokens
+  use number/BigInt, decimal/exponent tokens use finite floats, and decoded Node
+  JSON containers are frozen. Python representations are described above.
 - Non-UTF-8 stored path getters use Node INVALID_DATA instead of Python ValueError;
   routing timestamps outside the Date range use Node null instead of large integers.
 
@@ -258,23 +272,52 @@ comments and primitive-only reviver source notes. Local optimized Rust 1.91 buil
 runtime/actual-guide/parity/type gates pass. Exact committed-source installations
 and review heads are recorded in the tracking issue after commit. Lockfiles remain
 unchanged. Evidence: `/tmp/radicle-node-parity-p2/`. No remote CI/platform expansion
-claim and no raw COB implementation; patch 3 remains separate.
+claim. Patch 2 was reviewed and fast-forward merged unchanged at `8220f6d`.
+
+Patch 3 completes raw inspection and carries all five patch-2 nits: expected
+6-second busy-test duration, worker coordination in an isolated process with the
+native environment fixed at startup, scope/policy parameter names, API wording,
+and the eager writable-open/canonicalization partial-effect comment.
+
+Cumulative local validation: fresh optimized Rust 1.91 addon; 213 required-helper/
+cross-SDK Python tests; 49 Node tests on both Node 26.5 and 26.12; 9 native release
+tests; MSRV/stable Clippy/fmt, TypeScript and Prettier; npm 11/12 packed runtime,
+actual installed guide, parity and all public type fixtures. Committed-source
+install heads/evidence are recorded in the tracking issue. Locks unchanged;
+no remote CI/macOS/manylinux or registry/publication claim.
+
+Final public-surface audit: TypeScript's compiler resolved emitted installed-style
+declarations (including inherited RawOp fields), compared against the baseline
+Python stubs via Python AST: 34 non-exception classes and 241 non-dunder members,
+with all eight free functions present. Four convenience/cached-state mappings
+are explicit (Storage.from_profile, IssueMut.issue/lifecycle, PatchMut.patch).
+Home construction maps to Home.create. Error classes/codes, runtime string aliases,
+protocols and representation differences are mapped above, not silently omitted.
+This name inventory is supplemented by the implementation/field/domain audit and
+same-persisted-data tests, not presented as proof of semantic equivalence alone.
+No unassigned baseline capability remains. Logs and inventory artifacts:
+`/tmp/radicle-node-parity-p3/` on the development host.
+
+Implementation and cumulative local audit are complete; independent patch-3/final
+review and its explicit merge authorization remain outstanding. Do not close the
+tracking issue before all three patches are merged and final review accepts the
+intentional differences and evidence.
 
 ## Completion review and evidence
 
-- [ ] Every Python public export/member is mapped to a Node capability or a
+- [x] Every Python public export/member is mapped to a Node capability or a
   specific intentional difference; include convenience APIs and nested fields.
-- [ ] New APIs are exported only through the installed package's public entry;
+- [x] New APIs are exported only through the installed package's public entry;
   runtime and compile-time consumer tests verify that contract.
-- [ ] Cross-SDK fixtures compare persisted state and normalized results, with
+- [x] Cross-SDK fixtures compare persisted state and normalized results, with
   tests for validation order, absence, malformed data and failure effects.
-- [ ] Each patch has fresh optimized builds, required-helper Python and Node
+- [x] Each patch has fresh optimized builds, required-helper Python and Node
   suites, native tests, MSRV/stable lint/format, typing, actual guide execution,
   packed npm consumers and exact-SHA Git installation evidence as applicable.
-- [ ] Final cumulative checks show no Python regressions, no dependency drift,
+- [x] Final cumulative checks show no Python regressions, no dependency drift,
   and no unreviewed convenience/field gaps. Record local evidence separately
   from remote CI or untested platform claims.
-- [ ] Update `docs/sdk-differences.md`, language references/guides/changelogs and
+- [x] Update `docs/sdk-differences.md`, language references/guides/changelogs and
   scope statements so completed additions are no longer described as deferred.
 - [ ] Record reviewed heads and evidence in the tracking issue and close it only
   when all three implementation patches are merged and the final audit passes.

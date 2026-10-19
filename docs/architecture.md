@@ -93,7 +93,9 @@ each adapter. Python's `hashing.rs` contains only process-local hashing,
 not another shared DTO schema. Node tasks, repository locks, Date conversion and
 native probes remain explicitly binding-specific. Both SDKs own policy/routing
 adapters; Node policy connections are worker-local and routing retains upstream's
-thread-safe database. Raw access remains Python-only pending the parity patch. [Migration gates](archive/MIGRATION-GATES.md#module-alignment-map)
+thread-safe database. Each binding also owns its generic raw COB adapter; Node's
+JSON helper is language-owned and no shared DTO schema is introduced.
+[Migration gates](archive/MIGRATION-GATES.md#module-alignment-map)
 records the mapping. No shared Rust extraction is included in these moves.
 
 ## Shared Rust: only with a real consumer

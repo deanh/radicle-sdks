@@ -10,6 +10,8 @@ native bridge and probe files are internal, not supported import paths.
 
 - Async `Profile.init`; synchronous `Profile.load()`/`signer()` setup and profile
   metadata/storage handles.
+- Lazy `Raw.open(repo)` with async generic COB enumeration/refs/causal history;
+  exact raw numeric metadata and synchronous `RawOp.actionsJson()` decoding.
 - Async policy factories/reads/writes and read-only routing inspection; profile
   conveniences `policyStore()` and `routingStore()`.
 - Async `Home.create/load/resolve`, `profile.home`, `profile.aliases`, storage
@@ -184,8 +186,7 @@ All operations below return Promises except `.path`. Obtain private-construction
 `PolicyStore.reader(profile)` (read-only), `PolicyStore.open(path)` (writable),
 or `profile.policyStore()`. Profile paths use upstream `node/policies.db`.
 Factories eagerly run upstream opening/schema checks and close the connection;
-queries can still fail later. Writable
-factories may create its schema/file, but do not create missing parent directories.
+queries can still fail later. Writable factories may create their schema/file, but do not create missing parent directories.
 Inputs are filesystem paths, not SQLite connection URIs. Empty paths and the
 special `:memory:` name reject `ERR_INVALID_ARG_VALUE`: per-operation connections
 require a persistent file (Python's held connection can support those SQLite
@@ -256,6 +257,64 @@ no inventory-write API, daemon access or automatic network discovery.
   use unchecked row decoding; a corrupt ID can panic and is contained as
   `INTERNAL` by the common worker boundary, not converted into an empty listing.
   Upstream iterator behavior is retained; this is not a general SQL validation API.
+
+### Generic raw COB inspection
+
+`Raw.open(repository)` is a synchronous, lazy, private-construction facade with
+`rid` metadata. Its async methods are:
+
+- `typenames()` and `entities(typename)`: sorted, deduplicated frozen strings.
+  Enumeration strictly accepts `refs/cobs/<typename>/<id>` after namespace
+  stripping. Branch/tag lookalikes and malformed typename/ID components are
+  ignored, not allowed to break the whole repository listing. Git backend
+  enumeration errors still reject `GIT`; libgit2's handling of malformed loose
+  refs is retained. Invalid caller typenames/IDs reject argument errors.
+- `refs(typename, entityId)`: name-sorted frozen `CobRef` values with full `name`
+  and change-commit `target`. These refs are not independently authenticated;
+  authenticity requires signed refs and upstream verification.
+- `history(typename, entityId)`: eager frozen `RawOp` values, globally deduplicated
+  across all entity ref tips. Traverse **causal parents only**, never related Git
+  commits or the identity resource link. Every loaded parent precedes its child;
+  the lexicographically-smallest ready ID breaks ties. Missing entities return
+  `[]`; load/backend failures reject `COB` (repository-open failures remain
+  `REPOSITORY`), never a partial history. A causal cycle rejects `COB`.
+
+A `RawOp` includes `id`, canonical node-ID `actor`, `timestamp`, `actions`,
+`parents`, `related`, optional `identity`, `manifest` and `actionsJson()`.
+Parents/related are frozen ID arrays; the manifest is `{ typeName, version }`.
+`timestamp` preserves upstream's unsigned u64 **bigint epoch seconds**, not milliseconds or a nullable
+Date conversion. `manifest.version` is also `bigint`, preserving arbitrary valid
+upstream schema versions without a JS-safe-integer restriction. Python exposes
+both as integers. Standard `JSON.stringify` needs an explicit BigInt conversion
+(e.g. a replacer returning `value.toString()`); no automatic string conversion is
+performed by the SDK. RawOp also contains a decoding function: for structured
+clone/worker messaging, select its data fields or decoded values rather than
+cloning the whole object.
+
+`actions` is a frozen array of independent mutable `Uint8Array` copies, one per
+raw action blob. Mutating a view cannot alter storage/another read, but
+`actionsJson()` decodes the **current views** of that snapshot. This synchronous
+helper returns a frozen array of recursively frozen ordinary JSON values:
+
+- Integer tokens within the safe range are `number`; larger positive/negative
+  integer tokens are exact `bigint`, determined from the original token via
+  standard JSON reviver source text. Source is supplied for primitives only.
+- Decimal/exponent tokens use finite IEEE-754 `number`, including their normal
+  rounding/underflow, as Python's float decoder does. For example, `1e30` is a
+  number, not a bigint. This is **integer-token fidelity**, not arbitrary-decimal
+  losslessness; Python can also round integer tokens beyond its decoder's
+  i64/u64 paths, whereas Node preserves those as BigInt. Use original bytes when
+  exact lexical spelling/decimal arithmetic matters.
+- Invalid JSON/UTF-8, unpaired surrogate escapes, and floating-point overflow
+  throw `RadicleError` / `COB`, naming the action index/entry. Raw bytes/history
+  remain inspectable even when an action is not valid JSON. The helper does not
+  validate action schemas or evaluate typed issue/patch state.
+
+Raw inspection parses change/signature metadata; it is **not a signature or
+actor-authentication API** and does not repair corrupt data. It performs no
+writes, locking, signing or networking. It reopens the repository per call;
+concurrent external ref changes are not an atomic multi-call snapshot. Histories
+are eager and not paginated; there is no new resource-isolation guarantee.
 
 ### Typed store conveniences
 
@@ -425,7 +484,9 @@ inside the ECMAScript Date range, or `null` outside it (including overflow), nev
 a rounded number. Unrepresentable peer metadata does not hide an issue/patch, reject a
 listing or prevent a mutation; genuine store/decoding errors still reject.
 
-The public SDK has no timestamp-input API and no raw/BigInt representation.
+The public SDK has no timestamp-input API. Raw COB timestamps are the explicit
+exception to Date conversion: exact bigint seconds, with bigint manifest versions;
+see generic raw inspection above.
 
 ## Maintainer notes
 

@@ -86,7 +86,7 @@ import { mkdtemp, mkdir, writeFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { execFileSync } from 'node:child_process';
-import { Profile, initProject, forkProject, checkoutProject, Issues, Patches } from 'radicle-sdk';
+import { Profile, initProject, forkProject, checkoutProject, Issues, Patches, Raw } from 'radicle-sdk';
 
 function git(work, ...args) {
   return execFileSync('git', ['-C', work, '-c', 'user.name=Alice',
@@ -133,6 +133,12 @@ try {
   assert.equal(comment.snapshot.state, 'open'); // prior snapshots stay detached
   await issue.reopen();
   assert.equal((await Issues.open(repo).all()).length, 1);
+  const raw = Raw.open(repo);
+  const history = await raw.history('xyz.radicle.issue', issue.id);
+  assert.ok(history.length >= 4);
+  assert.equal(history[0].manifest.typeName, 'xyz.radicle.issue');
+  assert.equal(typeof history[0].timestamp, 'bigint'); // exact epoch seconds
+  assert.ok(history[0].actionsJson().length > 0);
 
   // Git imports commits; the SDK takes explicit existing storage commit OIDs.
   const stored = join(home, 'storage', rid.slice(4));
@@ -172,7 +178,11 @@ IDs. Typed stores expose `rid`, `count()` and `isEmpty()`.
 `PolicyStore.fromProfile/reader/open` and `profile.policyStore()` expose local
 follow/seed/block tables; `RoutingStore.fromProfile` and `profile.routingStore()`
 read the local routing database. These are async database operations, not node
-commands. Only raw COB inspection remains deferred.
+commands. `Raw.open(repo)` exposes generic COB refs and causal history, including
+independent action bytes and `actionsJson()` decoding. Raw timestamps and manifest
+versions are exact `bigint` values; JSON integer tokens outside the safe range
+also decode as `bigint`. Decimal/exponent tokens use finite floating-point
+numbers, not arbitrary-decimal arithmetic. See the API for fidelity limits.
 
 In a source checkout, `docs/semantics.md` and `docs/sdk-differences.md` explain
 cross-SDK behavior. Repository build/test commands and exact-commit npm/pnpm
