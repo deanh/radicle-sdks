@@ -14,7 +14,10 @@ operation range even for forced updates. It uses union-of-namespace tip sets and
 a strict repository-bound refs-style text cursor, not this experiment's JSON
 cursor. Signing metadata is read, not signature verification. Keep this code as
 experimental evidence; implement the three read-only primitives in both bindings
-before rebuilding the experiment and specifying an SDK event API.
+before rebuilding the experiment and specifying an SDK event API. The primitive
+contract, change records and cursor grammar are specified in
+[docs/events.md](../docs/events.md); where this page and that one differ, the
+contract wins.
 
 ## What is being compared
 

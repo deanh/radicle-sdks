@@ -8,6 +8,8 @@
 - [SDK differences](sdk-differences.md): intentional API/conversion/concurrency differences.
 - [TypeScript parity checklist](node-parity.md): three-patch capability-parity plan and completion gates.
 - [Development and validation](development.md): commands, artifacts and evidence gates.
+- [Events contract](events.md): read-only primitives, change records and cursor text
+  for the planned repository event feed (draft, issue `0896069`).
 - [Examples](../examples/README.md): the read-only digest in both SDKs.
 
 ## Language guides and contracts
