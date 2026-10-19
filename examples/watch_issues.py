@@ -98,6 +98,7 @@ def poll_once(profile, rid, filename, handle, *, replay=False):
                 "rid": rid, "issueId": issue.id, "title": issue.title,
                 "author": issue.author,
             })
+        # Pinned upstream thread order puts the root description first.
         root = issue.comments[0].id if issue.comments else None
         for comment in issue.comments:
             if comment.id not in known and comment.id != root:

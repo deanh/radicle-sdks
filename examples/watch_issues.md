@@ -1,5 +1,11 @@
 # Local issue/comment observer spike
 
+This is the **state-diff/delivery baseline**, not the operation feed selected in
+issue `089606916a4c782f0eb210cc9d8d5d3bb46ace33`. The
+[operation-feed experiments and findings](events_experiment.md) compare the
+vocabulary, resume and change-detection alternatives; this observer alone does
+not establish an efficient or lossless operation cursor.
+
 Tracking issues: Python `e911911af3c628fb93b14948145bf7158d7a057c` and
 TypeScript `856fc04543eb5c59e70b8294fbd40f74c641c687`.
 [`watch_issues.py`](watch_issues.py) and [`watch-issues.mjs`](watch-issues.mjs) use
@@ -101,6 +107,9 @@ checkpoint**; no multi-process file lock is implemented.
 
 ## Deliberate spike limits
 
+- Any read failure, including a transient RepositoryError/CobError during an
+  external write, stops the loop. No retry policy is chosen here. A production
+  design must distinguish transient reads from invalid checkpoint failures.
 - Polling, one local repository, eager issue listings, memory/checkpoint growth
   proportional to all observed IDs. No scalability or latency guarantee.
 - Issue IDs are sorted; comments retain upstream thread order. This is not a
