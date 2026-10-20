@@ -195,6 +195,35 @@ impl NativeRepository {
                 .collect()
         })
     }
+    #[napi(catch_unwind, ts_return_type = "Promise<ReadonlyArray<NamespaceTip>>")]
+    pub fn namespace_tips(&self) -> AsyncTask<Work<Vec<NamespaceTip>>> {
+        let me = self.clone();
+        work(move || {
+            let repo = me.open()?;
+            let mut tips = Vec::new();
+            for reference in repo
+                .backend
+                .references_glob(radicle::storage::git::SIGREFS_GLOB.as_str())
+                .map_err(|e| err("GIT", e))?
+            {
+                let reference = reference.map_err(|e| err("GIT", e))?;
+                let name = reference.name().map_err(|e| err("GIT", e))?;
+                let (node_id, _) =
+                    radicle::git::parse_ref_namespaced::<radicle::node::NodeId>(name)
+                        .map_err(|e| err("GIT", e))?;
+                let resolved = reference.resolve().map_err(|e| err("GIT", e))?;
+                let target = resolved
+                    .target()
+                    .ok_or_else(|| err("GIT", "sigrefs ref has no target"))?;
+                tips.push(NamespaceTip {
+                    node_id: node_id.to_string(),
+                    target: target.to_string(),
+                });
+            }
+            tips.sort_by(|a, b| a.node_id.cmp(&b.node_id));
+            Ok(tips)
+        })
+    }
     #[napi(catch_unwind, ts_return_type = "Promise<ReadonlyArray<RemoteInfo>>")]
     pub fn remotes(&self) -> AsyncTask<Work<Vec<RemoteInfo>>> {
         let me = self.clone();

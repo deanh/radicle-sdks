@@ -2,6 +2,12 @@
 
 All notable changes to `radicle-py` are documented here.
 
+## Events discovery primitive (unreleased)
+
+- Add `Repository.namespace_tips()` and immutable `NamespaceTip` snapshots for
+  sorted sigrefs targets without loading signed sets or objects. This is a
+  read-only building block, not a watcher or an operation feed.
+
 ## Assessment fixes (unreleased)
 
 - Fix: `Raw.typenames()`/`Raw.entities()` skip COB-shaped refs whose typename

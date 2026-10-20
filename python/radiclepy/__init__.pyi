@@ -29,6 +29,7 @@ __all__ = [
     "TagInfo",
     "Storage",
     "Repository",
+    "NamespaceTip",
     "RemoteInfo",
     "ProjectDoc",
     "HistoryPage",
@@ -235,6 +236,9 @@ class Repository:
         `offset >= 0`.
         """
         ...
+    def namespace_tips(self) -> list[NamespaceTip]:
+        """Node-ID-sorted sigrefs targets; reads refs only, not signed sets."""
+        ...
     def remotes(self) -> list[RemoteInfo]: ...
 
     # ── Writes: 1:1 upstream; only sign_refs takes a signer.
@@ -375,6 +379,13 @@ class SignedRefs:
     def feature_level(self) -> Literal["none", "root", "parent"]: ...
     def refs(self) -> dict[str, Oid]: ...
     def __repr__(self) -> str: ...
+
+@_final
+class NamespaceTip:
+    @property
+    def node_id(self) -> NodeId: ...
+    @property
+    def target(self) -> Oid: ...
 
 @_final
 class RemoteInfo:

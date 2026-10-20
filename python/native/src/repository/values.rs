@@ -334,6 +334,16 @@ impl TagInfo {
     }
 }
 
+/// A namespace's sigrefs ref target; no signed set or object is loaded.
+#[pyclass(name = "NamespaceTip", module = "radiclepy", frozen, eq)]
+#[derive(Clone, Debug, PartialEq)]
+pub struct NamespaceTip {
+    #[pyo3(get)]
+    pub node_id: String,
+    #[pyo3(get)]
+    pub target: String,
+}
+
 // ─── RemoteInfo ──────────────────────────────────────────────────────────────
 
 /// A remote tracked by the repository (upstream signed refs).

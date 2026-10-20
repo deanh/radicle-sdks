@@ -9,6 +9,7 @@ import {
   type SignedRefs,
   type TagInfo,
   type RemoteInfo,
+  type NamespaceTip,
   type SetHead,
   checkoutProject,
   parseOid,
@@ -18,6 +19,12 @@ async function usage(storage: Storage, repo: Repository, signer: Signer): Promis
   const description: string = await repo.description();
   const tags: ReadonlyArray<TagInfo> = await repo.tags();
   const remotes: ReadonlyArray<RemoteInfo> = await repo.remotes();
+  const tips: ReadonlyArray<NamespaceTip> = await repo.namespaceTips();
+  const nodeId: string = tips[0].nodeId;
+  const target: string = tips[0].target;
+  // @ts-expect-error namespace tips are immutable
+  tips[0].target = id;
+  console.log(nodeId, target);
   const changed: SetHead = await repo.setDefaultBranchToCanonicalHead();
   const updated: boolean = changed.isUpdated;
   const previous: string | undefined = changed.old;

@@ -125,6 +125,11 @@ argument error).
   Git/peeling failures reject `GIT`. `revParse(rev)` resolves arbitrary Git revision
   expressions without implicit peeling and rejects invalid/unresolved revspecs as
   `GIT`, not argument-value errors.
+- `namespaceTips()` returns a node-ID-sorted frozen array of frozen
+  `NamespaceTip` values `{ nodeId, target }`, with resolved sigrefs OIDs. It reads
+  refs only, not target objects or signed sets: missing objects and non-commit
+  targets are listable. Symbolic refs are followed; malformed namespace IDs or
+  unresolved refs reject `GIT`. No atomic multi-ref snapshot is promised.
 - `remotes()` returns fetcher-sorted `{ fetcher, heads }` snapshots of upstream
   signed ref names (not just branches). Git/remote decoding failures reject `GIT`.
 - `setDefaultBranchToCanonicalHead()` returns `{ old?, new, isUpdated }`;

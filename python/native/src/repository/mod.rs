@@ -7,7 +7,7 @@
 mod values;
 mod write;
 use crate::project::ProjectDoc;
-use values::{Commit, HeadInfo, HistoryPage, RemoteInfo, TagInfo, Tree, TreeEntry};
+use values::{Commit, HeadInfo, HistoryPage, NamespaceTip, RemoteInfo, TagInfo, Tree, TreeEntry};
 pub(crate) use values::{PySetHead, PySignedRefs};
 
 use std::path::PathBuf;
@@ -448,6 +448,32 @@ impl PyRepository {
         })
     }
 
+    /// Namespace sigrefs tips, sorted by node id; reads refs, not signed sets.
+    fn namespace_tips(&self) -> PyResult<Vec<NamespaceTip>> {
+        let repo = self.open()?;
+        let mut tips = Vec::new();
+        for reference in repo
+            .backend
+            .references_glob(radicle::storage::git::SIGREFS_GLOB.as_str())
+            .map_err(error::git_err)?
+        {
+            let reference = reference.map_err(error::git_err)?;
+            let name = reference.name().map_err(error::git_err)?;
+            let (node_id, _) =
+                git::parse_ref_namespaced::<radicle::node::NodeId>(name).map_err(error::git_err)?;
+            let resolved = reference.resolve().map_err(error::git_err)?;
+            let target = resolved
+                .target()
+                .ok_or_else(|| error::git_err("sigrefs ref has no target"))?;
+            tips.push(NamespaceTip {
+                node_id: node_id.to_string(),
+                target: target.to_string(),
+            });
+        }
+        tips.sort_by(|a, b| a.node_id.cmp(&b.node_id));
+        Ok(tips)
+    }
+
     /// Remotes tracked by this repository (signed refs).
     fn remotes(&self) -> PyResult<Vec<RemoteInfo>> {
         let repo = self.open()?;
@@ -515,6 +541,7 @@ pub fn register_values(_py: Python<'_>, m: &Bound<'_, PyModule>) -> PyResult<()>
     m.add_class::<Tree>()?;
     m.add_class::<TagInfo>()?;
     m.add_class::<RemoteInfo>()?;
+    m.add_class::<NamespaceTip>()?;
     m.add_class::<ProjectDoc>()?;
     m.add_class::<HistoryPage>()?;
     Ok(())

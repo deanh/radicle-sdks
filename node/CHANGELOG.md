@@ -1,5 +1,11 @@
 # radicle-sdk changelog
 
+## Events discovery primitive (unreleased)
+
+- Add `Repository.namespaceTips()` and frozen `NamespaceTip` snapshots for sorted
+  sigrefs targets without loading signed sets or objects. This is a read-only
+  building block, not a watcher or an operation feed.
+
 ## Python capability parity: raw COB inspection (unreleased)
 
 - Add `Raw.open`, typename/entity/ref enumeration and deterministic causal history,

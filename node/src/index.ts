@@ -29,6 +29,7 @@ export type {
   HistoryPage,
   SignedRefs,
   TagInfo,
+  NamespaceTip,
   RemoteInfo,
   SetHead,
   FollowPolicyInfo,
@@ -404,6 +405,10 @@ export class Repository {
   }
   revParse(rev: string): Promise<string> {
     return run(() => repository(this).revParse(rev));
+  }
+  /** Sorted sigrefs targets; reads refs only, not signed sets or objects. */
+  namespaceTips(): Promise<ReadonlyArray<raw.NamespaceTip>> {
+    return run(() => repository(this).namespaceTips());
   }
   remotes(): Promise<ReadonlyArray<raw.RemoteInfo>> {
     return run(() => repository(this).remotes());

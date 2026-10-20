@@ -139,6 +139,13 @@ pub struct TagInfo {
     pub peeled_kind: String,
 }
 #[napi(object)]
+pub struct NamespaceTip {
+    #[napi(readonly)]
+    pub node_id: String,
+    #[napi(readonly)]
+    pub target: String,
+}
+#[napi(object)]
 pub struct RemoteInfo {
     #[napi(readonly)]
     pub fetcher: String,

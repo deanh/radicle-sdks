@@ -41,6 +41,7 @@ TOP_LEVEL = {
         "TreeEntry",
         "TagInfo",
         "RemoteInfo",
+        "NamespaceTip",
         "ProjectDoc",
         "HistoryPage",
         "PolicyStore",
@@ -94,6 +95,7 @@ MEMBERS = {
             "blob",
             "history",
             "remotes",
+            "namespace_tips",
             "set_default_branch_to_canonical_head",
             "set_identity_head",
             "set_remote_identity_root",
@@ -148,6 +150,7 @@ MEMBERS = {
         "classmethods": [],
     },
     "RemoteInfo": {"attrs": ["fetcher", "heads"], "methods": [], "classmethods": []},
+    "NamespaceTip": {"attrs": ["node_id", "target"], "methods": [], "classmethods": []},
     "ProjectDoc": {
         "attrs": [
             "name",
