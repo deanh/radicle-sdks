@@ -130,7 +130,7 @@ Public names are `Repository.signed_refs_at(node_id, oid)` (Python) and
   an ancestor of the requested commit when upstream's replay protection skips
   duplicated signatures. The feed compares and records the ref target it read
   (the requested `oid`); the ref set it uses is the one upstream yields for it.
-  Upstream also promotes a verified root-level root commit to feature level
+  Upstream also promotes a verified root commit at feature level `root` to
   `parent` on read; metadata therefore need not equal the original signing
   result's feature level. Neither behavior is normalized by the adapters.
 - Upstream returns "no sigrefs" only for a reference lookup; for an explicit
