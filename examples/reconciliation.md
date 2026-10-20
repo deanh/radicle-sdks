@@ -93,9 +93,9 @@ not remote CI, other-platform, cold-cache or latency guarantees.
 
 | Probe | Python tips / scan ms | Node tips / scan ms | Work per tips poll |
 | --- | --- | --- | --- |
-| Idle current cursor | 2.96 / 14.26 | 4.54 / 20.49 | 1 namespace-tip call; 0 sets, 0 commits, 0 signed ref names |
-| Resume from each namespace's immediate parent | 20.92 / 20.79 | 27.59 / 17.77 | 6 sets, 4,988 names, 3 commit reads; 3 namespace records, 1 COB trigger |
-| Replay from empty | 8.59 / 8.57 | 13.38 / 12.02 | 3 sets, 2,495 names; 3 namespace records, 1,183 COB triggers |
+| Idle current cursor | 2.89 / 14.24 | 3.95 / 23.39 | 1 namespace-tip call; 0 sets, 0 commits, 0 signed ref names |
+| Resume from each namespace's immediate parent | 14.68 / 14.73 | 26.43 / 19.94 | 6 sets, 4,988 names, 3 commit reads; 3 namespace records, 1 COB trigger |
+| Replay from empty | 8.63 / 8.61 | 14.64 / 13.63 | 3 sets, 2,495 names; 3 namespace records, 1,183 COB triggers |
 
 Current cursor: **423 bytes**, independent of COB history length. The delta
 result deliberately shows no general changed-poll speedup: all old/new union
@@ -124,9 +124,9 @@ compares complete pages/counters, or checks the same Git error class.
 | Current sigrefs points at absent object | Git error, no page |
 | Endpoints readable, intermediate current-chain commit genuinely omitted from repacked copy | Git error, no page |
 
-The retained forced update took about **0.54 s in Python**, dominated by the
+The retained forced update took about **0.38 s in Python**, dominated by the
 2,281 public `Repository.commit()` reads; Node end-to-end, including process
-startup, was about **0.67 s**. Ordinary forward resume needed three reads.
+startup, was about **0.55 s**. Ordinary forward resume needed three reads.
 A corrupt loose object was *not* a valid missing-object experiment: libgit2
 could fall back to its intact packed copy. The committed probe instead rebuilds
 the copy's object store omitting the selected object, and then both SDKs fail.
@@ -159,7 +159,7 @@ python examples/probe_reconciliation.py --node-script examples/reconcile-refs.mj
 ```
 
 Evidence for this run: `/tmp/radicle-reconciliation/heartwood-*.json`, including
-`heartwood-retention-committed.json`. Shared tests are
+`heartwood-retention-committed-final.json` and the `*-final.json` timing runs. Shared tests are
 `tests/test_reconcile_refs.py`; Node's independent tests are
 `node/test/reconcile-refs.test.mjs`. Existing observer/operation experiments
 remain unchanged historical baselines. No SDK sources or locks are changed.
