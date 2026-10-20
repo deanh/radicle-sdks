@@ -287,6 +287,33 @@ def test_checkpoint_cli_handoff_callback_and_save_failure(tmp_path):
     assert replay_state.read_bytes() == cursor(repo).encode()
 
 
+def test_signed_cob_prefix_order_and_invalid_id_storage_error(tmp_path):
+    profile, _, _, repo, _, stored, base = project_fixture(tmp_path)
+    old = cursor(repo)
+    for typename in ["a.b", "a", "a-b"]:
+        git(stored, "update-ref", f"refs/namespaces/{profile.node_id}/refs/cobs/{typename}/{base}", base)
+    repo.sign_refs(profile.signer())
+    page, stats = feed.since(repo, old)
+    assert [record["typename"] for record in page["cobs"]] == ["a", "a-b", "a.b"]
+    assert node_since(profile, repo.rid, old) == {"page": page, "stats": stats}
+    bad_name = "refs/cobs/a/not-an-object-id"
+    git(stored, "update-ref", f"refs/namespaces/{profile.node_id}/{bad_name}", base)
+    repo.sign_refs(profile.signer())
+    with pytest.raises(rad.GitError, match="invalid signed COB ref"):
+        feed.since(repo, old)
+    require_node()
+    code = """
+import assert from 'node:assert/strict';
+import { Profile } from 'radicle-sdk';
+import { since } from './examples/reconcile-refs.mjs';
+await assert.rejects(since(Profile.load().storage.repository(process.argv[1]), process.argv[2]),
+ e=>e.code==='GIT' && e.message.includes('invalid signed COB ref'));
+"""
+    result = subprocess.run(["node", "--input-type=module", "-e", code, repo.rid, old],
+        cwd=ROOT, env=dict(os.environ, RAD_HOME=profile.home.path), text=True, capture_output=True)
+    assert result.returncode == 0, result.stderr
+
+
 def test_missing_intermediate_sigrefs_commit_is_a_poll_error(tmp_path):
     profile, _, _, repo, _, stored, _ = project_fixture(tmp_path)
     old = cursor(repo)

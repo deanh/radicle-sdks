@@ -103,7 +103,13 @@ function frontier(sets) {
     for (const [name, target] of Object.entries(refs)) {
       const parts = name.split('/');
       if (parts.length !== 4 || parts[0] !== 'refs' || parts[1] !== 'cobs') continue;
-      parseObjectId(parts[3]);
+      try {
+        parseObjectId(parts[3]);
+      } catch (cause) {
+        const error = new Error(`invalid signed COB ref: ${name}`, { cause });
+        error.code = 'GIT';
+        throw error;
+      }
       const key = `${parts[2]}/${parts[3]}`;
       if (!result.has(key)) result.set(key, new Set());
       result.get(key).add(target);
@@ -166,9 +172,14 @@ export async function since(repository, cursor, { fullScan = false } = {}) {
   page.namespaces.sort((a, b) => compare(a.node_id, b.node_id));
   const before = frontier(beforeSets),
     after = frontier(afterSets);
-  for (const key of [...new Set([...before.keys(), ...after.keys()])].sort((a, b) =>
-    Buffer.compare(Buffer.from(a), Buffer.from(b)),
-  )) {
+  for (const key of [...new Set([...before.keys(), ...after.keys()])].sort((a, b) => {
+    const [aType, aId] = a.split('/');
+    const [bType, bId] = b.split('/');
+    return (
+      Buffer.compare(Buffer.from(aType), Buffer.from(bType)) ||
+      Buffer.compare(Buffer.from(aId), Buffer.from(bId))
+    );
+  })) {
     const previous = [...(before.get(key) ?? [])].sort(),
       now = [...(after.get(key) ?? [])].sort();
     if (previous.length === now.length && previous.every((oid, i) => oid === now[i])) continue;

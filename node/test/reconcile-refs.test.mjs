@@ -108,6 +108,28 @@ test('reconciliation checkpoint replace failure retains recoverable state and re
   assert.deepEqual(replayed, delivered);
 });
 
+test('reconciliation sorts COB tuples and treats invalid advertised IDs as storage errors', async (t) => {
+  const { profile, repo, signer, storage, rid } = await fixture(t);
+  const stored = join(storage.path, rid.slice(4));
+  const old = await cursor(repo);
+  const base = git(stored, 'rev-parse', 'HEAD');
+  for (const type of ['a.b', 'a', 'a-b']) {
+    git(stored, 'update-ref', `refs/namespaces/${profile.nodeId}/refs/cobs/${type}/${base}`, base);
+  }
+  await repo.signRefs(signer);
+  const { page } = await since(repo, old);
+  assert.deepEqual(
+    page.cobs.map((record) => record.typename),
+    ['a', 'a-b', 'a.b'],
+  );
+  git(stored, 'update-ref', `refs/namespaces/${profile.nodeId}/refs/cobs/a/bad-id`, base);
+  await repo.signRefs(signer);
+  await assert.rejects(
+    since(repo, old),
+    (error) => error.code === 'GIT' && error.message.includes('invalid signed COB ref'),
+  );
+});
+
 test('reconciliation cursor: canonical bytes and strict grammar', async (t) => {
   const { repo, profile } = await fixture(t);
   for (let i = 1; i <= 32; i++) {

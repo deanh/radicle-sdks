@@ -78,7 +78,9 @@ Signed-set loading delegates signature/key/RID/replay checks to upstream; no
 operation signatures or authorization are verified here. Each poll memoizes
 sets by **namespace plus OID**, not OID alone. There is no cross-poll cache.
 Signed names with `refs/cobs/<typename>/<id>` shape are retained, including
-non-issue/patch COB types. Object IDs are parsed; upstream typename validation
+non-issue/patch COB types. Invalid advertised object IDs fail the poll as
+`GitError` / `GIT`, not as caller argument errors. Object IDs are parsed;
+upstream typename validation
 has no public parser and is not reimplemented by the experiment.
 
 ## Real-storage measurements

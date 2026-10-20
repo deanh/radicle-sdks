@@ -217,6 +217,11 @@ safe to advance to.
 
 ### COB records
 
+A signed name with `refs/cobs/<typename>/<id>` shape whose object ID does not
+parse is a storage condition: fail the poll with Python `GitError` / Node `GIT`,
+not an argument error or a silently skipped record. This applies to either old
+or new signed sets when deriving frontiers.
+
 For every COB ref name in the union of all old and new signed sets, let
 `old_tips` be the union of its targets across the old sets and `new_tips` the
 union across the new sets (unchanged namespaces contribute the same set to

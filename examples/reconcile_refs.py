@@ -99,7 +99,10 @@ def frontier(sets):
             if len(parts) != 4 or parts[:2] != ["refs", "cobs"]:
                 continue
             typename, entity = parts[2:]
-            rad.parse_object_id(entity)
+            try:
+                rad.parse_object_id(entity)
+            except ValueError as error:
+                raise rad.GitError(f"invalid signed COB ref: {name}") from error
             # Application shape parsing only: typename validation is not exposed
             # publicly and is not reimplemented here. No typed-store filtering.
             result.setdefault((typename, entity), set()).add(target)
