@@ -410,6 +410,10 @@ export class Repository {
   namespaceTips(): Promise<ReadonlyArray<raw.NamespaceTip>> {
     return run(() => repository(this).namespaceTips());
   }
+  /** Upstream-verified signed set at an explicit tip; no operation verification. */
+  signedRefsAt(nodeId: string, oid: string): Promise<raw.SignedRefs> {
+    return run(() => repository(this).signedRefsAt(nodeId, oid));
+  }
   remotes(): Promise<ReadonlyArray<raw.RemoteInfo>> {
     return run(() => repository(this).remotes());
   }

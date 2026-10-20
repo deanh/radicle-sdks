@@ -121,6 +121,8 @@ signed_refs_at(repository, nid, oid) -> SignedRefs
 Loads the signed ref set recorded at sigrefs commit `oid` for namespace `nid`,
 through upstream `SignedRefs::load_at`. The result is the existing `SignedRefs`
 value (`node_id`, `at`, `parent`, `feature_level`, `refs()`), so no new type.
+Public names are `Repository.signed_refs_at(node_id, oid)` (Python) and
+`Repository.signedRefsAt(nodeId, oid)` (TypeScript; `refs` is a frozen record).
 
 - The `refs` blob is never parsed by the SDKs; its format is an upstream
   internal.
@@ -128,6 +130,9 @@ value (`node_id`, `at`, `parent`, `feature_level`, `refs()`), so no new type.
   an ancestor of the requested commit when upstream's replay protection skips
   duplicated signatures. The feed compares and records the ref target it read
   (the requested `oid`); the ref set it uses is the one upstream yields for it.
+  Upstream also promotes a verified root-level root commit to feature level
+  `parent` on read; metadata therefore need not equal the original signing
+  result's feature level. Neither behavior is normalized by the adapters.
 - Upstream returns "no sigrefs" only for a reference lookup; for an explicit
   commit a missing object is a read error. Every upstream read or verification
   failure maps to a Git error carrying upstream's message. The feed classifies

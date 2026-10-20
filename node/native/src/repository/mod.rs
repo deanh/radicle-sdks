@@ -224,6 +224,23 @@ impl NativeRepository {
             Ok(tips)
         })
     }
+    #[napi(catch_unwind, ts_return_type = "Promise<SignedRefs>")]
+    pub fn signed_refs_at(&self, node_id: String, oid: String) -> AsyncTask<Work<SignedRefs>> {
+        let me = self.clone();
+        work(move || {
+            let remote = node_id
+                .parse::<radicle::node::NodeId>()
+                .map_err(|e| err("ARG_VALUE", e))?;
+            let at = oid
+                .parse::<radicle::git::Oid>()
+                .map_err(|e| err("ARG_VALUE", e))?;
+            let repo = me.open()?;
+            let signed = radicle::storage::refs::SignedRefs::load_at(at, remote, &repo)
+                .map_err(|e| err("GIT", format!("sigrefs {oid} for {node_id}: {e}")))?
+                .ok_or_else(|| err("GIT", format!("no sigrefs at {oid} for {node_id}")))?;
+            Ok(signed.into())
+        })
+    }
     #[napi(catch_unwind, ts_return_type = "Promise<ReadonlyArray<RemoteInfo>>")]
     pub fn remotes(&self) -> AsyncTask<Work<Vec<RemoteInfo>>> {
         let me = self.clone();
@@ -372,17 +389,7 @@ impl NativeRepository {
             let repo = me.open()?;
             let sg = signer.inner.lock().map_err(|e| err("INTERNAL", e))?;
             let signed = repo.sign_refs(&*sg).map_err(|e| err("REPOSITORY", e))?;
-            Ok(SignedRefs {
-                node_id: signed.id().to_string(),
-                at: signed.at.to_string(),
-                parent: signed.parent().map(|id| id.to_string()),
-                feature_level: signed.feature_level().to_string(),
-                refs: signed
-                    .refs()
-                    .iter()
-                    .map(|(name, id)| (name.to_string(), id.to_string()))
-                    .collect(),
-            })
+            Ok(signed.into())
         })
     }
     #[napi(catch_unwind, ts_return_type = "Promise<HeadInfo>")]

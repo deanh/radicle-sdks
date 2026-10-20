@@ -2,6 +2,12 @@
 
 All notable changes to `radicle-py` are documented here.
 
+## Signed refs at an explicit tip (unreleased)
+
+- Add `Repository.signed_refs_at(node_id, oid)` using upstream verification and
+  replay protection, returning existing `SignedRefs` snapshots. Missing or invalid
+  signed sets raise `GitError`; no fallback to current refs or empty results.
+
 ## Events discovery primitive (unreleased)
 
 - Add `Repository.namespace_tips()` and immutable `NamespaceTip` snapshots for

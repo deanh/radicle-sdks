@@ -1,5 +1,11 @@
 # radicle-sdk changelog
 
+## Signed refs at an explicit tip (unreleased)
+
+- Add `Repository.signedRefsAt(nodeId, oid)` using upstream verification and replay
+  protection, returning existing frozen `SignedRefs` snapshots. Unreadable or
+  invalid sets reject `GIT`; no fallback to current refs or empty results.
+
 ## Events discovery primitive (unreleased)
 
 - Add `Repository.namespaceTips()` and frozen `NamespaceTip` snapshots for sorted

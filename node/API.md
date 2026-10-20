@@ -130,6 +130,15 @@ argument error).
   refs only, not target objects or signed sets: missing objects and non-commit
   targets are listable. Symbolic refs are followed; malformed namespace IDs or
   unresolved refs reject `GIT`. No atomic multi-ref snapshot is promised.
+- `signedRefsAt(nodeId, oid)` loads an explicit sigrefs commit through upstream's
+  signature, repository-binding and replay checks, returning the existing frozen
+  `SignedRefs` shape (including frozen `refs`). It neither consults nor modifies
+  the current sigrefs ref and does not verify COB signatures or authorization.
+  Invalid IDs reject `ERR_INVALID_ARG_VALUE`; object/format/verification failures
+  reject `GIT` naming the requested OID, never an empty set. Upstream may return
+  an ancestor in `at` for legacy replayed signatures and promotes verified root
+  commits from feature level `root` to `parent`; keep the requested OID separately.
+  Legacy reads may walk sigrefs history.
 - `remotes()` returns fetcher-sorted `{ fetcher, heads }` snapshots of upstream
   signed ref names (not just branches). Git/remote decoding failures reject `GIT`.
 - `setDefaultBranchToCanonicalHead()` returns `{ old?, new, isUpdated }`;

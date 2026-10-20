@@ -125,6 +125,22 @@ pub struct SignedRefs {
     pub refs: BTreeMap<String, String>,
 }
 
+impl From<radicle::storage::refs::SignedRefs> for SignedRefs {
+    fn from(signed: radicle::storage::refs::SignedRefs) -> Self {
+        Self {
+            node_id: signed.id().to_string(),
+            at: signed.at.to_string(),
+            parent: signed.parent().map(|id| id.to_string()),
+            feature_level: signed.feature_level().to_string(),
+            refs: signed
+                .refs()
+                .iter()
+                .map(|(name, id)| (name.to_string(), id.to_string()))
+                .collect(),
+        }
+    }
+}
+
 #[napi(object)]
 pub struct TagInfo {
     #[napi(readonly)]

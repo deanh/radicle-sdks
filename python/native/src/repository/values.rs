@@ -487,7 +487,7 @@ impl PySetHead {
     }
 }
 
-/// Result of `Repository.sign_refs` (upstream `storage::refs::SignedRefs`).
+/// Result of signing or loading refs (upstream `storage::refs::SignedRefs`).
 ///
 /// The cryptographic signature itself is deliberately NOT surfaced: it is
 /// verified (and re-derived) by upstream on every read path; the binding
@@ -501,6 +501,22 @@ pub struct PySignedRefs {
     pub(crate) feature_level: String,
     /// Sorted (refname -> target) snapshot of the signed set.
     pub(crate) refs: Vec<(String, String)>,
+}
+
+impl From<radicle::storage::refs::SignedRefs> for PySignedRefs {
+    fn from(signed: radicle::storage::refs::SignedRefs) -> Self {
+        Self {
+            node_id: signed.id().to_string(),
+            at: signed.at.to_string(),
+            parent: signed.parent().map(|p| p.to_string()),
+            feature_level: signed.feature_level().to_string(),
+            refs: signed
+                .refs()
+                .iter()
+                .map(|(name, oid)| (name.to_string(), oid.to_string()))
+                .collect(),
+        }
+    }
 }
 
 #[pymethods]

@@ -96,6 +96,7 @@ MEMBERS = {
             "history",
             "remotes",
             "namespace_tips",
+            "signed_refs_at",
             "set_default_branch_to_canonical_head",
             "set_identity_head",
             "set_remote_identity_root",

@@ -69,6 +69,14 @@ async function usage(storage: Storage, repo: Repository, signer: Signer): Promis
   const blob: Uint8Array = await repo.blob(e.oid);
   const options: HistoryOptions = { limit: 2, offset: 1 };
   const history: HistoryPage = await repo.history('HEAD', options);
+  const loaded: SignedRefs = await repo.signedRefsAt(signer.nodeId, id);
+  const at: string = loaded.at;
+  const refs: Readonly<Record<string, string>> = loaded.refs;
+  // @ts-expect-error signed sets are readonly
+  loaded.refs['refs/heads/main'] = id;
+  // @ts-expect-error explicit OID must be a string
+  await repo.signedRefsAt(signer.nodeId, 123);
+  console.log(at, refs);
   const signed: SignedRefs = await repo.signRefs(signer);
   const feature: 'none' | 'root' | 'parent' = signed.featureLevel;
   const parent: string | undefined = signed.parent;

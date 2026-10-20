@@ -239,6 +239,9 @@ class Repository:
     def namespace_tips(self) -> list[NamespaceTip]:
         """Node-ID-sorted sigrefs targets; reads refs only, not signed sets."""
         ...
+    def signed_refs_at(self, node_id: str, oid: str) -> SignedRefs:
+        """Load through upstream verification; does not verify COB operations."""
+        ...
     def remotes(self) -> list[RemoteInfo]: ...
 
     # ── Writes: 1:1 upstream; only sign_refs takes a signer.
@@ -367,7 +370,7 @@ class SetHead:
 
 @_final
 class SignedRefs:
-    """Output of `Repository.sign_refs` (the signature itself is not surfaced)."""
+    """Output of signing or loading refs (signature bytes are not surfaced)."""
 
     @property
     def node_id(self) -> NodeId: ...

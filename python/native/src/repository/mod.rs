@@ -474,6 +474,19 @@ impl PyRepository {
         Ok(tips)
     }
 
+    /// Load and verify a signed set at an explicit sigrefs commit via upstream.
+    fn signed_refs_at(&self, node_id: &str, oid: &str) -> PyResult<PySignedRefs> {
+        let remote = node_id
+            .parse::<radicle::node::NodeId>()
+            .map_err(|err| error::value_err(format!("invalid NodeId: {err}")))?;
+        let at = parse_oid(oid)?;
+        let repo = self.open()?;
+        let signed = radicle::storage::refs::SignedRefs::load_at(at, remote, &repo)
+            .map_err(|err| error::git_err(format!("sigrefs {oid} for {node_id}: {err}")))?
+            .ok_or_else(|| error::git_err(format!("no sigrefs at {oid} for {node_id}")))?;
+        Ok(signed.into())
+    }
+
     /// Remotes tracked by this repository (signed refs).
     fn remotes(&self) -> PyResult<Vec<RemoteInfo>> {
         let repo = self.open()?;

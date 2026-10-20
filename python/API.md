@@ -243,6 +243,17 @@ compare and hash by both fields, with a descriptive `repr`; hashes are
 process-local, not checkpoint IDs. Malformed namespace IDs or unresolvable refs
 raise `GitError`. No atomic multi-ref snapshot is promised.
 
+##### `repository.signed_refs_at(node_id, oid) -> SignedRefs` (method)
+Load an explicit sigrefs commit through upstream's loader, verifying the
+namespace signature, repository binding and replay protection. Does not consult
+or modify the current sigrefs ref and does not verify COB operation signatures
+or authorization. Invalid IDs raise `ValueError`; object, format or verification
+failures raise `GitError` naming the requested OID. A missing commit never means
+an empty set. Upstream may return an ancestor in `at` for legacy replayed
+signatures, and promotes verified root commits from feature level `root` to
+`parent`; callers retain the requested OID separately. The returned snapshot is
+immutable; `refs()` returns a fresh dictionary. Legacy reads may walk history.
+
 ##### `repository.remotes() -> list[RemoteInfo]` (method)
 Remotes tracked by this repository (sorted by fetcher).
 

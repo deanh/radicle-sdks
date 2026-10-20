@@ -67,15 +67,5 @@ pub(crate) fn sign_refs(repo_handle: &PyRepository, signer: &PySigner) -> PyResu
     let signed = repo
         .sign_refs(&*signer.inner)
         .map_err(error::repository_err)?;
-    Ok(PySignedRefs {
-        node_id: signed.id().to_string(),
-        at: signed.at.to_string(),
-        parent: signed.parent().map(|p| p.to_string()),
-        feature_level: signed.feature_level().to_string(),
-        refs: signed
-            .refs()
-            .iter()
-            .map(|(name, oid)| (name.to_string(), oid.to_string()))
-            .collect(),
-    })
+    Ok(signed.into())
 }
