@@ -8,7 +8,8 @@ reconciliation records, and the cursor text. It does not yet fix the public
 `since`/`watch` API; those wrappers follow the retention experiments below.
 Operation delivery is retained only in the deferred-design appendix. The prototype that motivated it is described in
 [the events experiment](../examples/events_experiment.md); where the two
-differ, this page wins.
+differ, this page wins. The current application implementation and real-storage
+results are in [the reconciliation experiment](../examples/reconciliation.md).
 
 The anchor is Git: where the model has a choice, it takes the shape `git fetch`
 already gives. Scope is one repository per feed. A

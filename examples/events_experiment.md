@@ -17,7 +17,9 @@ experimental evidence; implement the three read-only primitives in both bindings
 before rebuilding the experiment and specifying an SDK event API. The primitive
 contract, change records and cursor grammar are specified in
 [docs/events.md](../docs/events.md); where this page and that one differ, the
-contract wins.
+contract wins. The subsequent [reconciliation experiment](reconciliation.md)
+uses the two implemented primitives without operation ranges; this page remains
+the historical operation-feed record.
 
 ## What is being compared
 

@@ -15,6 +15,13 @@ poll one local repository, report newly observed issues/comments through a
 callback or JSON-lines CLI, and checkpoint successful batches. See the [contract and failure/replay limits](watch_issues.md).
 It writes only an external checkpoint, never replies or connects to a node.
 
+## Signed-ref reconciliation experiment (read-only)
+
+[`reconcile_refs.py`](reconcile_refs.py) and [`reconcile-refs.mjs`](reconcile-refs.mjs)
+report affected COBs for applications to reload, using namespace sigrefs tips,
+upstream signed-set loading and a shared text cursor. No operation ranges or
+SDK watcher API. See [results, retention probes and usage](reconciliation.md).
+
 ## Project digest (read-only)
 
 [`digest.py`](digest.py) and [`digest.mjs`](digest.mjs) are the same program in
