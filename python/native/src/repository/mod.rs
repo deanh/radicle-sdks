@@ -316,6 +316,26 @@ impl PyRepository {
         Ok(out)
     }
 
+    /// Reflexive plain-Git commit ancestry, not COB causal ancestry.
+    fn is_ancestor(&self, ancestor: &str, descendant: &str) -> PyResult<bool> {
+        let ancestor = parse_oid(ancestor)?;
+        let descendant = parse_oid(descendant)?;
+        let repo = self.open()?;
+        // Validate both endpoints even for equality: libgit2's strict descendant
+        // check returns false for equal OIDs without looking up either object.
+        repo.backend
+            .find_commit(to_raw(ancestor)?)
+            .map_err(error::git_err)?;
+        repo.backend
+            .find_commit(to_raw(descendant)?)
+            .map_err(error::git_err)?;
+        if ancestor == descendant {
+            return Ok(true);
+        }
+        repo.is_ancestor_of(ancestor, descendant)
+            .map_err(error::git_err)
+    }
+
     /// Resolve a git revision expression to an OID.
     /// Raises `GitError` for both invalid and unresolved revisions
     /// (revspec semantics are git's, not ours).

@@ -149,6 +149,27 @@ Public names are `Repository.signed_refs_at(node_id, oid)` (Python) and
 - Errors: Python `GitError`, Node code `GIT`; a `nid` or `oid` that does not
   parse is an argument error.
 
+### Supporting predicate: plain Git ancestry
+
+`Repository.is_ancestor(ancestor, descendant)` (Python) /
+`Repository.isAncestor(ancestor, descendant)` (TypeScript, asynchronous) returns
+a boolean over ordinary Git commit parents. It uses upstream
+`ReadRepository::is_ancestor_of` / libgit2 `graph_descendant_of`, not COB causal
+edges, operation decoding or signature verification. Both endpoints must be
+loadable commits; equality is true only after validating them. This reflexive
+rule deliberately differs from libgit2's strict-descendant equality result.
+
+Malformed OIDs are argument errors; missing/wrong-kind endpoints or graph-read
+failures are Python `GitError` / Node `GIT`, never silently converted to false.
+Tests remove a required intermediate commit both with and without a commit-graph
+file. This is an ancestry query, not an integrity audit of every reachable object:
+the native graph walker decides which objects it needs. Cost remains dependent
+on the graph examined, but is one binding call per namespace comparison, with
+no application loop loading thousands of commit snapshots. No refs are written.
+
+This supports namespace `updated`/`forced` decisions only; primitive 3 and COB
+causal classification remain deferred.
+
 ## A poll: from two cursors to change records
 
 `since(cursor)` performs every read before returning anything. On any error the

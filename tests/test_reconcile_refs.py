@@ -84,7 +84,7 @@ def test_reconciliation_oracle_cross_sdk_downtime_and_idle(tmp_path):
     start, before = cursor(repo), oracle(repo)
     idle, stats = feed.since(repo, start)
     assert not idle["namespaces"] and not idle["cobs"]
-    assert stats == {"namespace_tips": 1, "signed_refs_at": 0, "commit": 0, "ref_names": 0}
+    assert stats == {"namespace_tips": 1, "signed_refs_at": 0, "is_ancestor": 0, "ref_names": 0}
     scanned, scan_stats = feed.since(repo, start, full_scan=True)
     assert idle == scanned
     assert scan_stats["signed_refs_at"] > 0

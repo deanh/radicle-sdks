@@ -125,6 +125,13 @@ argument error).
   Git/peeling failures reject `GIT`. `revParse(rev)` resolves arbitrary Git revision
   expressions without implicit peeling and rejects invalid/unresolved revspecs as
   `GIT`, not argument-value errors.
+- `isAncestor(ancestor, descendant)` returns reflexive plain-Git commit ancestry
+  through upstream/libgit2, not COB causal ancestry or signature verification.
+  Both OIDs must be loadable commits, including equality (true); tags are not
+  implicitly peeled. Malformed OIDs reject `ERR_INVALID_ARG_VALUE`, wrong types
+  reject `ERR_INVALID_ARG_TYPE`, and wrong-kind/missing endpoints or native graph
+  errors reject `GIT`, never silently false. No writes, signer, whole-graph
+  integrity-audit or constant-time guarantee.
 - `namespaceTips()` returns a node-ID-sorted frozen array of frozen
   `NamespaceTip` values `{ nodeId, target }`, with resolved sigrefs OIDs. It reads
   refs only, not target objects or signed sets: missing objects and non-commit

@@ -403,6 +403,10 @@ export class Repository {
   tags(): Promise<ReadonlyArray<raw.TagInfo>> {
     return run(() => repository(this).tags());
   }
+  /** Reflexive plain-Git commit ancestry, not COB causal ancestry. */
+  isAncestor(ancestor: string, descendant: string): Promise<boolean> {
+    return run(() => repository(this).isAncestor(ancestor, descendant));
+  }
   revParse(rev: string): Promise<string> {
     return run(() => repository(this).revParse(rev));
   }

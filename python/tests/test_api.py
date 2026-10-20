@@ -90,6 +90,7 @@ MEMBERS = {
             "branch_head",
             "tags",
             "rev_parse",
+            "is_ancestor",
             "commit",
             "tree",
             "blob",

@@ -61,9 +61,8 @@ export function emitCursor(rid, tips) {
 class Reader {
   constructor(repository) {
     this.repo = repository;
-    this.stats = { namespace_tips: 0, signed_refs_at: 0, commit: 0, ref_names: 0 };
+    this.stats = { namespace_tips: 0, signed_refs_at: 0, is_ancestor: 0, ref_names: 0 };
     this.sets = new Map();
-    this.parents = new Map();
   }
   async tips() {
     this.stats.namespace_tips++;
@@ -80,20 +79,8 @@ class Reader {
     return this.sets.get(key);
   }
   async ancestor(old, current) {
-    const pending = [current],
-      seen = new Set();
-    while (pending.length) {
-      const oid = pending.pop();
-      if (oid === old) return true;
-      if (seen.has(oid)) continue;
-      seen.add(oid);
-      if (!this.parents.has(oid)) {
-        this.stats.commit++;
-        this.parents.set(oid, (await this.repo.commit(oid)).parents);
-      }
-      pending.push(...this.parents.get(oid));
-    }
-    return false;
+    this.stats.is_ancestor++;
+    return this.repo.isAncestor(old, current);
   }
 }
 

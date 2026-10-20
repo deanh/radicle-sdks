@@ -59,9 +59,8 @@ def emit_cursor(rid, tips):
 class Reader:
     def __init__(self, repository):
         self.repo = repository
-        self.stats = {"namespace_tips": 0, "signed_refs_at": 0, "commit": 0, "ref_names": 0}
+        self.stats = {"namespace_tips": 0, "signed_refs_at": 0, "is_ancestor": 0, "ref_names": 0}
         self.sets = {}
-        self.parents = {}
 
     def tips(self):
         self.stats["namespace_tips"] += 1
@@ -76,19 +75,8 @@ class Reader:
         return self.sets[key]
 
     def ancestor(self, old, new):
-        pending, seen = [new], set()
-        while pending:
-            oid = pending.pop()
-            if oid == old:
-                return True
-            if oid in seen:
-                continue
-            seen.add(oid)
-            if oid not in self.parents:
-                self.stats["commit"] += 1
-                self.parents[oid] = self.repo.commit(oid).parents
-            pending.extend(self.parents[oid])
-        return False
+        self.stats["is_ancestor"] += 1
+        return self.repo.is_ancestor(old, new)
 
 
 def frontier(sets):

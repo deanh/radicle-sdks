@@ -34,6 +34,10 @@ async function usage(storage: Storage, repo: Repository, signer: Signer): Promis
   const identityCommit: string = identity.commit;
   const identityBlob: string = identity.blob;
   await repo.revParse('HEAD');
+  const ancestor: boolean = await repo.isAncestor(id, id);
+  // @ts-expect-error ancestry OIDs must be strings
+  await repo.isAncestor(id, 123);
+  console.log(ancestor);
   await repo.setIdentityHead();
   await repo.setRemoteIdentityRoot(signer.nodeId);
   await checkoutProject(storage, repo.rid, signer.nodeId, '/tmp/checkout', { bare: true });

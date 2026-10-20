@@ -2,6 +2,12 @@
 
 All notable changes to `radicle-py` are documented here.
 
+## Plain Git ancestry (unreleased)
+
+- Add `Repository.is_ancestor(ancestor, descendant)`, with validated commit
+  endpoints, reflexive equality and propagated Git errors, using upstream's
+  native graph query. This is not the deferred COB causal range primitive.
+
 ## Signed refs at an explicit tip (unreleased)
 
 - Add `Repository.signed_refs_at(node_id, oid)` using upstream verification and

@@ -18,7 +18,12 @@ test('reconciliation: offline operations collapse, idle is ref-only, forced COB 
   const issue = await Issues.openAs(repo, signer).create({ title: 'one', description: 'root' });
   const start = await cursor(repo);
   const idle = await since(repo, start);
-  assert.deepEqual(idle.stats, { namespace_tips: 1, signed_refs_at: 0, commit: 0, ref_names: 0 });
+  assert.deepEqual(idle.stats, {
+    namespace_tips: 1,
+    signed_refs_at: 0,
+    is_ancestor: 0,
+    ref_names: 0,
+  });
   assert.deepEqual(idle.page.cobs, []);
   const scanned = await since(repo, start, { fullScan: true });
   assert.deepEqual(scanned.page, idle.page);

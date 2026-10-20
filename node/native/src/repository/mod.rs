@@ -124,6 +124,30 @@ impl NativeRepository {
             }
         })
     }
+    #[napi(catch_unwind, ts_return_type = "Promise<boolean>")]
+    pub fn is_ancestor(&self, ancestor: String, descendant: String) -> AsyncTask<Work<bool>> {
+        let me = self.clone();
+        work(move || {
+            let ancestor = ancestor
+                .parse::<radicle::git::Oid>()
+                .map_err(|e| err("ARG_VALUE", e))?;
+            let descendant = descendant
+                .parse::<radicle::git::Oid>()
+                .map_err(|e| err("ARG_VALUE", e))?;
+            let repo = me.open()?;
+            repo.backend
+                .find_commit(ancestor.into())
+                .map_err(|e| err("GIT", e))?;
+            repo.backend
+                .find_commit(descendant.into())
+                .map_err(|e| err("GIT", e))?;
+            if ancestor == descendant {
+                return Ok(true);
+            }
+            repo.is_ancestor_of(ancestor, descendant)
+                .map_err(|e| err("GIT", e))
+        })
+    }
     #[napi(catch_unwind, ts_return_type = "Promise<string>")]
     pub fn rev_parse(&self, rev: String) -> AsyncTask<Work<String>> {
         let me = self.clone();

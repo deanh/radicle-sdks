@@ -85,6 +85,11 @@ has no public parser and is not reimplemented by the experiment.
 
 ## Real-storage measurements
 
+The tables in this section record the original application-walk baseline,
+before native ancestry support. The native follow-up is reported separately
+below; current code uses one `is_ancestor` / `isAncestor` call per namespace
+comparison, not a loop over commit snapshots.
+
 Read-only probes of the host's local heartwood repository
 `rad:z3gqcJUoA1n9HaHKufZs5FCSGazv5`: **3 namespaces, 2,495 signed ref names,
 1,724 signed COB refs, 1,183 distinct COB names**. The programs were copied
@@ -133,6 +138,25 @@ A corrupt loose object was *not* a valid missing-object experiment: libgit2
 could fall back to its intact packed copy. The committed probe instead rebuilds
 the copy's object store omitting the selected object, and then both SDKs fail.
 
+### Native ancestry follow-up
+
+The supporting `Repository.is_ancestor` / `isAncestor` predicate now replaces
+the application commit walk. It validates both endpoints as commits, treats
+equality as true, and delegates non-equal queries to upstream/libgit2. Missing
+required intermediate objects still raise Git errors in both bindings; tests
+cover this with and without a commit-graph file. It has plain Git semantics,
+not COB causal semantics, and performs no operation decoding or signature checks.
+
+Fresh optimized installed consumers and the same copy-only probe agree across
+SDKs. The local source had advanced by one signed update since the baseline:
+the retained rewind now produces one `changed` COB record rather than zero.
+That probe took **12.63 ms Python** and **66.16 ms Node including process
+startup**, with **one native ancestry call** instead of thousands of public
+commit reads. Pruned old tips still produce explicit gaps; a genuinely omitted
+intermediate commit still fails the poll. Evidence is under
+`/tmp/radicle-is-ancestor/heartwood-retention.json`. These are separate local
+samples, not a controlled constant-factor speedup or constant-time claim.
+
 ## Recommendation and remaining work
 
 **The smaller feature makes sense without operation ranges.** Both primitives
@@ -140,14 +164,13 @@ are enough for a compact cursor and reliable reconciliation triggers, with
 explicit gaps rather than invented complete history. It avoids operation
 history work entirely, even on the 1,183-COB repository.
 
-Keep operation ranges deferred. Before turning this application code into a
-public feed, settle the wrapper/page schema and recovery ergonomics against a
-real consumer. Namespace ancestry remains a potential bottleneck on forced or
-long-downtime updates: a native plain-Git ancestry check could avoid thousands
-of binding calls without introducing the deferred causal operation primitive.
-Changed-poll signed-set caching is a separate optimization, not a requirement
-or an honest O(changes) claim today. No production scalability claim follows
-from these local probes.
+Keep operation ranges deferred. The native plain-Git predicate removes the
+measured binding-loop bottleneck without introducing causal ranges; the graph
+work itself is still history-dependent. Before turning this application code
+into a public feed, settle the wrapper/page schema and recovery ergonomics
+against the planned sandbox review-bot consumer. Changed-poll signed-set caching
+is a separate optimization, not a requirement or an honest O(changes) claim
+today. No production scalability claim follows from these local probes.
 
 ## Reproduce
 

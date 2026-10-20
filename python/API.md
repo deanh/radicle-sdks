@@ -211,6 +211,14 @@ any other libgit2 failure.
 ##### `repository.tags() -> list[TagInfo]` (method)
 Tags (sorted by short name) with raw/peeled distinction.
 
+##### `repository.is_ancestor(ancestor: str, descendant: str) -> bool` (method)
+Reflexive plain-Git commit ancestry through upstream/libgit2; not COB causal
+ancestry or signature verification. Both OIDs must identify loadable commits,
+even when equal (then true); tags are not implicitly peeled. Malformed OIDs
+raise `ValueError`. Wrong-kind/missing endpoints or native graph-read failures
+raise `GitError`, not false. This is not a whole-graph integrity audit or a
+constant-time promise. No writes or signer.
+
 ##### `repository.rev_parse(rev: str) -> Oid` (method)
 Resolve a git revision expression. Raises `GitError` for **invalid or
 unresolved** revisions (revspec semantics are git's — `ValueError` is

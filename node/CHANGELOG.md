@@ -1,5 +1,11 @@
 # radicle-sdk changelog
 
+## Plain Git ancestry (unreleased)
+
+- Add asynchronous `Repository.isAncestor(ancestor, descendant)`, with validated
+  commit endpoints, reflexive equality and propagated Git errors through
+  upstream's native graph query. No COB causal range API is added.
+
 ## Signed refs at an explicit tip (unreleased)
 
 - Add `Repository.signedRefsAt(nodeId, oid)` using upstream verification and replay
