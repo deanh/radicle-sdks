@@ -3,8 +3,8 @@
 Status: **draft contract, not a shipped API.** This page turns the direction
 recorded on events issue `089606916a4c782f0eb210cc9d8d5d3bb46ace33` (comments
 `bb370ff`, `36521a3`, `af7b3f8`) into the rules both bindings are implemented
-and tested against. It specifies three read-only primitives, how a poll derives
-change records from them, and the cursor text. It does not yet fix the public
+and tested against. It specifies two initial read-only primitives and a deferred
+third primitive, how a poll derives change records, and the cursor text. It does not yet fix the public
 `since`/`watch` API or the event `kind` vocabulary; those follow the retention
 experiments listed at the end. The prototype that motivated it is described in
 [the events experiment](../examples/events_experiment.md); where the two
@@ -14,6 +14,27 @@ The anchor is Git: where the model has a choice, it takes the shape `git fetch`
 and `git log ^old new` already give. Scope is one repository per feed. A
 consumer that follows several repositories loops over `storage.repositories()`
 with one cursor each.
+
+## Initial scope: signed-ref reconciliation
+
+Primitive 3 (bounded causal walk) and operation delivery are **deferred**. The
+first implementation adds primitives 1 and 2 in both bindings, then rebuilds
+the experiment as a signed-ref reconciliation feed. It identifies affected
+COBs for consumers to reload through existing typed APIs; it does not promise
+every intermediate action, operation ordering, or operation-ID deduplication.
+
+The initial COB records are `created`, `changed`, and `deleted`, carrying old
+and new union-of-namespace tip sets. `changed` means only that two non-empty
+sets differ: there is no causal fast-forward check and no COB `forced` flag.
+Namespace records and history-unavailable handling remain as specified below,
+including incomplete old-frontier markers. A record computed from incomplete
+old sets is not proof of creation. Delivery is at least once; consumers handle
+a whole page before checkpointing and reconcile affected COB snapshots.
+
+The operation-range primitive, operation events, and the `updated`/`forced`
+COB distinction below are retained as **deferred design**, not initial delivery
+requirements. No watcher API is added with either primitive. The experiment
+will establish the smaller feed's usefulness and cost before public wrappers.
 
 ## Terms
 
@@ -59,10 +80,11 @@ with one cursor each.
   public API text must say this in those words. (Precision over `af7b3f8`,
   which said "does not verify signatures": the feed does not, upstream's loader
   does, and the contract names which is which.)
-- **Operations, not state.** One event per operation, with every action and its
+- **Deferred operation delivery.** In the later operation feed, one event per operation, with every action and its
   index, `evaluation: not-evaluated`. Evaluated or "applied" views sit above the
   feed; the feed never filters an operation because upstream would ignore it.
-- **At least once.** Consumers deduplicate on operation OID, checkpoint the new
+- **At least once.** Initial consumers reconcile affected COBs idempotently;
+  later operation consumers deduplicate on operation OID. Consumers checkpoint the new
   cursor only after a whole page was handled, and own cursor storage. No
   exactly-once, no acknowledgement, no durable journal.
 
@@ -128,7 +150,7 @@ value (`node_id`, `at`, `parent`, `feature_level`, `refs()`), so no new type.
 - Errors: Python `GitError`, Node code `GIT`; a `nid` or `oid` that does not
   parse is an argument error.
 
-### 3. Bounded causal walk
+### 3. Bounded causal walk (deferred)
 
 ```text
 operations_between(raw, typename, id, old_tips, new_tips)
@@ -189,8 +211,10 @@ page is not returned and the cursor is unchanged; there is no partial page.
    tip, because COB frontiers are unions across all namespaces. Cost:
    O(namespaces) object reads, no ref listing. An implementation may cache sets
    by sigrefs OID within a process; sigrefs commits are immutable.
-5. Derive namespace records, then COB records, then operations
-   (primitive 3) per changed COB.
+5. Derive namespace records, then initial COB records (`created`, `changed`,
+   `deleted`) by comparing aggregate tip sets. Do not walk operation history.
+   The deferred extension derives causal `updated`/`forced` records and
+   operations using primitive 3.
 
 ### Namespace records
 
@@ -235,7 +259,12 @@ A namespace whose **current** tip cannot be loaded is a poll error, not a
 record: the repository's present state is unreadable and there is nothing
 safe to advance to.
 
-### COB records
+### COB records (deferred causal classification)
+
+For the initial reconciliation feed, use the same union construction below,
+but replace both `updated` and `forced` with `changed`, with no operation list
+or causal flag. `created` and `deleted` likewise carry no operations. Equal
+tip sets produce no record. `old_complete` applies in both versions.
 
 For every COB ref name in the union of all old and new signed sets, let
 `old_tips` be the union of its targets across the old sets and `new_tips` the
@@ -264,6 +293,9 @@ operations under a forced flag is the consumer's choice, as after `git fetch`
 prints a forced update.
 
 ### Page shape and order
+
+Initially each COB record has only its key, change kind, old/new tip sets and
+`old_complete`; the operation lists and causal flags described below are deferred.
 
 ```text
 Page {
@@ -331,6 +363,12 @@ Rules:
 
 ## Retention and the experiments that gate the API
 
+Initially run namespace retention, cursor handoff, unsigned visibility and
+aggregate-tip reconciliation cases without primitive 3. Operation-range cases
+and causal COB classification are deferred; a missing current signed-set object
+still fails the poll. The full scan remains an oracle for signed frontier changes,
+not a claim of operation delivery.
+
 An old cursor is resolvable while its sigrefs commits are loadable. The parent
 chain explains the common case: every signed write produces a child commit, so
 an old tip stays reachable from the current one until that namespace is
@@ -366,7 +404,7 @@ specified after that record exists.
 - Primitive 2 at the current tip equals `remotes()[nid].refs`; at an older tip
   equals the set recorded by the `SignedRefs` value returned when that commit
   was created; a pruned commit is a Git error naming the OID.
-- Primitive 3 reproduces `Raw.history()` with empty old tips; returns exactly
+- Deferred primitive 3 reproduces `Raw.history()` with empty old tips; returns exactly
   the delta for a fast-forward; returns the divergent range with
   `fast_forward: false` after a rewind; raises on a missing parent; and
   passes the two DAG cases above: the merge whose other branch reaches an old
@@ -380,6 +418,9 @@ specified after that record exists.
 ## Decisions
 
 Settled in the review of this page (patch `756f2de`):
+
+- Initial implementation is primitives 1 and 2 plus a reconciliation experiment;
+  primitive 3 and operation delivery are deferred to demonstrated consumer need.
 
 - Primitives 1 and 2 live on `Repository`, primitive 3 on `Raw`. Final names
   per language are chosen in the implementation patches, following each SDK's
