@@ -93,7 +93,10 @@ namespace_tips(repository) -> [(nid, oid)]   sorted by nid, bytewise
 ```
 
 Lists `refs/namespaces/*/refs/rad/sigrefs` with each ref's target OID. This is
-the ref-tip comparison a poll is built on.
+the ref-tip comparison a poll is built on. Public names are
+`Repository.namespace_tips()` (Python) and `Repository.namespaceTips()`
+(TypeScript), returning immutable `NamespaceTip` values (`node_id`/`nodeId`,
+`target`).
 
 - Reads refs only: no sigrefs commit, tree or blob is loaded and no signed ref
   name is materialised. Upstream's `Repository::remote_ids` already globs

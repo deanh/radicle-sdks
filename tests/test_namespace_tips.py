@@ -56,6 +56,14 @@ def test_namespace_tips_sorted_ref_only_and_cross_sdk(tmp_path):
         assert tip.target == git(stored, "rev-parse", f"refs/namespaces/{tip.node_id}/refs/rad/sigrefs")
         with pytest.raises(AttributeError):
             tip.target = "0" * 40
+    again = repo.namespace_tips()
+    assert tips == again
+    assert set(tips) == set(again)
+    assert len(set(tips)) == len(tips)
+    keyed = {tip: tip.target for tip in tips}
+    for tip in again:
+        assert keyed[tip] == tip.target
+        assert repr(tip) == f"NamespaceTip({tip.node_id}, {tip.target})"
     assert node_tips(profile, repo.rid) == expected
     assert before == git(stored, "for-each-ref", "--format=%(refname) %(objectname)")
 

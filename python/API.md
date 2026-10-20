@@ -238,8 +238,10 @@ to determine `has_more`; valid history is unaffected by the skipped-error check.
 ##### `repository.namespace_tips() -> list[NamespaceTip]` (method)
 Read-only, node-ID-sorted snapshots with `node_id` and `target` (resolved sigrefs
 OID). Follows symbolic refs but loads no target objects or signed ref sets;
-missing objects and non-commit targets are listable. Malformed namespace IDs or
-unresolvable refs raise `GitError`. No atomic multi-ref snapshot is promised.
+missing objects and non-commit targets are listable. `NamespaceTip` snapshots
+compare and hash by both fields, with a descriptive `repr`; hashes are
+process-local, not checkpoint IDs. Malformed namespace IDs or unresolvable refs
+raise `GitError`. No atomic multi-ref snapshot is promised.
 
 ##### `repository.remotes() -> list[RemoteInfo]` (method)
 Remotes tracked by this repository (sorted by fetcher).

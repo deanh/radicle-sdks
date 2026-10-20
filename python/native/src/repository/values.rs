@@ -336,12 +336,23 @@ impl TagInfo {
 
 /// A namespace's sigrefs ref target; no signed set or object is loaded.
 #[pyclass(name = "NamespaceTip", module = "radiclepy", frozen, eq)]
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct NamespaceTip {
     #[pyo3(get)]
     pub node_id: String,
     #[pyo3(get)]
     pub target: String,
+}
+
+#[pymethods]
+impl NamespaceTip {
+    fn __hash__(&self) -> u64 {
+        snapshot_hash(self)
+    }
+
+    fn __repr__(&self) -> String {
+        format!("NamespaceTip({}, {})", self.node_id, self.target)
+    }
 }
 
 // ─── RemoteInfo ──────────────────────────────────────────────────────────────
