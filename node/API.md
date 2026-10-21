@@ -8,7 +8,8 @@ native bridge and probe files are internal, not supported import paths.
 
 ## Implemented surface
 
-- Async `Profile.init`; synchronous `Profile.load()`/`signer()` setup and profile
+- Async `Profile.init`, `Profile.loadAsync()`/`signerAsync()`; optional synchronous
+  `Profile.load()`/`signer()` setup and profile
   metadata/storage handles.
 - Lazy `Raw.open(repo)` with async generic COB enumeration/refs/causal history;
   exact raw numeric metadata and synchronous `RawOp.actionsJson()` decoding.
@@ -61,7 +62,7 @@ using the upstream Git/URL APIs rather than emulating upstream cwd detection.
 ## Handle and snapshot contract
 
 Handles have private constructors in the emitted consumer declarations and reject
-direct JavaScript construction. Use `Home.create/load/resolve`, `Profile.init/load`, `profile.signer()`,
+direct JavaScript construction. Use `Home.create/load/resolve`, `Profile.init/load/loadAsync`, `profile.signer()/signerAsync()`,
 `profile.storage`, `storage.repository()`, `Issues.open/openAs` and
 `Patches.open/openAs`; obtain mutable handles from `create/draft/getMut`.
 No native conversion constructors or public `fromNative` helpers are exposed.
@@ -494,7 +495,17 @@ There is no SDK commit-import API or merge-base default.
 - `Profile.load()` and `profile.signer()` call upstream synchronously on the
   calling JS thread, like Python. Filesystem reads, key decryption and agent
   communication can block that thread; these methods return handles, not Promises,
-  and throw typed errors synchronously. Repository workflows remain asynchronous.
+  and throw typed errors synchronously. Prefer `await Profile.loadAsync()` and
+  `await profile.signerAsync()` in interactive hosts: these run those same upstream
+  operations on native workers and reject with the same `IDENTITY` / `SIGNER`
+  errors. `signerAsync` retains its profile until completion. No JS `Promise`
+  wrapper around blocking I/O, worker-local environment override, or handle
+  transfer between JS workers is used. Python's setup remains synchronous.
+- Load a profile once per application context and obtain a signer lazily for
+  writes, retaining the returned signer if appropriate. Async setup has no hidden
+  cache/retry and does not sign or announce. It can occupy the shared worker pool
+  during slow agent traffic; it has no in-flight cancellation, timeout, latency
+  or fairness guarantee. AbortSignal / `Promise.race` does not stop such a job.
 - Upstream resolves `RAD_HOME`/`HOME`, `RAD_PASSPHRASE` and `SSH_AUTH_SOCK` from the
   native OS process environment. Node per-worker `env` copies do **not** select
   different profiles or signers. Set environment before starting the process;

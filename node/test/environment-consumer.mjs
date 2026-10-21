@@ -21,15 +21,23 @@ if (data.worker) {
   assert.equal((await once(worker, 'exit'))[0], 0);
 } else if (data.noHome) {
   assert.throws(() => Profile.load(), category('IDENTITY'));
+  await assert.rejects(Profile.loadAsync(), category('IDENTITY'));
 } else {
   const profile = Profile.load();
   assert.ok(profile instanceof Profile); // not a Promise
   assert.equal(profile.nodeId, data.nodeId);
+  const asyncProfile = await Profile.loadAsync();
+  assert.ok(asyncProfile instanceof Profile);
+  assert.equal(asyncProfile.nodeId, profile.nodeId);
   if (data.badSigner) {
     assert.throws(() => profile.signer(), category('SIGNER'));
+    await assert.rejects(asyncProfile.signerAsync(), category('SIGNER'));
   } else {
-    const signer = profile.signer();
-    assert.ok(signer instanceof Signer); // not a Promise
+    const syncSigner = profile.signer();
+    assert.ok(syncSigner instanceof Signer); // not a Promise
+    const signer = await asyncProfile.signerAsync();
+    assert.ok(signer instanceof Signer);
+    assert.equal(signer.nodeId, syncSigner.nodeId);
     assert.equal(signer.nodeId, data.nodeId);
     if (data.work) {
       const rid = await initProject(profile.storage, signer, data.work, {

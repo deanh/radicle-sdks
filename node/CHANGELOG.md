@@ -1,5 +1,11 @@
 # radicle-sdk changelog
 
+## Non-blocking profile setup (unreleased)
+
+- Add `Profile.loadAsync()` and `profile.signerAsync()` on native workers;
+  retain synchronous setup methods with their existing error/environment
+  semantics. No profile switching, signer cache or in-flight cancellation.
+
 ## Working-copy discovery (unreleased)
 
 - Add asynchronous profile-free `projectAt(path, { remoteName? })` with readonly

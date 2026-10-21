@@ -77,6 +77,13 @@ async function useFactories(profile: Profile): Promise<void> {
   const immediate: Home = Home.load('/tmp/radicle-home');
   void [home, created, resolved, alias, grouped, did, immediate];
   const signer: Signer = profile.signer();
+  const loaded: Profile = await Profile.loadAsync();
+  const asynchronous: Signer = await loaded.signerAsync();
+  // @ts-expect-error asynchronous setup returns a Promise
+  const immediateProfile: Profile = Profile.loadAsync();
+  // @ts-expect-error asynchronous signer setup returns a Promise
+  const immediateSigner: Signer = loaded.signerAsync();
+  void [asynchronous, immediateProfile, immediateSigner];
   const rid = await initProject(storage, signer, '/work', privateOptions);
   const repo: Repository = storage.repository(rid);
   const issues: Issues = Issues.openAs(repo, signer);

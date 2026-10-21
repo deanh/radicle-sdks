@@ -103,7 +103,7 @@ try {
   await writeFile(join(work, 'README.md'), '# Hello Radicle\n');
   git(work, 'add', '.'); git(work, 'commit', '-m', 'Initial commit');
   const profile = await Profile.init(home, 'alice');
-  const signer = profile.signer(), storage = profile.storage;
+  const signer = await profile.signerAsync(), storage = profile.storage;
   const rid = await initProject(storage, signer, work, {
     name: 'hello', description: 'Local SDK demo', defaultBranch: 'main', visibility: 'private',
   });

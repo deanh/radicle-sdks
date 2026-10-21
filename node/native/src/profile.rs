@@ -129,6 +129,15 @@ impl NativeProfile {
             inner: Arc::new(radicle::Profile::load().map_err(|e| err("IDENTITY", e))?),
         })
     }
+    #[napi(catch_unwind, ts_return_type = "Promise<NativeProfile>")]
+    pub fn load_async() -> AsyncTask<Work<NativeProfile>> {
+        work(Self::load)
+    }
+    #[napi(catch_unwind, ts_return_type = "Promise<NativeSigner>")]
+    pub fn signer_async(&self) -> AsyncTask<Work<NativeSigner>> {
+        let inner = self.inner.clone();
+        work(move || Self { inner }.signer())
+    }
     #[napi(getter, catch_unwind)]
     pub fn did(&self) -> String {
         self.inner.did().to_string()

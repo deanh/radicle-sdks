@@ -316,6 +316,10 @@ export class Profile {
       sync(() => raw.NativeProfile.load()),
     );
   }
+  /** Same native process profile as load(), with filesystem I/O off the JS thread. */
+  static async loadAsync(): Promise<Profile> {
+    return new Profile(constructionKey, await run(() => raw.NativeProfile.loadAsync()));
+  }
   get did(): string {
     return this.#raw.did;
   }
@@ -340,6 +344,10 @@ export class Profile {
   /** Synchronous setup: key decryption or agent communication can block. */
   signer(): Signer {
     return wrapSigner(sync(() => this.#raw.signer()));
+  }
+  /** Key decryption/agent I/O on a native worker; no in-flight cancellation. */
+  async signerAsync(): Promise<Signer> {
+    return wrapSigner(await run(() => this.#raw.signerAsync()));
   }
 }
 export class Signer {

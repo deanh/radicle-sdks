@@ -12,7 +12,7 @@ not require identical public interfaces or full upstream API coverage. The [Pyth
 | Package/import | `radicle-py` / `radiclepy` | `radicle-sdk` |
 | Runtime | CPython >=3.9, abi3 | Node >=26.5.0, no upper cap |
 | Platform boundary | Linux/macOS targets; Windows unsupported/unverified | Linux x86_64 GNU/glibc validated; other platforms unverified/unsupported |
-| Execution | synchronous | repository/COB/project work async; `Profile.load()` and `signer()` synchronous |
+| Execution | synchronous | repository/COB/project work async; `loadAsync()` / `signerAsync()` preferred for interactive setup; sync variants retained |
 | Repository handle creation | validates existence immediately | lazy; absence fails on first I/O |
 | Typed COB store creation | `open/open_as`, lazy | `open/openAs`, lazy |
 | Missing issue/patch/branch lookup | `None` | `null` |
@@ -27,6 +27,9 @@ Neither SDK loads a custom profile environment adapter. Upstream resolves home,
 passphrase and agent settings from the native process environment. Configure them
 before concurrent work. Node worker-local environment copies do not multiplex
 native profiles/signers; synchronous setup can block the calling JS thread.
+Node's `Profile.loadAsync()` and `profile.signerAsync()` run the same upstream
+setup on native workers. Python's API is unchanged and synchronous. Neither
+variant is an environment-switching adapter or provides in-flight cancellation.
 
 ## Timestamp table
 

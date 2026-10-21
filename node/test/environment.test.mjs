@@ -37,7 +37,7 @@ async function root(t) {
 }
 
 test(
-  'synchronous upstream profile/signer use native process environment and typed errors',
+  'sync and async upstream profile/signer use native process environment and typed errors',
   { timeout: 30000 },
   async (t) => {
     const path = await root(t),
@@ -81,7 +81,7 @@ test(
 );
 
 test(
-  'synchronous upstream encrypted signer uses the native agent and signs local writes',
+  'sync and async upstream encrypted signer use the native agent and sign local writes',
   { timeout: 30000 },
   async (t) => {
     if (process.platform === 'win32') return t.skip('Unix SSH-agent fixture');
