@@ -384,6 +384,8 @@ authors, matching `revisions.length`, **not** `version + 1` after redactions.
 - `create({ title, description, labels?, assignees? })` returns a handle.
   `label()` and `assign()` **replace** their entire sets; `[]` clears them and
   duplicates are deduplicated upstream. Assignees must be DIDs, not node IDs.
+  These are not incremental add/remove operations; neither method merges the
+  supplied set with a previously read snapshot.
 - `editDescription()` edits the root comment, preserving its ID and comment count.
   `comment()` defaults to replying to that root; `replyTo` can target another comment.
 - All issue mutations return `{ entryId, snapshot }` under the repository/signing
@@ -422,7 +424,10 @@ authors, matching `revisions.length`, **not** `version + 1` after redactions.
   `accept | reject`; omit verdict for a summary-only review. An empty review is
   rejected upstream. Upstream keeps the first review per actor/revision; another
   `review()` records an operation but does not replace it. Entry IDs identify
-  operations, not necessarily an added/changed object. Review editing is deferred.
+  operations, not necessarily an added/changed object. A rejection recorded after
+  an acceptance can leave the observed verdict `accept`. Inspect the selected
+  revision's review for the signer DID in `snapshot`, rather than reporting the
+  requested verdict as applied or retrying to force it. Review editing is deferred.
 - `update({ description, base, head })` returns `{ revisionId, snapshot }`, adds
   an upstream revision, and signs refs. It does not import commits, move a patch
   branch, deduplicate base/head pairs, automatically merge, or sync.
@@ -474,6 +479,25 @@ and the node is running; sync failure does not fail the local push. SDK calls
 never sync or create/update `refs/heads/patches/<id>`. They **do sign refs**, and
 revision base/head remain reachable as COB Git parents without a patch branch.
 There is no SDK commit-import API or merge-base default.
+
+## Consumer-owned read/modify/write
+
+Issue and patch `label()` / `assign()` replace the **entire** set. To add/remove
+items without losing other changes, serialize the complete read, desired-set
+computation, mutation and awaited result inspection in a consumer-owned queue or
+critical section keyed by canonical storage path + RID. A queue around only the
+final write is insufficient: two serial writes derived from the same stale read
+still replace each other's sets.
+
+The native write lock covers SDK reload/transaction/signing/post-write snapshot,
+**not an earlier `get()`/`reload()` or application computation**. There is no atomic
+incremental-set or compare-and-swap API. Share the application queue across client
+instances you control; it does not coordinate external processes, CLI/Git writers,
+or independently loaded addons. Do not substitute fixed delays or automatic
+retries for this coordination. Returned entry IDs acknowledge recorded operations;
+inspect evaluated snapshots for whether the intended change became effective.
+Python's corresponding handles are synchronous/thread-affine; this advice is not
+permission to move them between threads.
 
 ## Concurrency and environment boundaries
 

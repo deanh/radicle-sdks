@@ -8,6 +8,12 @@ All notable changes to `radicle-py` are documented here.
   `ProjectLocation` metadata, parent/worktree discovery and explicit named
   fetch-remote selection. No Jujutsu, storage lookup or identity verification.
 
+## Consumer mutation guidance (unreleased)
+
+- Clarify consumer-owned full read/modify/write serialization for replacing
+  label/assignee sets, thread-affinity limits, and recorded-versus-effective
+  patch reviews. Existing mutation behavior is unchanged.
+
 ## Plain Git ancestry (unreleased)
 
 - Add `Repository.is_ancestor(ancestor, descendant)`, with validated commit

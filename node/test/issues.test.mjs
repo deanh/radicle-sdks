@@ -69,6 +69,11 @@ test('complete issue workflow: metadata, discussion, edits, replacement sets, cl
   assert.deepEqual(change(await other.label([])).labels, []);
   assert.deepEqual(change(await issue.assign([bob.did])).assignees, [bob.did]);
   assert.deepEqual(change(await other.assign([])).assignees, []);
+  // Serial native writes cannot repair inputs computed before the write lock.
+  const staleLabels = (await issue.reload()).labels;
+  await issue.label([...staleLabels, 'first']);
+  assert.deepEqual(change(await other.label([...staleLabels, 'second'])).labels, ['second']);
+  await issue.label([]);
   const closed = change(await issue.close());
   assert.equal(closed.state, 'closed');
   assert.equal(closed.closeReason, 'unspecified');

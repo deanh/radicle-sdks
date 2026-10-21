@@ -101,6 +101,22 @@ Patch lifecycle booleans report the upstream transaction decision, not a generic
 before/after state comparison. False no-ops record no operation. Repeated
 `archive()` can return true and record transactions even when already archived.
 
+## Set replacement and effective reviews
+
+Issue/patch label and assignment mutations replace the full set; an empty set
+clears it. They are not incremental add/remove operations. A consumer-owned queue
+must serialize the entire read/compute/write/result-inspection sequence for the
+same local storage/RID. Merely ordering writes does not repair stale computed
+inputs. Node's native write lock does not include an earlier application read;
+Python's GIL/thread affinity does not coordinate external writers. No shared-core,
+cross-process lock, automatic retry or compare-and-swap guarantee is implied.
+
+For a chosen patch revision, upstream retains the first review by an actor.
+Another `review` call records an operation but does not replace that review;
+editing is not exposed. A returned operation ID therefore need not identify a
+new review, and the effective verdict can differ from the request. Inspect the
+returned Node snapshot or reloaded Python snapshot, not just the receipt.
+
 ## Merge records are not Git merges
 
 A patch merge call records a COB operation for an existing storage commit. It

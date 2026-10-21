@@ -12,6 +12,13 @@
   `ProjectLocation` metadata, parent/worktree discovery and explicit named
   fetch-remote selection. No Jujutsu, storage lookup or identity verification.
 
+## Consumer mutation guidance (unreleased)
+
+- Clarify that native write locks do not cover prior application reads when
+  replacing label/assignee sets; recommend a consumer-owned full read/modify/write
+  queue and checking observed reviews, not treating receipts as applied verdicts.
+  Existing mutation behavior is unchanged.
+
 ## Plain Git ancestry (unreleased)
 
 - Add asynchronous `Repository.isAncestor(ancestor, descendant)`, with validated

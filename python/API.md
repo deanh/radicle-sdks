@@ -649,6 +649,16 @@ Each mutator commits **one COB transaction** and returns the new change-entry
 
 ##### `issue_mut.assign(assignees: Sequence[Did]) -> Oid` (method) — **replaces** the whole assignee set (like `label`); `[]` clears it
 
+For incremental changes, a **consumer-owned queue/critical section must cover the
+entire read, desired-set computation, mutation and result inspection**, not just
+the final call. Inputs computed from a stale snapshot can overwrite intervening
+labels/assignees even when the writes themselves run serially. The SDK has no
+atomic incremental add/remove or compare-and-swap API. Coordinate all writers
+you control for a storage path + RID; independent clients/processes/CLI writers
+are not covered by a local queue. Python handles remain thread-affine: execute
+this sequence on their owner thread, not by passing handles to worker threads.
+This same replacement rule and coordination requirement applies to patches.
+
 ##### `issue_mut.lifecycle(state: str, reason: str | None = None) -> Oid` (method) — `state` `"open"|"closed"`; `reason` (closing only) `"unspecified"` (default) | `"solved"`; invalid combinations raise `ValueError`
 
 #### `Patches` (write extensions)
@@ -716,9 +726,9 @@ No atomic multi-call transaction or automatic Git branch movement is promised.
 
 ##### `patch_mut.edit(title: str, target: str) -> Oid` (method)
 
-##### `patch_mut.label(labels: Sequence[str]) -> Oid` (method) — replaces the label set
+##### `patch_mut.label(labels: Sequence[str]) -> Oid` (method) — **replaces** the whole label set; `[]` clears it. Incremental changes require consumer-owned read/modify/write serialization as described for issues.
 
-##### `patch_mut.assign(assignees: Sequence[Did]) -> Oid` (method) — replaces the assignee set
+##### `patch_mut.assign(assignees: Sequence[Did]) -> Oid` (method) — **replaces** the whole assignee set; `[]` clears it. No merge with a previously read set is performed.
 
 ##### `patch_mut.update(description: str, *, base: Oid, head: Oid) -> Oid` (method) — add a revision; commits must exist in storage, returns revision ID
 
@@ -732,7 +742,7 @@ No atomic multi-call transaction or automatic Git branch movement is promised.
 
 ##### `patch_mut.comment(revision: Oid, body: str, reply_to: Oid | None = None) -> Oid` (method) — revision discussion; no inline location or embeds
 
-##### `patch_mut.review(revision: Oid, verdict: str | None = None, summary: str | None = None) -> Oid` (method) — verdict `accept`/`reject`; at least one of verdict/summary must be supplied (`CobError` otherwise). Returns the **operation ID**, which is the review ID for an actor's first review of a revision. Upstream keeps the first review per actor and revision: a later `review()` by the same actor is recorded under a new operation ID but does not replace the existing review (review editing is not exposed)
+##### `patch_mut.review(revision: Oid, verdict: str | None = None, summary: str | None = None) -> Oid` (method) — verdict `accept`/`reject`; at least one of verdict/summary must be supplied (`CobError` otherwise). Returns the **operation ID**, which is the review ID for an actor's first review of a revision. Upstream keeps the first review per actor and revision: a later `review()` by the same actor is recorded under a new operation ID but does not replace the existing review (review editing is not exposed). A later rejection after an acceptance can therefore return a new operation ID while the observed verdict remains `accept`. Reload and inspect the actor's review on the chosen revision; do not claim the requested verdict was applied or retry to force replacement.
 
 ##### `patch_mut.merge(revision: Oid, commit: Oid) -> Oid` (method) — returns operation ID, **not a Git merge**. Does not move branches or clean up refs. Upstream checks authorization and evaluates whether the commit is in the author's target branch and the delegate quorum is met. An operation may succeed but leave the patch open; inspect/reload `patch.state`. Commit must already exist in storage.
 
