@@ -9,6 +9,16 @@ Capability parity does not claim upstream API completeness or new platform suppo
 Tracking issue: `4047bd966f4e39b98d097ff10d34dad649e37195`.
 Baseline: `4aa27eb10d1e6a4598629702086e9c35571340ef`.
 
+## Post-baseline consumer additions
+
+`project_at(path, remote_name=...)` / asynchronous `projectAt(path, { remoteName })`
+provide the same profile-free Git discovery and named fetch-remote metadata.
+`ProjectLocation` maps `rid`, `remote_name`/`remoteName`, and `namespace`; missing
+namespace is `None` / `undefined`, and missing discovery is `None` / `null`.
+Python accepts `PathLike[str]` and provides value equality/hashing; Node accepts
+strings and freezes readonly DTOs, following existing language conventions.
+These additions do not rewrite the historical baseline inventory below.
+
 ## Completion contract
 
 Make every supported Python capability available to TypeScript consumers, while

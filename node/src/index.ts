@@ -7,6 +7,7 @@ export type {
   Commit,
   HeadInfo,
   ProjectDoc,
+  ProjectLocation,
   Issue,
   IssueChange,
   InitOptions,
@@ -452,6 +453,20 @@ export class Repository {
     return run(() => repository(this).signRefs(signer(sg)));
   }
 }
+/** Discover Git parents/worktrees and inspect one named fetch remote, without a profile. */
+export function projectAt(
+  path: string,
+  options: { remoteName?: string } = {},
+): Promise<raw.ProjectLocation | null> {
+  return run(() => {
+    if (options === null || typeof options !== 'object' || Array.isArray(options))
+      throw new TypeError('options must be an object');
+    const remoteName = options.remoteName;
+    if (remoteName === null) throw new TypeError('remoteName must be a string');
+    return raw.projectAt(path, remoteName === undefined ? 'rad' : remoteName);
+  });
+}
+
 export function initProject(
   s: Storage,
   sg: Signer,

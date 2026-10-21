@@ -741,6 +741,36 @@ exactly one leading `refs/heads/` removed, so `branch:refs/heads/foo` reads back
 as `branch:foo`. A branch whose bare name itself starts with `refs/heads/` is
 the only case that does not round-trip.
 
+## Working-copy project discovery
+
+#### `project_at(path, *, remote_name="rad") -> ProjectLocation | None`
+
+Searches the
+explicit Git directory and its parents, including linked worktrees, then reads
+one named **fetch** remote. `ProjectLocation` is immutable, equal/hashable by value,
+with `rid: RepoId`, `remote_name: str`, `namespace: NodeId | None`.
+
+#### `ProjectLocation`
+
+Read-only properties: `rid: RepoId`, `remote_name: str`, `namespace: NodeId | None`.
+Equality and hashing compare these three values; hashes are process-local, not
+persistent identifiers.
+
+No discovered Git repository or no selected remote returns `None`. A missing
+input path, malformed/unreadable Git configuration, or invalid selected URL raises
+`GitError`; invalid remote-name arguments raise `ValueError`. `path` accepts
+`str`/`PathLike[str]`. No `chdir`, profile, signer, storage lookup, Git executable,
+network or writes are involved. Git environment repository overrides are not used.
+
+Remote selection is explicit: absent `rad` does **not** choose another remote.
+Use `remote_name="peer"` for non-default names; push URLs are not inspected.
+Parsing uses upstream `git::Url` (`rad://<canonical-rid>[/<node-id>]`), not an
+ad-hoc URL decoder. This is unverified configuration metadata, not proof of
+identity validity or local storage availability, and not a storage `Repository`
+handle. Bare Git repositories can also be inspected. Jujutsu discovery is excluded.
+Upstream `rad::at`/`rad::remote` hard-code `rad`; this adapter uses explicit-path
+Git discovery and the same upstream URL parser to support named remotes.
+
 ## Local project lifecycle (alpha)
 
 These are **non-interactive crate adapters**, not calls to the interactive `rad init` CLI. All required metadata is explicit. No node daemon or `rad` executable is needed. Upstream init/checkout invoke the **Git executable** (`git` on PATH). These synchronous operations retain the GIL, including during upstream subprocess calls.

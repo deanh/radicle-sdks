@@ -2,6 +2,29 @@
 use crate::hashing::snapshot_hash;
 use pyo3::prelude::*;
 
+/// Unverified working-copy remote metadata, not a storage repository handle.
+#[pyclass(name = "ProjectLocation", module = "radiclepy", frozen, eq)]
+#[derive(Clone, PartialEq, Eq, Hash)]
+pub struct ProjectLocation {
+    #[pyo3(get)]
+    pub(crate) rid: String,
+    #[pyo3(get)]
+    pub(crate) remote_name: String,
+    #[pyo3(get)]
+    pub(crate) namespace: Option<String>,
+}
+
+#[pymethods]
+impl ProjectLocation {
+    fn __hash__(&self) -> u64 {
+        snapshot_hash(self)
+    }
+
+    fn __repr__(&self) -> String {
+        format!("ProjectLocation({}, {})", self.rid, self.remote_name)
+    }
+}
+
 // ─── ProjectDoc ──────────────────────────────────────────────────────────────
 
 /// The project identity document (canonical identity head), verified at load.

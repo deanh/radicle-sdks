@@ -2,6 +2,7 @@
 //! performs the work; upstream init/checkout invoke the Git executable.
 mod values;
 pub(crate) use values::ProjectDoc;
+use values::ProjectLocation;
 
 use pyo3::prelude::*;
 use radicle::git;
@@ -14,6 +15,55 @@ fn rid(value: &str) -> PyResult<RepoId> {
     value
         .parse()
         .map_err(|e| error::value_err(format!("invalid RepoId: {e}")))
+}
+
+/// Discover Git from an explicit path and inspect one named fetch remote.
+/// No profile, storage access, subprocess, identity verification, or writes.
+#[pyfunction]
+#[pyo3(signature = (path, *, remote_name="rad"))]
+pub fn project_at(path: PathBuf, remote_name: &str) -> PyResult<Option<ProjectLocation>> {
+    if !git::raw::Remote::is_valid_name(remote_name) {
+        return Err(error::value_err(
+            "remote_name must be a valid Git remote name",
+        ));
+    }
+    std::fs::metadata(&path).map_err(error::git_err)?;
+    let repo = match git::raw::Repository::discover(path) {
+        Ok(repo) => repo,
+        Err(e) if e.code() == git::raw::ErrorCode::NotFound => return Ok(None),
+        Err(e) => return Err(error::git_err(e)),
+    };
+    let remote = match repo.find_remote(remote_name) {
+        Ok(remote) => remote,
+        Err(e) if e.code() == git::raw::ErrorCode::NotFound => {
+            // libgit2 also reports NotFound for an existing remote section
+            // lacking a fetch URL. Do not disguise broken config as absence.
+            let config = repo.config().map_err(error::git_err)?;
+            let mut entries = config.entries(None).map_err(error::git_err)?;
+            let prefix = format!("remote.{remote_name}.");
+            while let Some(entry) = entries.next() {
+                if entry
+                    .map_err(error::git_err)?
+                    .name_bytes()
+                    .starts_with(prefix.as_bytes())
+                {
+                    return Err(error::git_err(e));
+                }
+            }
+            return Ok(None);
+        }
+        Err(e) => return Err(error::git_err(e)),
+    };
+    let url: git::Url = remote
+        .url()
+        .map_err(error::git_err)?
+        .parse()
+        .map_err(error::git_err)?;
+    Ok(Some(ProjectLocation {
+        rid: url.repo.to_string(),
+        remote_name: remote_name.to_owned(),
+        namespace: url.namespace.map(|key| key.to_string()),
+    }))
 }
 
 #[pyfunction]
@@ -104,6 +154,8 @@ pub fn checkout_project(
 }
 
 pub fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {
+    m.add_class::<ProjectLocation>()?;
+    m.add_function(wrap_pyfunction!(project_at, m)?)?;
     m.add_function(wrap_pyfunction!(init_project, m)?)?;
     m.add_function(wrap_pyfunction!(fork_project, m)?)?;
     m.add_function(wrap_pyfunction!(checkout_project, m)?)?;

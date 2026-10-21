@@ -13,7 +13,7 @@ STUB = Path(__file__).resolve().parents[2] / "python/radiclepy/__init__.pyi"
 
 def test_alpha_stub_signatures():
     tree = ast.parse(STUB.read_text())
-    targets = {"init_project", "fork_project", "checkout_project", "PatchMut"}
+    targets = {"init_project", "fork_project", "checkout_project", "project_at", "PatchMut"}
     for node in tree.body:
         if not isinstance(node, (ast.FunctionDef, ast.ClassDef)) or node.name not in targets:
             continue

@@ -21,7 +21,9 @@ mod timestamps;
 // Keep native free-function entry points exported from the crate root.
 pub use ids::{parse_did, parse_node_id, parse_object_id, parse_oid, parse_repo_id};
 pub use probes::{probe_panic, probe_sync_panic, probe_timestamp};
-pub use project::{InitOptions, checkout_project, fork_project, init_project};
+pub use project::{
+    InitOptions, ProjectLocation, checkout_project, fork_project, init_project, project_at,
+};
 
 #[cfg(test)]
 mod tests {

@@ -11,6 +11,66 @@ use crate::{
 };
 use napi::bindgen_prelude::AsyncTask;
 use napi_derive::napi;
+/// Unverified working-copy fetch-remote metadata; not a storage handle.
+#[napi(object)]
+pub struct ProjectLocation {
+    #[napi(readonly)]
+    pub rid: String,
+    #[napi(readonly)]
+    pub remote_name: String,
+    #[napi(readonly)]
+    pub namespace: Option<String>,
+}
+
+#[napi(catch_unwind, ts_return_type = "Promise<ProjectLocation | null>")]
+pub fn project_at(path: String, remote_name: String) -> AsyncTask<Work<Option<ProjectLocation>>> {
+    work(move || {
+        use radicle::git;
+        if !git::raw::Remote::is_valid_name(&remote_name) {
+            return Err(err(
+                "ARG_VALUE",
+                "remoteName must be a valid Git remote name",
+            ));
+        }
+        std::fs::metadata(&path).map_err(|e| err("GIT", e))?;
+        let repo = match git::raw::Repository::discover(path) {
+            Ok(repo) => repo,
+            Err(e) if e.code() == git::raw::ErrorCode::NotFound => return Ok(None),
+            Err(e) => return Err(err("GIT", e)),
+        };
+        let remote = match repo.find_remote(&remote_name) {
+            Ok(remote) => remote,
+            Err(e) if e.code() == git::raw::ErrorCode::NotFound => {
+                // NotFound can mean a configured remote without a fetch URL.
+                let config = repo.config().map_err(|e| err("GIT", e))?;
+                let mut entries = config.entries(None).map_err(|e| err("GIT", e))?;
+                let prefix = format!("remote.{remote_name}.");
+                while let Some(entry) = entries.next() {
+                    if entry
+                        .map_err(|e| err("GIT", e))?
+                        .name_bytes()
+                        .starts_with(prefix.as_bytes())
+                    {
+                        return Err(err("GIT", e));
+                    }
+                }
+                return Ok(None);
+            }
+            Err(e) => return Err(err("GIT", e)),
+        };
+        let url: git::Url = remote
+            .url()
+            .map_err(|e| err("GIT", e))?
+            .parse()
+            .map_err(|e| err("GIT", e))?;
+        Ok(Some(ProjectLocation {
+            rid: url.repo.to_string(),
+            remote_name,
+            namespace: url.namespace.map(|key| key.to_string()),
+        }))
+    })
+}
+
 #[napi(object)]
 pub struct InitOptions {
     pub name: String,

@@ -1,5 +1,11 @@
 # radicle-sdk changelog
 
+## Working-copy discovery (unreleased)
+
+- Add asynchronous profile-free `projectAt(path, { remoteName? })` with readonly
+  `ProjectLocation` metadata, parent/worktree discovery and explicit named
+  fetch-remote selection. No Jujutsu, storage lookup or identity verification.
+
 ## Plain Git ancestry (unreleased)
 
 - Add asynchronous `Repository.isAncestor(ancestor, descendant)`, with validated

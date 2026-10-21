@@ -35,6 +35,26 @@ native bridge and probe files are internal, not supported import paths.
 Generated declarations describe exact consumer types; the behavioral guarantees
 and limits below supplement those types rather than promising upstream parity.
 
+## Working-copy project discovery
+
+`projectAt(path, { remoteName?: string } = {}) -> Promise<ProjectLocation | null>`
+runs explicit-path Git discovery and named fetch-remote inspection on the native
+worker pool. It searches parents and linked worktrees; it never changes cwd or
+uses a Git environment repository override. No discovered repository or selected
+remote returns `null`. Missing input paths, Git/configuration failures and invalid
+selected URLs reject `GIT`; invalid remote names reject `ERR_INVALID_ARG_VALUE`
+and wrong input types reject `ERR_INVALID_ARG_TYPE`.
+
+The frozen readonly `ProjectLocation` has `rid: string`, `remoteName: string`, and
+optional `namespace: string`. Remote name defaults to `rad`; another name must be
+requested explicitly, never guessed. Only the fetch URL is parsed using upstream
+`git::Url` (`rad://<canonical-rid>[/<node-id>]`). No profile, signer, storage lookup,
+Git executable, network or writes are required. The result is unverified config
+metadata, not an identity verification or storage `Repository` handle. Bare Git
+repositories can also be inspected. Jujutsu discovery is excluded. Upstream
+`rad::at`/`rad::remote` hard-code `rad`; this adapter adds explicit remote selection
+using the upstream Git/URL APIs rather than emulating upstream cwd detection.
+
 ## Handle and snapshot contract
 
 Handles have private constructors in the emitted consumer declarations and reject

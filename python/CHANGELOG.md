@@ -2,6 +2,12 @@
 
 All notable changes to `radicle-py` are documented here.
 
+## Working-copy discovery (unreleased)
+
+- Add profile-free `project_at(path, *, remote_name="rad")` with immutable
+  `ProjectLocation` metadata, parent/worktree discovery and explicit named
+  fetch-remote selection. No Jujutsu, storage lookup or identity verification.
+
 ## Plain Git ancestry (unreleased)
 
 - Add `Repository.is_ancestor(ancestor, descendant)`, with validated commit

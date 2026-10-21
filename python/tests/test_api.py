@@ -23,7 +23,7 @@ API_MD = ROOT / "python" / "API.md"
 # Documented top-level members and their kinds (mirrors API.md headings).
 TOP_LEVEL = {
     "functions": ["parse_repo_id", "parse_did", "parse_node_id", "parse_oid", "parse_object_id",
-                  "init_project", "fork_project", "checkout_project"],
+                  "init_project", "fork_project", "checkout_project", "project_at"],
     "exceptions": [
         "Error", "ReadOnlyError", "StorageError", "RepositoryError", "GitError",
         "DatabaseError", "IdentityError", "SignerError", "PolicyError", "CobError",
@@ -43,6 +43,7 @@ TOP_LEVEL = {
         "RemoteInfo",
         "NamespaceTip",
         "ProjectDoc",
+        "ProjectLocation",
         "HistoryPage",
         "PolicyStore",
         "RoutingStore",
@@ -153,6 +154,7 @@ MEMBERS = {
     },
     "RemoteInfo": {"attrs": ["fetcher", "heads"], "methods": [], "classmethods": []},
     "NamespaceTip": {"attrs": ["node_id", "target"], "methods": [], "classmethods": []},
+    "ProjectLocation": {"attrs": ["rid", "remote_name", "namespace"], "methods": [], "classmethods": []},
     "ProjectDoc": {
         "attrs": [
             "name",
