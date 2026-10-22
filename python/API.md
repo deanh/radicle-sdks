@@ -764,6 +764,9 @@ network or writes are involved. Git environment repository overrides are not use
 
 Remote selection is explicit: absent `rad` does **not** choose another remote.
 Use `remote_name="peer"` for non-default names; push URLs are not inspected.
+Configuration uses Git's normal levels, including system/global files and includes,
+not just local config. A selected remote section at any level without a fetch URL
+raises `GitError` rather than returning `None`.
 Parsing uses upstream `git::Url` (`rad://<canonical-rid>[/<node-id>]`), not an
 ad-hoc URL decoder. This is unverified configuration metadata, not proof of
 identity validity or local storage availability, and not a storage `Repository`

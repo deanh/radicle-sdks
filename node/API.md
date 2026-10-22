@@ -47,7 +47,10 @@ and wrong input types reject `ERR_INVALID_ARG_TYPE`.
 
 The frozen readonly `ProjectLocation` has `rid: string`, `remoteName: string`, and
 optional `namespace: string`. Remote name defaults to `rad`; another name must be
-requested explicitly, never guessed. Only the fetch URL is parsed using upstream
+requested explicitly, never guessed. Configuration uses Git's normal levels
+(including system/global files and includes), not only the working copy's local
+config. A matching remote section at any level without a fetch URL is a `GIT`
+error, not missing discovery. Only the fetch URL is parsed using upstream
 `git::Url` (`rad://<canonical-rid>[/<node-id>]`). No profile, signer, storage lookup,
 Git executable, network or writes are required. The result is unverified config
 metadata, not an identity verification or storage `Repository` handle. Bare Git

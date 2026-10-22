@@ -118,6 +118,12 @@ def test_project_at_absence_configuration_errors_and_argument_errors(tmp_path):
     assert both(empty) is None
     work = worktree(tmp_path)
     assert both(work) is None
+    # Git config is resolved at all normal levels, not just local config.
+    global_config = tmp_path / ".gitconfig"
+    global_config.write_text('[remote "rad"]\nfetch = +refs/heads/*:refs/remotes/rad/*\n')
+    config_env = {"HOME": str(tmp_path), "XDG_CONFIG_HOME": str(tmp_path / "xdg"), "GIT_CONFIG_NOSYSTEM": "1"}
+    both(work, error=True, env=config_env)
+    assert both(work, "peer", env=config_env) is None
     both(tmp_path / "absent", error=True)
     git(work, "remote", "add", "rad", URL)
     for invalid in ("https://example.invalid/repo", "rad://invalid", URL + "/invalid", URL + "/", URL + "/" + NID + "/extra"):
