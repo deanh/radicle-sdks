@@ -8,6 +8,7 @@ version = "0.1.0"
 description = "Python bindings for the radicle crate"
 readme = "python/README.md"
 license = { text = "MIT OR Apache-2.0" }
+license-files = ["LICENSE-MIT", "LICENSE-APACHE", "THIRD-PARTY-NOTICES.md"]
 requires-python = ">=3.9"
 classifiers = [
     "Development Status :: 3 - Alpha",
@@ -43,6 +44,7 @@ include = [
     { path = "python/API.md", format = "sdist" },
     { path = "python/CHANGELOG.md", format = "sdist" },
     { path = "docs/*.md", format = "sdist" },
+    { path = "THIRD-PARTY-NOTICES.md", format = "sdist" },
     { path = "python/radiclepy/py.typed", format = ["sdist", "wheel"] },
     { path = "python/radiclepy/__init__.pyi", format = ["sdist", "wheel"] },
     { path = "python/radiclepy/_types.pyi", format = ["sdist", "wheel"] },

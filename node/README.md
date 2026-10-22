@@ -17,12 +17,25 @@ macOS, Windows, other architectures and musl-based Linux are not supported or
 validated yet. Support claims will expand only after source-install and workflow
 validation on those platforms; no multi-platform binary distribution is promised.
 
-Requires Node **26.5.0+** (the oldest release the suite is run on), **Rust ≥ 1.91**, a C
-compiler, and Git. The pinned radicle 0.25.1 declares Rust 1.88.0 but doesn't
-compile on 1.88–1.90. There is no Node upper-version cap.
-npm publication and prebuilt platform packages are deferred.
-The working package name is `radicle-sdk`; registry availability isn't assumed.
-Browsers and Deno are unsupported; Bun is best effort, as described below.
+Requires Node **26.5.0+** (the oldest release the suite is run on). Source
+installs additionally need **Rust ≥ 1.91**, a C compiler, and Git; the pinned
+radicle 0.25.1 declares Rust 1.88.0 but doesn't compile on 1.88–1.90. There is
+no Node upper-version cap. The package is not published on npm; releases are
+artifacts on the Radicle repository. Browsers and Deno are unsupported; Bun is
+best effort, as described below.
+
+## Installing a release
+
+Release 0.1.0 is an npm tarball with the Linux x86_64 addon (glibc 2.28 or
+newer) built in; installing it needs no Rust, C compiler or Git. Download and
+verify it through rad-artifact, then install from the file; see
+[Releasing](../docs/release.md) for the commands and the repository ID:
+
+```sh
+rad-artifact download <tag-object-id> --cid <cid> --repo rad:z27dDy6sppkZDG8qYcySVX9Qn5jNg
+rad-artifact verify radicle-sdk-0.1.0.tgz --repo rad:z27dDy6sppkZDG8qYcySVX9Qn5jNg
+npm install ./radicle-sdk-0.1.0.tgz
+```
 
 ## Alpha source installation
 

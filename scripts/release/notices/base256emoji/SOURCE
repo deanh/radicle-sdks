@@ -1,0 +1,1 @@
+Source: reviewed coverage decision. base256emoji 1.0.2 declares license = "MIT" in Cargo.toml and publishes no licence text in the crate or its repository (https://github.com/Jorropo/base256emoji); the standard MIT text is reproduced with the copyright holder taken from the repository owner.

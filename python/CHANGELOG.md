@@ -2,37 +2,44 @@
 
 All notable changes to `radicle-py` are documented here.
 
-## Working-copy discovery (unreleased)
+## 0.1.0 (2026-10-22)
+
+First published release: Linux x86_64 (glibc 2.28 or newer) only, distributed as
+release artifacts on the Radicle repository through rad-artifact rather than a
+package registry; see `docs/release.md`. Everything below this heading was
+accumulated as unreleased work since the alpha and ships in this version.
+
+### Working-copy discovery
 
 - Add profile-free `project_at(path, *, remote_name="rad")` with immutable
   `ProjectLocation` metadata, parent/worktree discovery and explicit named
   fetch-remote selection. No Jujutsu, storage lookup or identity verification.
 
-## Consumer mutation guidance (unreleased)
+### Consumer mutation guidance
 
 - Clarify consumer-owned full read/modify/write serialization for replacing
   label/assignee sets, thread-affinity limits, and recorded-versus-effective
   patch reviews. Existing mutation behavior is unchanged.
 
-## Plain Git ancestry (unreleased)
+### Plain Git ancestry
 
 - Add `Repository.is_ancestor(ancestor, descendant)`, with validated commit
   endpoints, reflexive equality and propagated Git errors, using upstream's
   native graph query. This is not the deferred COB causal range primitive.
 
-## Signed refs at an explicit tip (unreleased)
+### Signed refs at an explicit tip
 
 - Add `Repository.signed_refs_at(node_id, oid)` using upstream verification and
   replay protection, returning existing `SignedRefs` snapshots. Missing or invalid
   signed sets raise `GitError`; no fallback to current refs or empty results.
 
-## Events discovery primitive (unreleased)
+### Events discovery primitive
 
 - Add `Repository.namespace_tips()` and immutable `NamespaceTip` snapshots for
   sorted sigrefs targets without loading signed sets or objects. This is a
   read-only building block, not a watcher or an operation feed.
 
-## Assessment fixes (unreleased)
+### Assessment fixes
 
 - Fix: `Raw.typenames()`/`Raw.entities()` skip COB-shaped refs whose typename
   or id does not parse, in peer namespaces as well as at the top level. One
@@ -45,7 +52,7 @@ All notable changes to `radicle-py` are documented here.
 - Development: run pytest with `uv run --no-sync` after the helper build;
   `RADICLE_REQUIRE_TEST_HELPERS=1` fails instead of skipping without it.
 
-## Native module alignment (unreleased)
+### Native module alignment
 
 - Align operation ownership around profile, project, repository, issues, patches,
   errors and identifier validators; rename raw COB access to `raw.rs`.
@@ -54,7 +61,7 @@ All notable changes to `radicle-py` are documented here.
   public exports, class identity, signatures, errors and transaction timing.
 - No dependency, API or shared-core changes.
 
-## Workspace and test layout (unreleased)
+### Workspace and test layout
 
 - Move the PyO3 crate into `python/native/` and Python tests/typing/smokes into
   `python/tests/`; preserve root Git installation and `radiclepy` imports.
@@ -67,7 +74,7 @@ All notable changes to `radicle-py` are documented here.
   and add offline source-closure checking for the unpacked sdist.
 - No API/module reorganization or common Rust core is included.
 
-## Documentation ownership (unreleased)
+### Documentation ownership
 
 - Python installation and the executed quick start now live in `python/README.md`,
   also used as the package long description. The API reference is `python/API.md`
@@ -77,7 +84,7 @@ All notable changes to `radicle-py` are documented here.
   semantics, SDK differences and validation separately under `docs/`.
 - No public API or Rust/test-layout changes in this documentation step.
 
-## Post-alpha Python UX (unreleased)
+### Post-alpha Python UX
 
 - Docs: the Python API reference moved from `API.md` to `docs/API.md`;
   historical plans, reviews and findings moved to `docs/archive/`, indexed by

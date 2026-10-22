@@ -20,7 +20,8 @@
     "node/API.md",
     "node/CHANGELOG.md",
     "LICENSE-MIT",
-    "LICENSE-APACHE"
+    "LICENSE-APACHE",
+    "THIRD-PARTY-NOTICES.md"
   ],
   "scripts": {
     "build:native": "napi build --release --platform --manifest-path node/native/Cargo.toml --output-dir node/dist --js native.cjs --dts native.d.cts -- --locked",

@@ -13,12 +13,22 @@ announcement.
 
 ## Python installation
 
-The alpha is distributed from Git, **not PyPI**. Requires CPython ≥ 3.9,
-Git, Rust ≥ 1.91 and a C toolchain. libgit2 and SQLite build from bundled
-sources. Linux and macOS are the targets; Windows is unsupported/unverified.
-Git-URI installation compiles for the host and does not require a published
-wheel. Python package version remains `0.1.0` with the Alpha classifier;
-the **Git commit**, not the package version, identifies each RC build.
+Releases are published as artifacts on the Radicle repository through
+rad-artifact, **not PyPI**. Release 0.1.0 provides a `manylinux_2_28_x86_64`
+abi3 wheel for CPython ≥ 3.9 on Linux x86_64, plus an sdist. Download and
+verify the wheel, then install it from the file; see
+[Releasing](../docs/release.md) for the commands and the repository ID:
+
+```sh
+rad-artifact download <tag-object-id> --cid <cid> --repo rad:z27dDy6sppkZDG8qYcySVX9Qn5jNg
+rad-artifact verify radicle_py-0.1.0-cp39-abi3-manylinux_2_28_x86_64.whl --repo rad:z27dDy6sppkZDG8qYcySVX9Qn5jNg
+python -m pip install ./radicle_py-0.1.0-cp39-abi3-manylinux_2_28_x86_64.whl
+```
+
+Installing from Git remains the development path and the only path on other
+platforms. It requires Git, Rust ≥ 1.91 and a C toolchain; libgit2 and SQLite
+build from bundled sources. Linux and macOS are the targets; Windows is
+unsupported/unverified. The **Git commit** identifies a development build.
 
 Set `SDK_GIT_URL` to a clone URL of the SDK repository supported by your Git
 installation, then install:

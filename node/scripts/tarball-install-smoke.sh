@@ -1,22 +1,35 @@
 #!/usr/bin/env bash
 # Validate packed consumers separately from Git prepare in a complete checkout.
 # Run `npm run build` first; tarball installation must not compile Rust.
+#
+#   node/scripts/tarball-install-smoke.sh            # packs the checkout
+#   node/scripts/tarball-install-smoke.sh <tarball>  # tests that exact file
 set -euo pipefail
 root=$(git rev-parse --show-toplevel)
 consumer=$(mktemp -d)
 trap 'rm -rf "$consumer"' EXIT
 cd "$root"
-npm pack --ignore-scripts --json --pack-destination "$consumer" > "$consumer/pack.json"
-node --input-type=module - "$consumer/pack.json" <<'JS'
+if [ -n "${1:-}" ]; then
+  [ -f "$1" ] || { echo "no such tarball: $1" >&2; exit 1; }
+  cp "$1" "$consumer/"
+  tar -tzf "$1" | sed 's#^package/##' > "$consumer/paths.txt"
+else
+  npm pack --ignore-scripts --json --pack-destination "$consumer" > "$consumer/pack.json"
+  node --input-type=module - "$consumer/pack.json" > "$consumer/paths.txt" <<'JS'
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 const parsed = JSON.parse(readFileSync(process.argv[2], 'utf8'));
 // npm 11 emits an array; npm 12 keys results by package name.
 const packages = Array.isArray(parsed) ? parsed : Object.values(parsed);
 assert.equal(packages.length, 1, 'expected exactly one packed package');
-const [{ files }] = packages;
-const paths = files.map(file => file.path);
-for (const path of ['node/README.md', 'node/API.md', 'node/CHANGELOG.md', 'LICENSE-MIT', 'LICENSE-APACHE']) {
+console.log(packages[0].files.map((file) => file.path).join('\n'));
+JS
+fi
+node --input-type=module - "$consumer/paths.txt" <<'JS'
+import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
+const paths = readFileSync(process.argv[2], 'utf8').split('\n').filter(Boolean);
+for (const path of ['node/README.md', 'node/API.md', 'node/CHANGELOG.md', 'LICENSE-MIT', 'LICENSE-APACHE', 'THIRD-PARTY-NOTICES.md']) {
   assert.ok(paths.includes(path), `missing ${path}`);
 }
 assert.ok(paths.some(path => path.endsWith('.node')), 'built addon missing');

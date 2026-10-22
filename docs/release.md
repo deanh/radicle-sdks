@@ -1,0 +1,176 @@
+# Releasing the SDKs
+
+Releases are built on the maintainer's own machines and distributed as release
+artifacts on this Radicle repository through
+[rad-artifact](https://radicle.network/nodes/hdh.radicle.garden/rad%3Az4VYyJ9KuwMNkXGQnmKuGPGKw3inv),
+not through PyPI or npm. A release is a signed object bound to an annotated
+tag; each artifact is recorded by content hash and seeded from the
+maintainer's artifact node. Consumers download, verify and install from files.
+
+Tracking: issue `a17f70b` (plan), `fdcfc02` (alpha release). The registry and
+hosted-CI path sketched in `distribution-plan.md`, if present, is a later
+option; this page is the process in use.
+
+## Targets
+
+| Release | Platforms | Floors |
+| --- | --- | --- |
+| 0.1.0 | Linux x86_64 only | glibc 2.28, CPython 3.9 (abi3), Node 26.5 |
+
+macOS arm64 is the next target and needs an Apple Silicon machine running
+the same steps; Linux aarch64 is one more container run but needs an ARM
+machine to verify the installed artifact before it is published.
+
+## Artifacts per release
+
+- `radicle_py-<version>-cp39-abi3-manylinux_2_28_x86_64.whl`
+- `radicle_py-<version>.tar.gz` (sdist, builds from source anywhere with Rust
+  1.91+ and a C toolchain)
+- `radicle-sdk-<version>.tgz` (npm tarball with the Linux x86_64 addon inside;
+  installs with no Rust, C compiler or Git)
+- `MANIFEST.json`: source commit and date, version, target, toolchain identity
+  and the SHA-256 of each file; registered as an artifact so consumers can
+  check the files they downloaded against it. It carries no build timestamp,
+  so a rebuild that reproduces the same artifact bytes reproduces the same
+  manifest
+- `SHA256SUMS` (local convenience, not registered)
+
+Both packages ship `THIRD-PARTY-NOTICES.md` next to the SDK licence files: the
+licence and copyright texts of the statically linked libgit2, SQLite and zlib
+and of every Rust crate compiled into the native module, generated from
+`Cargo.lock` by `scripts/release/third_party_notices.py` for the release
+target. Crates are classified as runtime (compiled into the module) or
+build-time only; compound licence expressions keep their AND terms; every
+licence file a crate ships is reproduced. A runtime crate whose registry
+source carries no licence text must have a reviewed override under
+`scripts/release/notices/<crate>/` with a `SOURCE` file naming where the text
+came from, or generation fails. `tests/test_third_party_notices.py` checks the
+committed file against `Cargo.lock`.
+
+## Process
+
+Prerequisites on the Linux build host: Docker, Node 26.5+, uv, `objdump`,
+`unzip`, the `rad` CLI with this profile as a delegate, `rad-artifact` and
+`rad-artifact-node` (`cargo install radicle-artifact radicle-artifact-node`).
+
+1. **Prepare.** On a branch: set the version in `pyproject.toml`, the two
+   native `Cargo.toml` files and `package.json` (all four must agree), fold the
+   "(unreleased)" changelog sections under a dated version heading in
+   `python/CHANGELOG.md` and `node/CHANGELOG.md`, regenerate the notices with
+   `scripts/release/third_party_notices.py --write` if `Cargo.lock` changed,
+   submit as a Radicle patch, review, merge.
+2. **Tag.** On the merged commit:
+
+   ```sh
+   git tag -a v<version> -m "radicle-py and radicle-sdk <version>"
+   git push rad v<version>
+   ```
+
+   The tag is annotated so the release object records both the commit and the
+   tag. Tag names are not resolvable by `rad-artifact` unless they are
+   canonical references, so the scripts bind by the tag's object ID.
+3. **Build.** With a clean checkout of the tagged commit:
+
+   ```sh
+   scripts/release/build-linux-x86_64.sh
+   ```
+
+   Compiles both native libraries inside the official `manylinux_2_28` image
+   with a pinned Rust toolchain, generates the JavaScript loader on the host
+   and produces the artifacts under `release/<version>/`. Every gate is fatal:
+   clean tree and one version in all four manifests; current notices file;
+   each native library, extracted from the final wheel and tarball, audits as
+   x86-64 with a glibc floor of 2.28 or lower and no dynamic library beyond
+   the base set (`scripts/release/audit-elf.sh`); notices present in wheel,
+   sdist and tarball; the exact release tarball passes the packaged consumer
+   smoke with no compiler; the wheel installs wheel-only into a clean
+   environment at the expected version and passes the wheel smoke. Only then
+   is `MANIFEST.json` written.
+4. **Register and seed.**
+
+   ```sh
+   rad-artifact node start
+   scripts/release/register.sh <version>
+   ```
+
+   Preflight before anything is registered: the manifest names this version
+   and exactly the expected files, every file matches its manifest digest and
+   `SHA256SUMS`, the local `v<version>` is an annotated tag whose object equals
+   the one on the rad remote, and that tag's commit equals the manifest's
+   source commit. Then the release state already on the tag is compared with
+   the local build by content hash: an artifact already registered with the
+   same name and the same content is resumed, a missing one is registered, and
+   a live artifact with the same name but different content, or with an
+   unexpected name, stops the script before any write. Published versions are
+   immutable: a changed build means a new version, never a second file under
+   the old name. After preflight each file and the manifest are registered
+   against the tag object and seeded from this host's node, which adds a
+   `radiroh://` location. Interrupted runs are resumed by rerunning. The node
+   must stay running for peers to fetch; the seeded bytes are kept under
+   `~/.radicle/artifacts/`.
+5. **Verify from a download**, on the build host and on any other machine
+   that seeds the repository:
+
+   ```sh
+   scripts/release/verify-installed.sh <version>
+   ```
+
+   Requires exactly one release bound to the tag whose non-redacted artifacts
+   are exactly the expected names for that version, downloads them through
+   `rad-artifact`, verifies each against the release object and against the
+   downloaded manifest's digests, installs the wheel wheel-only into a fresh
+   environment and the npm tarball into a fresh consumer with scripts disabled
+   and no compiler, and checks that both installed packages report the
+   requested version. A listing for another version, an extra artifact, or an
+   sdist fallback cannot pass.
+6. **Record.** Comment on the release issue with `SHA256SUMS`, the release
+   object ID and the verification results per machine. Consumers such as
+   rad-pi then pin the downloaded files instead of a Git URL.
+
+## Installing a release (consumer view)
+
+```sh
+rad-artifact list --repo rad:z27dDy6sppkZDG8qYcySVX9Qn5jNg
+rad-artifact download <tag-object-id> --cid <cid> --repo rad:z27dDy6sppkZDG8qYcySVX9Qn5jNg
+rad-artifact verify <file> --repo rad:z27dDy6sppkZDG8qYcySVX9Qn5jNg
+pip install ./radicle_py-<version>-*.whl
+npm install ./radicle-sdk-<version>.tgz
+```
+
+`download` needs a running `rad-artifact node`; `verify` reads local storage
+only and fails if the bytes match no artifact a delegate registered, or one a
+delegate redacted. See `scripts/release/verify-installed.sh` for the exact
+commands.
+
+## Later targets and gates
+
+Distilled from the earlier distribution proposal (patch `0a86b28`); these apply
+when a second platform is added, starting with macOS arm64.
+
+- **One toolchain per platform, pinned.** Build on the target's own hardware
+  with the same pinned Rust and maturin versions as Linux; cross-compilation is
+  not a substitute for running the installed artifact natively.
+- **Audit before registering.** Linux: ELF symbol versions and dynamic
+  dependencies, as the build script prints. macOS: `file` for the architecture,
+  `lipo -info`, `otool -L` for load commands, and the deployment target in
+  the `LC_BUILD_VERSION` command; reject any build-host library path. Set the
+  deployment target explicitly and state it as the floor; a successful compile
+  on a newer macOS proves nothing about older ones.
+- **Same bytes everywhere.** Every verification installs the registered file,
+  downloaded through `rad-artifact`, never a staging copy from the build tree.
+- **No install-time build or download.** A release tarball or wheel must
+  install with scripts disabled and no compiler on the path; Git `prepare`
+  stays a development path only.
+- **Licences.** `THIRD-PARTY-NOTICES.md` is generated from `Cargo.lock`; a
+  new platform that pulls in platform-specific crates or links another system
+  library must regenerate it and the build gate checks it is current.
+- **Node packaging at two or more platforms.** Either keep one tarball with
+  every addon inside (simple, grows by about 10 MB per platform) or move to
+  napi platform packages. Decide when the second platform is added, not
+  before; the generated loader already selects by target name.
+
+## Withdrawing an artifact
+
+`rad-artifact redact <tag-oid> --cid <cid> -m "<reason>"` by a delegate makes
+`verify` fail for that file everywhere; the bytes are not deleted. Publish a
+fixed version rather than re-registering different bytes under the same name.

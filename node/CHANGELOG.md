@@ -1,43 +1,50 @@
 # radicle-sdk changelog
 
-## Non-blocking profile setup (unreleased)
+## 0.1.0 (2026-10-22)
+
+First published release: Linux x86_64 (glibc 2.28 or newer) only, distributed as
+release artifacts on the Radicle repository through rad-artifact rather than a
+package registry; see `docs/release.md`. Everything below this heading was
+accumulated as unreleased work since the alpha and ships in this version.
+
+### Non-blocking profile setup
 
 - Add `Profile.loadAsync()` and `profile.signerAsync()` on native workers;
   retain synchronous setup methods with their existing error/environment
   semantics. No profile switching, signer cache or in-flight cancellation.
 
-## Working-copy discovery (unreleased)
+### Working-copy discovery
 
 - Add asynchronous profile-free `projectAt(path, { remoteName? })` with readonly
   `ProjectLocation` metadata, parent/worktree discovery and explicit named
   fetch-remote selection. No Jujutsu, storage lookup or identity verification.
 
-## Consumer mutation guidance (unreleased)
+### Consumer mutation guidance
 
 - Clarify that native write locks do not cover prior application reads when
   replacing label/assignee sets; recommend a consumer-owned full read/modify/write
   queue and checking observed reviews, not treating receipts as applied verdicts.
   Existing mutation behavior is unchanged.
 
-## Plain Git ancestry (unreleased)
+### Plain Git ancestry
 
 - Add asynchronous `Repository.isAncestor(ancestor, descendant)`, with validated
   commit endpoints, reflexive equality and propagated Git errors through
   upstream's native graph query. No COB causal range API is added.
 
-## Signed refs at an explicit tip (unreleased)
+### Signed refs at an explicit tip
 
 - Add `Repository.signedRefsAt(nodeId, oid)` using upstream verification and replay
   protection, returning existing frozen `SignedRefs` snapshots. Unreadable or
   invalid sets reject `GIT`; no fallback to current refs or empty results.
 
-## Events discovery primitive (unreleased)
+### Events discovery primitive
 
 - Add `Repository.namespaceTips()` and frozen `NamespaceTip` snapshots for sorted
   sigrefs targets without loading signed sets or objects. This is a read-only
   building block, not a watcher or an operation feed.
 
-## Python capability parity: raw COB inspection (unreleased)
+### Python capability parity: raw COB inspection
 
 - Add `Raw.open`, typename/entity/ref enumeration and deterministic causal history,
   deduplicated across tips and excluding identity/related links from traversal.
@@ -53,7 +60,7 @@
   conformance audit. Final approval/merge remains separate; no registry/platform
   or upstream-completeness claim is introduced.
 
-## Python capability parity: policy and routing (unreleased)
+### Python capability parity: policy and routing
 
 - Add async raw policy stores with follow/seed/block writes and read-only lookup,
   listings and fuzzy alias search; open/drop a connection per worker operation.
@@ -69,7 +76,7 @@
 - No dependency refresh, networking, node control, automatic retry or merge of
   the policy/routing databases with repository transactions.
 
-## Python capability parity: repository and utilities (unreleased)
+### Python capability parity: repository and utilities
 
 - Add repository description, tags, revision parsing and signed-remote inspection;
   include identity version, quorum threshold and commit/blob IDs.
@@ -84,14 +91,14 @@
 - Complete parity patch 1; policy/routing and raw COB inspection remain deferred.
   No upstream/dependency change, publication or platform expansion.
 
-## Assessment fixes (unreleased)
+### Assessment fixes
 
 - Lower the Node floor from 26.12.0 to 26.5.0, the oldest release the suite is
   run on; nothing in the SDK needs a later version.
 - `TreeEntry.kind` is declared and produced as exactly `'blob' | 'tree' | 'commit'`
   (optional); the unreachable `'tag'`/`'any'` members are gone.
 
-## Native module alignment (unreleased)
+### Native module alignment
 
 - Split the mixed native entry point into profile, project, repository, issues,
   error and argument-parser modules, retaining existing patch ownership.
@@ -100,7 +107,7 @@
 - Preserve native declarations/exports, validation and lock order, snapshot timing
   and public wrapper APIs. No dependency or shared-core changes.
 
-## Workspace and package layout (unreleased)
+### Workspace and package layout
 
 - Join the root Rust workspace and lock without changing Node's existing package
   selections/features; inherit the exact Radicle pin and explicit indexmap std.
@@ -111,7 +118,7 @@
   and retain release/panic/typing/exact-commit source-install checks.
 - No public API, native domain-module refactor or shared Rust core is included.
 
-## Documentation ownership (unreleased)
+### Documentation ownership
 
 - Split the public contract into the shipped `node/API.md`; keep installation and
   the unchanged executable quick start in `node/README.md`.

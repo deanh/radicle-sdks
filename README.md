@@ -17,9 +17,11 @@ Both SDKs do one job: **local, signed project, issue and patch workflows** on a
 Radicle home you already have. The other documents link here rather than
 restating these points.
 
-- **Alpha, installed from Git.** Both packages are version `0.1.0`; the exact
-  reviewed commit identifies a candidate, and APIs may change. Registry
-  publication and prebuilt binaries are deferred.
+- **Alpha, released through Radicle.** Both packages are version `0.1.0` and
+  APIs may change. Releases are built on the maintainers' machines and
+  published as signed release artifacts on this repository through
+  rad-artifact, not on PyPI or npm; see [Releasing](docs/release.md). Git
+  installs at a reviewed commit remain the development path.
 - **Not a node.** Fetching, announcing, connections and daemon control are out
   of scope, and nothing in the SDKs talks to the network.
 - **Git owns working-copy content.** The SDKs never create or import content
@@ -37,10 +39,11 @@ restating these points.
   with explicit language differences and recorded validation boundaries.
   Both SDKs expose local policy management, routing reads and generic raw COB
   inspection, with intentional language-specific representations.
-- **Platforms.** Building from Git needs **Rust ≥ 1.91**, Git and a C toolchain,
-  and a cold build takes minutes. Python targets Linux and macOS (Windows is
-  unverified); the TypeScript alpha is validated on Linux x86_64 GNU/glibc only.
-  Each guide lists its own prerequisites.
+- **Platforms.** Release 0.1.0 ships prebuilt artifacts for Linux x86_64
+  (glibc 2.28 or newer) only; macOS arm64 is next. Building from Git needs
+  **Rust ≥ 1.91**, Git and a C toolchain, and a cold build takes minutes;
+  Python source builds also work on macOS (Windows is unverified). Each guide
+  lists its own prerequisites.
 
 ## Try the SDKs
 

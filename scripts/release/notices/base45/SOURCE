@@ -1,0 +1,1 @@
+Source: reviewed coverage decision. base45 3.2.0 declares license = "MIT" in Cargo.toml and publishes no licence text in the crate or its repository (https://github.com/opendevtools/base45); the standard MIT text is reproduced with the copyright holder taken from the Cargo.toml authors field.
