@@ -16,18 +16,21 @@ option; this page is the process in use.
 | Release | Platforms | Floors |
 | --- | --- | --- |
 | 0.1.0 | Linux x86_64 only | glibc 2.28, CPython 3.9 (abi3), Node 26.5 |
+| next | Linux x86_64 and macOS arm64 | as above; macOS 11.0 for the wheel, 13.5 for the Node addon (Node 26's own minimum) |
 
-macOS arm64 is the next target and needs an Apple Silicon machine running
-the same steps; Linux aarch64 is one more container run but needs an ARM
-machine to verify the installed artifact before it is published.
+Linux aarch64 would be one more container run but needs an ARM machine to
+verify the installed artifact before it is published.
 
 ## Artifacts per release
 
 - `radicle_py-<version>-cp39-abi3-manylinux_2_28_x86_64.whl`
+- `radicle_py-<version>-cp39-abi3-macosx_11_0_arm64.whl` (releases that
+  cover macOS)
 - `radicle_py-<version>.tar.gz` (sdist, builds from source anywhere with Rust
   1.91+ and a C toolchain)
-- `radicle-sdk-<version>.tgz` (npm tarball with the Linux x86_64 addon inside;
-  installs with no Rust, C compiler or Git)
+- `radicle-sdk-<version>.tgz` (one npm tarball with every released addon
+  inside, selected by the loader at import time; installs with no Rust, C
+  compiler or Git)
 - `MANIFEST.json`: source commit and date, version, target, toolchain identity
   and the SHA-256 of each file; registered as an artifact so consumers can
   check the files they downloaded against it. It carries no build timestamp,
@@ -127,6 +130,49 @@ Prerequisites on the Linux build host: Docker, Node 26.5+, uv, `objdump`,
    object ID and the verification results per machine. Consumers such as
    rad-pi then pin the downloaded files instead of a Git URL.
 
+## Adding macOS arm64
+
+The Mac builds its own pieces natively and the Linux host assembles the
+release, so there is one manifest, one tarball and one registration.
+
+Prerequisites on the Mac, once: Xcode command line tools; rustup with the
+pinned toolchain and target (`rustup toolchain install 1.91.0` and
+`rustup target add aarch64-apple-darwin --toolchain 1.91.0`); Node 26.5+;
+uv with the project synced (`uv sync --locked`); a build of the Node package
+(`npm ci --ignore-scripts`). Docker and rad-artifact are not needed to build;
+rad-artifact and a seeded copy of the repository are needed only to run the
+download verifier there.
+
+1. On the Mac, at the tagged commit with a clean tree:
+
+   ```sh
+   scripts/release/build-macos-arm64.sh
+   ```
+
+   Builds the wheel (deployment target 11.0, maturin's arm64 default) and the
+   addon (deployment target 13.5, Node 26's minimum), audits each against its
+   floor with `scripts/release/audit-macho.sh` (arm64, `LC_BUILD_VERSION`
+   minimum, only `/usr/lib/libSystem` and system frameworks, ad-hoc signature
+   verifies), runs the packaged consumer smoke on a tarball carrying this
+   addon and the wheel-only install smoke, and writes
+   `release/incoming/darwin-arm64/` with both files and `AUDIT.json` (source,
+   version, floors, toolchain, digests, audit lines).
+2. Copy that directory to the Linux host as `release/incoming/darwin-arm64/`
+   (for example with `scp -r`).
+3. On the Linux host, run `scripts/release/build-linux-x86_64.sh` as usual.
+   It checks the staged files' digests, version and source commit against
+   `AUDIT.json`, folds the macOS wheel into the release and the macOS addon
+   into the npm tarball, confirms the addon inside the final tarball is
+   byte-identical to the staged one, and writes a manifest whose `targets`
+   lists both platforms. Registration then expects both wheels.
+4. Verify from a download on both machines with
+   `scripts/release/verify-installed.sh <version>`; the script picks this
+   machine's wheel from the manifest.
+
+The Mac does not run the full test suite as a release gate; run it there once
+per release anyway (`uv run --no-sync pytest` and `npm test`) to catch a
+platform-specific bug before users do.
+
 ## Installing a release (consumer view)
 
 ```sh
@@ -150,12 +196,11 @@ when a second platform is added, starting with macOS arm64.
 - **One toolchain per platform, pinned.** Build on the target's own hardware
   with the same pinned Rust and maturin versions as Linux; cross-compilation is
   not a substitute for running the installed artifact natively.
-- **Audit before registering.** Linux: ELF symbol versions and dynamic
-  dependencies, as the build script prints. macOS: `file` for the architecture,
-  `lipo -info`, `otool -L` for load commands, and the deployment target in
-  the `LC_BUILD_VERSION` command; reject any build-host library path. Set the
-  deployment target explicitly and state it as the floor; a successful compile
-  on a newer macOS proves nothing about older ones.
+- **Audit before registering.** Linux: `audit-elf.sh`. macOS: `audit-macho.sh`.
+  A new platform gets its own audit script with the same shape: architecture,
+  declared minimum OS, allowed dynamic libraries, nothing from the build host.
+  Set the deployment target explicitly and state it as the floor; a successful
+  compile on a newer OS proves nothing about older ones.
 - **Same bytes everywhere.** Every verification installs the registered file,
   downloaded through `rad-artifact`, never a staging copy from the build tree.
 - **No install-time build or download.** A release tarball or wheel must
@@ -164,10 +209,9 @@ when a second platform is added, starting with macOS arm64.
 - **Licences.** `THIRD-PARTY-NOTICES.md` is generated from `Cargo.lock`; a
   new platform that pulls in platform-specific crates or links another system
   library must regenerate it and the build gate checks it is current.
-- **Node packaging at two or more platforms.** Either keep one tarball with
-  every addon inside (simple, grows by about 10 MB per platform) or move to
-  napi platform packages. Decide when the second platform is added, not
-  before; the generated loader already selects by target name.
+- **Node packaging.** One tarball with every addon inside, selected by the
+  generated loader at import time. It grows by about 10 MB per platform; move
+  to napi platform packages only if that becomes a problem.
 
 ## Withdrawing an artifact
 

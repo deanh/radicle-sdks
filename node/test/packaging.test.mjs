@@ -34,8 +34,11 @@ test('alpha package/native identities agree and source prepare selects release b
   const addons = (await readdir(new URL('../dist/', import.meta.url))).filter((name) =>
     name.endsWith('.node'),
   );
-  assert.deepEqual(addons, ['radicle-sdk.linux-x64-gnu.node']); // no leftover T0/debug addon
+  const host = `radicle-sdk.${process.platform}-${process.arch}${process.platform === 'linux' ? '-gnu' : ''}.node`;
+  assert.ok(addons.includes(host), `host addon ${host} missing from ${addons}`); // built for this platform
+  assert.ok(addons.every((name) => /^radicle-sdk\.(linux-x64-gnu|darwin-arm64)\.node$/.test(name)), `unexpected addon in ${addons}`);
   assert.match(bindings, /radicle-sdk\.linux-x64-gnu\.node/);
+  assert.match(bindings, /radicle-sdk\.darwin-arm64\.node/);
   assert.ok(!bindings.includes('radicle-sdk-t0'));
   for (const file of ['node/README.md', 'node/API.md', 'node/CHANGELOG.md']) {
     assert.ok(pkg.files.includes(file), `${file} must ship with the package`);

@@ -8,7 +8,11 @@ manifest, and registering the release twice is a no-op rather than a second
 MANIFEST.json under the same name.
 
     write_manifest.py <release-dir> <version> <source-commit> <source-date>
-                      <target> <image> <max-glibc> <node-version> <toolchain-file>
+                      <targets> <image> <max-glibc> <node-version> <toolchain-file>
+
+<targets> is a comma-separated list of target triples the release covers, the
+Linux build host first; a wheel is attributed to a target by its platform tag,
+the sdist and the npm tarball to all targets.
 """
 from __future__ import annotations
 
@@ -21,24 +25,43 @@ SCHEMA = "radicle-sdks-release-manifest/1"
 EXCLUDED = {"MANIFEST.json", "SHA256SUMS"}
 
 
-def build(release_dir: Path, version: str, source: str, source_date: str, target: str,
+PLATFORM_TAGS = {"manylinux_2_28_x86_64": "x86_64-unknown-linux-gnu", "macosx_11_0_arm64": "aarch64-apple-darwin"}
+
+
+def file_target(name: str, targets: list[str]) -> list[str]:
+    if name.endswith(".whl"):
+        tag = name[:-4].split("-")[-1]
+        target = PLATFORM_TAGS.get(tag)
+        if target is None or target not in targets:
+            raise SystemExit(f"{name}: platform tag {tag} is not one of the release targets {targets}")
+        return [target]
+    return list(targets)
+
+
+def build(release_dir: Path, version: str, source: str, source_date: str, targets: str | list[str],
           image: str, max_glibc: str, node_version: str, toolchain: list[str]) -> dict:
+    targets = [t for t in (targets.split(",") if isinstance(targets, str) else targets) if t]
+    if not targets:
+        raise SystemExit("at least one target is required")
     files = {}
     for p in sorted(release_dir.iterdir()):
-        if p.name in EXCLUDED or not p.is_file():
+        if p.name in EXCLUDED or not p.is_file() or p.name.startswith("."):
             continue
         data = p.read_bytes()
-        files[p.name] = {"sha256": hashlib.sha256(data).hexdigest(), "bytes": len(data)}
+        files[p.name] = {"sha256": hashlib.sha256(data).hexdigest(), "bytes": len(data), "targets": file_target(p.name, targets)}
     if not files:
         raise SystemExit(f"no artifacts in {release_dir}")
+    for target in targets:
+        if not any(n.endswith(".whl") and target in e["targets"] for n, e in files.items()):
+            raise SystemExit(f"no wheel for target {target}")
     rustc, cargo, maturin = (toolchain + ["", "", ""])[:3]
     return {
         "schema": SCHEMA,
         "version": version,
         "source": source,
         "source_date": source_date,
-        "target": target,
-        "floors": {"glibc": max_glibc, "python": "3.9 (abi3)", "node": "26.5.0"},
+        "targets": targets,
+        "floors": {"glibc": max_glibc, "macos_wheel": "11.0", "macos_addon": "13.5", "python": "3.9 (abi3)", "node": "26.5.0"},
         "toolchain": {"image": image, "rustc": rustc, "cargo": cargo, "maturin": maturin, "node_loader": node_version},
         "files": files,
     }

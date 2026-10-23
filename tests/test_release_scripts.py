@@ -108,7 +108,7 @@ def release_fixture(tmp_path: Path, *, version=VERSION, source=None):
         files[name] = {"sha256": hashlib.sha256(data).hexdigest(), "bytes": len(data)}
     (out / "MANIFEST.json").write_text(json.dumps({
         "schema": "radicle-sdks-release-manifest/1", "version": version,
-        "source": source or commit, "target": "x86_64-unknown-linux-gnu", "files": files,
+        "source": source or commit, "targets": ["x86_64-unknown-linux-gnu"], "files": files,
     }))
     (out / "SHA256SUMS").write_text("".join(f"{v['sha256']}  {k}\n" for k, v in files.items()))
     return repo, out, commit
@@ -205,7 +205,16 @@ def test_write_manifest_is_deterministic_for_identical_bytes(tmp_path):
     (out / "MANIFEST.json").write_text(first)
     second = wm.render(wm.build(*args))
     assert first == second
-    assert "built_at" not in first and sorted(json.loads(first)["files"]) == sorted(NAMES)
+    m = json.loads(first)
+    assert "built_at" not in first and sorted(m["files"]) == sorted(NAMES) and m["targets"] == ["x86_64-unknown-linux-gnu"]
+    assert m["files"][NAMES[0]]["targets"] == ["x86_64-unknown-linux-gnu"] and m["files"][NAMES[2]]["targets"] == ["x86_64-unknown-linux-gnu"]
+    # Two targets: the macOS wheel is attributed by its platform tag; a target without a wheel is an error.
+    mac = f"radicle_py-{VERSION}-cp39-abi3-macosx_11_0_arm64.whl"; (out / mac).write_bytes(b"mac\n")
+    two = wm.build(out, VERSION, "c" * 40, "d", "x86_64-unknown-linux-gnu,aarch64-apple-darwin", "img", "2.28", "26.5.0", [])
+    assert two["files"][mac]["targets"] == ["aarch64-apple-darwin"] and two["files"][NAMES[2]]["targets"] == ["x86_64-unknown-linux-gnu", "aarch64-apple-darwin"]
+    (out / mac).unlink()
+    with pytest.raises(SystemExit, match="no wheel for target aarch64-apple-darwin"):
+        wm.build(out, VERSION, "c" * 40, "d", "x86_64-unknown-linux-gnu,aarch64-apple-darwin", "img", "2.28", "26.5.0", [])
 
 
 @pytest.mark.parametrize("corruption", ["version", "hash", "extra-file", "remote-tag", "stale-source", "unpushed", "only-on-fetch-url"])
@@ -268,15 +277,22 @@ def listing(tag, names, tag_oid="a" * 40):
         "artifacts": [{"cid": f"cid-{n}", "name": n, "redactions": []} for n in names]}]})
 
 
+def mock_manifest(source: Path, version=VERSION, targets=("x86_64-unknown-linux-gnu",), names=NAMES, digests=True):
+    files = {n: {"sha256": hashlib.sha256((source / n).read_bytes()).hexdigest() if digests else "0" * 64, "bytes": 1}
+             for n in names}
+    (source / "MANIFEST.json").write_text(json.dumps({"version": version, "source": "s", "targets": list(targets), "files": files}))
+
+
 def test_verify_installed_refuses_wrong_release_shapes(tmp_path, shims):
     source = tmp_path / "source"; source.mkdir()
-    for name in NAMES + ["MANIFEST.json"]:
+    for name in NAMES:
         (source / name).write_bytes(b"x")
+    mock_manifest(source)
     env = {"ARTIFACT_SOURCE": str(source), "ARTIFACT_LISTING": str(tmp_path / "listing.json")}
     # A v0.2.0 release whose files are the 0.1.0 artifacts must not verify as 0.2.0.
     (tmp_path / "listing.json").write_text(listing("v0.2.0", NAMES + ["MANIFEST.json"]))
     r = run("verify-installed.sh", "0.2.0", RID, cwd=tmp_path, shims=shims, env=env)
-    assert r.returncode != 0 and "expected" in r.stderr
+    assert r.returncode != 0 and "MANIFEST.json is for 0.1.0, expected 0.2.0" in r.stderr
     # Extra artifact in the right release.
     (tmp_path / "listing.json").write_text(listing(f"v{VERSION}", NAMES + ["MANIFEST.json", "stray.bin"]))
     r = run("verify-installed.sh", VERSION, RID, cwd=tmp_path, shims=shims, env=env)
@@ -287,14 +303,18 @@ def test_verify_installed_refuses_wrong_release_shapes(tmp_path, shims):
     (tmp_path / "listing.json").write_text(json.dumps(two))
     r = run("verify-installed.sh", VERSION, RID, cwd=tmp_path, shims=shims, env=env)
     assert r.returncode != 0 and "exactly one" in r.stderr
-    # Right names, but the downloaded manifest is for another version.
-    (tmp_path / "listing.json").write_text(listing(f"v{VERSION}", NAMES + ["MANIFEST.json"]))
-    (source / "MANIFEST.json").write_text(json.dumps({"version": "0.2.0", "files": {n: {"sha256": "0" * 64} for n in NAMES}}))
+    # Two live manifests on one release (the duplicate-name case).
+    dup = json.loads(listing(f"v{VERSION}", NAMES + ["MANIFEST.json", "MANIFEST.json"]))
+    (tmp_path / "listing.json").write_text(json.dumps(dup))
     r = run("verify-installed.sh", VERSION, RID, cwd=tmp_path, shims=shims, env=env)
-    assert r.returncode != 0 and "MANIFEST.json is for 0.2.0" in r.stderr
-    # Right manifest version, wrong bytes.
-    (source / "MANIFEST.json").write_text(json.dumps({"version": VERSION, "source": "s", "target": "t",
-        "files": {n: {"sha256": "0" * 64} for n in NAMES}}))
+    assert r.returncode != 0 and "2 live MANIFEST.json" in r.stderr
+    # Manifest does not cover this machine's target.
+    (tmp_path / "listing.json").write_text(listing(f"v{VERSION}", NAMES + ["MANIFEST.json"]))
+    mock_manifest(source, targets=("aarch64-apple-darwin",))
+    r = run("verify-installed.sh", VERSION, RID, cwd=tmp_path, shims=shims, env=env)
+    assert r.returncode != 0 and "does not cover" in r.stderr
+    # Right manifest, wrong bytes.
+    mock_manifest(source, digests=False)
     r = run("verify-installed.sh", VERSION, RID, cwd=tmp_path, shims=shims, env=env)
     assert r.returncode != 0 and "differs from manifest" in r.stderr
 
@@ -309,3 +329,44 @@ def test_verify_installed_accepts_a_real_build(tmp_path, shims):
     r = run("verify-installed.sh", VERSION, RID, cwd=tmp_path, shims=shims, env=env)
     assert r.returncode == 0, r.stderr + r.stdout
     assert f"release {VERSION} verified" in r.stdout
+
+
+def test_register_expects_the_macos_wheel_when_the_manifest_covers_darwin(tmp_path, shims):
+    repo, out, commit = release_fixture(tmp_path)
+    mac = f"radicle_py-{VERSION}-cp39-abi3-macosx_11_0_arm64.whl"
+    data = b"mac wheel bytes\n"; (out / mac).write_bytes(data)
+    rewrite_manifest(out, lambda m: (m.__setitem__("targets", ["x86_64-unknown-linux-gnu", "aarch64-apple-darwin"]),
+                                     m["files"].__setitem__(mac, {"sha256": hashlib.sha256(data).hexdigest(), "bytes": len(data)})))
+    (out / "SHA256SUMS").write_text("".join(f"{hashlib.sha256((out / n).read_bytes()).hexdigest()}  {n}\n" for n in NAMES + [mac]))
+    r = run("register.sh", VERSION, cwd=repo, shims=shims)
+    assert r.returncode == 0, r.stderr
+    assert registered_names(tmp_path) == [NAMES[0], mac] + NAMES[1:] + ["MANIFEST.json"]
+
+
+def test_audit_macho_gates(tmp_path):
+    shims = tmp_path / "shims"; shims.mkdir()
+    target = tmp_path / "lib.node"; target.write_bytes(b"not really mach-o")
+
+    def tools(kind="Mach-O 64-bit dynamically linked shared library arm64", minos="13.5",
+              deps="/usr/lib/libSystem.B.dylib (compatibility version 1.0.0)\n\t/System/Library/Frameworks/Security.framework/Versions/A/Security (compatibility version 1.0.0)", sign=0):
+        shim(shims, "file", f"printf '%s\\n' '{kind}'\n")
+        shim(shims, "otool", f"""
+case "$1" in
+  -l) printf 'Load command 9\\n      cmd LC_BUILD_VERSION\\n  cmdsize 32\\n platform 1\\n    minos {minos}\\n      sdk 15.0\\n' ;;
+  -L) printf '%s:\\n\\t{deps}\\n' "$2" ;;
+esac
+""")
+        shim(shims, "codesign", f"exit {sign}\n")
+
+    def audit(max_="13.5"):
+        return subprocess.run(["bash", str(SCRIPTS / "audit-macho.sh"), str(target), max_],
+                              env=dict(os.environ, PATH=f"{shims}:{os.environ['PATH']}"), capture_output=True, text=True)
+
+    tools(); r = audit(); assert r.returncode == 0, r.stderr
+    tools(minos="11.0"); assert audit().returncode == 0            # lower minimum than the floor is fine
+    tools(minos="14.0"); r = audit(); assert r.returncode == 1 and "exceeds 13.5" in r.stderr
+    tools(kind="Mach-O 64-bit dynamically linked shared library x86_64"); r = audit(); assert r.returncode == 1 and "arm64" in r.stderr
+    tools(deps="/opt/homebrew/lib/libz.1.dylib (compatibility version 1.0.0)\n\t/usr/lib/libSystem.B.dylib (compatibility version 1.0.0)"); r = audit()
+    assert r.returncode == 1 and "unexpected dynamic libraries: /opt/homebrew/lib/libz.1.dylib" in r.stderr
+    tools(deps="@rpath/libfoo.dylib (compatibility version 1.0.0)"); r = audit(); assert r.returncode == 1 and "@rpath/libfoo.dylib" in r.stderr
+    tools(sign=1); r = audit(); assert r.returncode == 1 and "signature" in r.stderr

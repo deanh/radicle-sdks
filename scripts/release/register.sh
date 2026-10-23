@@ -28,13 +28,15 @@ dir="release/$version"
 tag="v$version"
 manifest="$dir/MANIFEST.json"
 [ -f "$manifest" ] || { echo "missing $manifest; run build-linux-x86_64.sh first" >&2; exit 1; }
-read -r m_version m_source m_target < <(python3 -c '
+read -r m_version m_source m_targets < <(python3 -c '
 import json, sys
 m = json.load(open(sys.argv[1]))
-print(m["version"], m["source"], m["target"])' "$manifest")
+print(m["version"], m["source"], ",".join(m.get("targets") or [m["target"]]))' "$manifest")
 [ "$m_version" = "$version" ] || { echo "manifest is for version $m_version, not $version" >&2; exit 1; }
-[ "$m_target" = "x86_64-unknown-linux-gnu" ] || { echo "unexpected target $m_target" >&2; exit 1; }
-expected=("radicle_py-$version-cp39-abi3-manylinux_2_28_x86_64.whl" "radicle_py-$version.tar.gz" "radicle-sdk-$version.tgz")
+case ",$m_targets," in *,x86_64-unknown-linux-gnu,*) ;; *) echo "manifest targets $m_targets do not include the Linux build host" >&2; exit 1 ;; esac
+expected=("radicle_py-$version-cp39-abi3-manylinux_2_28_x86_64.whl")
+case ",$m_targets," in *,aarch64-apple-darwin,*) expected+=("radicle_py-$version-cp39-abi3-macosx_11_0_arm64.whl") ;; esac
+expected+=("radicle_py-$version.tar.gz" "radicle-sdk-$version.tgz")
 python3 - "$manifest" "${expected[@]}" <<'PY'
 import hashlib, json, sys
 from pathlib import Path

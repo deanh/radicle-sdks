@@ -12,6 +12,10 @@
 # manylinux_2_28 container with a pinned Rust toolchain, so they share one
 # toolchain and one glibc floor. The host generates the JavaScript loader and
 # runs the gates; it needs Docker, Node, uv, objdump, ldd, unzip and tar.
+# If release/incoming/darwin-arm64/ exists (staged by build-macos-arm64.sh on
+# a Mac, with AUDIT.json), its wheel joins the release and its addon joins the
+# npm tarball after their digests are checked against AUDIT.json; the manifest
+# then lists both targets.
 #
 # Gates, each fatal: clean tree; one version in all four manifests; current
 # THIRD-PARTY-NOTICES.md; every native library extracted from the final
@@ -42,6 +46,25 @@ sdist_name="radicle_py-$version.tar.gz"
 tarball_name="radicle-sdk-$version.tgz"
 rm -rf "$out" target/release-wheels
 mkdir -p "$out" target/docker-cargo-home target/docker-rustup target/docker
+targets=$target
+incoming="release/incoming/darwin-arm64"
+if [ -d "$incoming" ]; then
+  echo "== staged macOS arm64 pieces in $incoming"
+  python3 - "$incoming" "$version" "$source" <<'PY'
+import hashlib, json, sys
+from pathlib import Path
+d = Path(sys.argv[1]); version, source = sys.argv[2:4]
+a = json.load((d / "AUDIT.json").open())
+if a["version"] != version or a["source"] != source or a["target"] != "aarch64-apple-darwin":
+    sys.exit(f"AUDIT.json is for {a['version']} {a['source']} {a['target']}, expected {version} {source} aarch64-apple-darwin")
+for name, entry in a["files"].items():
+    digest = hashlib.sha256((d / name).read_bytes()).hexdigest()
+    if digest != entry["sha256"]:
+        sys.exit(f"{name}: sha256 differs from AUDIT.json")
+    print(f"  {name}: {a['audit'][name]}")
+PY
+  targets="$target,aarch64-apple-darwin"
+fi
 
 echo "== native libraries in $image (Rust $rust_version, glibc $max_glibc floor)"
 docker run --rm -v "$PWD:/io" -w /io "$image" bash -c '
@@ -62,6 +85,10 @@ cp "target/release-wheels/$wheel_name" "$out/"
 echo "== JavaScript loader and declarations (host), then the container-built addon"
 npm run build >/dev/null
 cp target/docker/release/libradicle_sdk_native.so node/dist/radicle-sdk.linux-x64-gnu.node
+if [ -d "$incoming" ]; then
+  cp "$incoming/radicle-sdk.darwin-arm64.node" node/dist/
+  cp "$incoming"/radicle_py-"$version"-*macosx*.whl "$out/"
+fi
 echo "== sdist"
 uv run --no-sync maturin sdist --out "$out" >/dev/null
 [ -f "$out/$sdist_name" ] || { echo "expected sdist $sdist_name" >&2; exit 1; }
@@ -75,10 +102,16 @@ mkdir "$tmp/whl" "$tmp/tgz"
 (cd "$tmp/whl" && unzip -q "$root/$out/$wheel_name")
 (cd "$tmp/tgz" && tar -xzf "$root/$out/$tarball_name")
 wheel_so=$(ls "$tmp"/whl/radiclepy/*.so)
-addon=$(ls "$tmp"/tgz/package/node/dist/*.node)
-[ "$(echo "$wheel_so" | wc -l)" = 1 ] && [ "$(echo "$addon" | wc -l)" = 1 ] || { echo "expected exactly one native library per package" >&2; exit 1; }
+addon="$tmp/tgz/package/node/dist/radicle-sdk.linux-x64-gnu.node"
+[ "$(echo "$wheel_so" | wc -l)" = 1 ] && [ -f "$addon" ] || { echo "expected one Linux native library per package" >&2; exit 1; }
 bash "$here/audit-elf.sh" "$wheel_so" "$max_glibc"
 bash "$here/audit-elf.sh" "$addon" "$max_glibc"
+if [ -d "$incoming" ]; then
+  # The macOS pieces were audited on the Mac (AUDIT.json); here only their bytes are checked.
+  for name in radicle-sdk.darwin-arm64.node; do
+    cmp -s "$tmp/tgz/package/node/dist/$name" "$incoming/$name" || { echo "$name in the tarball differs from the staged file" >&2; exit 1; }
+  done
+fi
 [ -f "$tmp"/whl/*.dist-info/licenses/THIRD-PARTY-NOTICES.md ] || { echo "wheel lacks THIRD-PARTY-NOTICES.md" >&2; exit 1; }
 [ -f "$tmp/tgz/package/THIRD-PARTY-NOTICES.md" ] || { echo "npm tarball lacks THIRD-PARTY-NOTICES.md" >&2; exit 1; }
 sdist_files=$(tar -tzf "$out/$sdist_name")
@@ -96,7 +129,7 @@ uv pip install -q --python "$tmp/venv/bin/python" 'pytest>=8'
 "$tmp/venv/bin/python" -m pytest -q python/tests/test_ux.py python/tests/test_value_semantics.py python/tests/test_readme.py
 
 echo "== manifest"
-(cd "$out" && sha256sum "$wheel_name" "$sdist_name" "$tarball_name" > SHA256SUMS)
-python3 scripts/release/write_manifest.py "$out" "$version" "$source" "$(git show -s --format=%cI HEAD)" "$target" "$image" "$max_glibc" "$(node -p process.versions.node)" target/docker/toolchain.txt
+(cd "$out" && sha256sum ./*.whl ./*.tar.gz ./*.tgz > SHA256SUMS)
+python3 scripts/release/write_manifest.py "$out" "$version" "$source" "$(git show -s --format=%cI HEAD)" "$targets" "$image" "$max_glibc" "$(node -p process.versions.node)" target/docker/toolchain.txt
 (cd "$out" && sha256sum -c --quiet SHA256SUMS)
 echo "release $version built from $source: $(ls "$out" | tr '\n' ' ')"

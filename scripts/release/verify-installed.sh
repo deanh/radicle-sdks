@@ -7,12 +7,14 @@
 #
 #   scripts/release/verify-installed.sh <version> [rid]
 #
-# Gates, each fatal: exactly one release is bound to tag v<version>; its
-# non-redacted artifacts are exactly the expected names for this version;
-# every downloaded file verifies against the release object and matches the
-# digest in the downloaded MANIFEST.json; the wheel installs wheel-only and
-# reports this version; the npm tarball installs with scripts disabled and its
-# package metadata reports this version.
+# Gates, each fatal: exactly one release is bound to tag v<version> with
+# exactly one live MANIFEST.json; that manifest names this version and covers
+# this machine's target; the live artifact set is exactly the files the
+# manifest lists; every downloaded file verifies against the release object
+# and matches the manifest digest; this platform's wheel installs wheel-only
+# and reports this version; the npm tarball installs with scripts disabled and
+# its package metadata reports this version. Runs on Linux x86_64 and macOS
+# arm64.
 set -euo pipefail
 version=${1:?usage: verify-installed.sh <version> [rid]}
 rid=${2:-$(rad .)}
@@ -21,43 +23,70 @@ work=$(mktemp -d)
 trap 'rm -rf "$work"' EXIT
 cd "$work"
 rad-artifact node status >/dev/null 2>&1 || { echo "start the seeder first: rad-artifact node start" >&2; exit 1; }
-wheel="radicle_py-$version-cp39-abi3-manylinux_2_28_x86_64.whl"
+case "$(uname -sm)" in
+  "Linux x86_64") wheel="radicle_py-$version-cp39-abi3-manylinux_2_28_x86_64.whl"; want_target=x86_64-unknown-linux-gnu ;;
+  "Darwin arm64") wheel="radicle_py-$version-cp39-abi3-macosx_11_0_arm64.whl"; want_target=aarch64-apple-darwin ;;
+  *) echo "no release target for $(uname -sm)" >&2; exit 1 ;;
+esac
 sdist="radicle_py-$version.tar.gz"
 tarball="radicle-sdk-$version.tgz"
 rad-artifact --repo "$rid" list --json > listing.json
-python3 - "$tag" "$wheel" "$sdist" "$tarball" > artifacts.txt <<'PY'
+# Exactly one release on the tag; download and verify its manifest first, then
+# require the live artifact set to be exactly what that manifest covers.
+python3 - "$tag" > release.txt <<'PY'
 import json, sys
-tag, *expected = sys.argv[1:]
-expected = sorted(expected + ["MANIFEST.json"])
+tag = sys.argv[1]
 releases = [r for r in json.load(open("listing.json"))["releases"] if r.get("tagName") == tag]
 if len(releases) != 1:
     sys.exit(f"{len(releases)} releases are bound to {tag}; expected exactly one")
 r = releases[0]
 live = [a for a in r["artifacts"] if not a["redactions"]]
-names = sorted(a["name"] for a in live)
-if names != expected:
-    sys.exit(f"release {tag} lists {names}, expected {expected}")
+manifests = [a for a in live if a["name"] == "MANIFEST.json"]
+if len(manifests) != 1:
+    sys.exit(f"release {tag} has {len(manifests)} live MANIFEST.json artifacts; expected exactly one")
+print(r["tag"], manifests[0]["cid"])
 for a in live:
     print(r["tag"], a["cid"], a["name"])
+PY
+read -r revision manifest_cid < <(head -1 release.txt)
+rad-artifact --repo "$rid" --no-input download "$revision" --cid "$manifest_cid" -o MANIFEST.json >/dev/null
+rad-artifact --repo "$rid" verify MANIFEST.json --json >/dev/null
+python3 - "$version" "$want_target" "$wheel" "$sdist" "$tarball" > artifacts.txt <<'PY'
+import json, sys
+version, want_target, wheel, sdist, tarball = sys.argv[1:6]
+m = json.load(open("MANIFEST.json"))
+if m["version"] != version:
+    sys.exit(f"MANIFEST.json is for {m['version']}, expected {version}")
+targets = m.get("targets") or [m["target"]]  # manifests before 0.1.1 carried a single target
+if want_target not in targets:
+    sys.exit(f"release {version} does not cover {want_target} (targets: {targets})")
+expected = sorted(list(m["files"]) + ["MANIFEST.json"])
+for name in (wheel, sdist, tarball):
+    if name not in expected:
+        sys.exit(f"MANIFEST.json does not list {name}")
+live = {}
+for line in open("release.txt").read().splitlines()[1:]:
+    rev, cid, name = line.split(" ", 2)
+    live.setdefault(name, []).append((rev, cid))
+if sorted(live) != expected or any(len(v) != 1 for v in live.values()):
+    sys.exit(f"release lists {sorted(live)}, expected exactly {expected}")
+for name, [(rev, cid)] in live.items():
+    if name != "MANIFEST.json":
+        print(rev, cid, name)
 PY
 cat artifacts.txt
 while read -r revision cid name; do
   rad-artifact --repo "$rid" --no-input download "$revision" --cid "$cid" -o "$name" >/dev/null
   rad-artifact --repo "$rid" verify "$name" --json >/dev/null   # exit 2 when the bytes match no registered artifact
 done < artifacts.txt
-python3 - "$version" "$wheel" "$sdist" "$tarball" <<'PY'
+python3 - <<'PY'
 import hashlib, json, sys
-version, *names = sys.argv[1:]
 m = json.load(open("MANIFEST.json"))
-if m["version"] != version:
-    sys.exit(f"MANIFEST.json is for {m['version']}, expected {version}")
-if sorted(m["files"]) != sorted(names):
-    sys.exit(f"MANIFEST.json lists {sorted(m['files'])}, expected {sorted(names)}")
 for name, entry in m["files"].items():
     digest = hashlib.sha256(open(name, "rb").read()).hexdigest()
     if digest != entry["sha256"]:
         sys.exit(f"{name}: downloaded sha256 {digest} differs from manifest {entry['sha256']}")
-print(f"manifest: version {version}, source {m['source']}, target {m['target']}")
+print(f"manifest: version {m['version']}, source {m['source']}, targets {m.get('targets') or [m['target']]}")
 PY
 echo "== python (wheel only, no compiler)"
 uv venv -q venv
