@@ -7,8 +7,9 @@
 # Preflight, each fatal and all before any write:
 # - release/<version>/MANIFEST.json exists, names this version and exactly the
 #   expected files; every file's SHA-256 matches the manifest and SHA256SUMS;
-# - the local v<version> is an annotated tag whose object equals the one on
-#   the rad remote, and that tag's commit equals the manifest's source;
+# - the local v<version> is an annotated tag whose object equals the one
+#   published under this node's namespace (the rad remote's push URL), and
+#   that tag's commit equals the manifest's source;
 # - the release state on this tag is compatible: at most one release object is
 #   bound to the tag; every live artifact it holds has an expected name and
 #   the same content hash (BLAKE3 CID) as the local file of that name. A live
@@ -55,8 +56,11 @@ PY
 (cd "$dir" && sha256sum -c --quiet SHA256SUMS) || { echo "SHA256SUMS does not match the files" >&2; exit 1; }
 revision=$(git rev-parse --verify -q "refs/tags/$tag") || { echo "no local tag $tag" >&2; exit 1; }
 [ "$(git cat-file -t "$revision")" = tag ] || { echo "$tag is not an annotated tag" >&2; exit 1; }
-remote=$(git ls-remote --tags rad "refs/tags/$tag" | awk '$2 == "refs/tags/'"$tag"'" {print $1}')
-[ -n "$remote" ] || { echo "push the tag first: git push rad $tag" >&2; exit 1; }
+# The rad remote's fetch URL lists only canonical refs, and tags are not
+# canonical; the push URL addresses this node's namespace, where the tag lives.
+push_url=$(git remote get-url --push rad)
+remote=$(git ls-remote "$push_url" "refs/tags/$tag" | awk '$2 == "refs/tags/'"$tag"'" {print $1}')
+[ -n "$remote" ] || { echo "push the tag first: git push rad $tag (not found at $push_url)" >&2; exit 1; }
 [ "$remote" = "$revision" ] || { echo "remote $tag is $remote, local is $revision; they must be the same tag object" >&2; exit 1; }
 commit=$(git rev-parse "$revision^{commit}")
 [ "$commit" = "$m_source" ] || { echo "$tag points at $commit but the artifacts were built from $m_source; rebuild from the tagged commit" >&2; exit 1; }
