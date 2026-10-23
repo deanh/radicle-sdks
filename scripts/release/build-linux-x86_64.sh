@@ -29,6 +29,7 @@ root=$(git rev-parse --show-toplevel)
 cd "$root"
 here=$(cd "$(dirname "$0")" && pwd)
 [ -z "$(git status --porcelain)" ] || { echo "working tree must be clean" >&2; exit 1; }
+node -e "const [maj, min] = process.versions.node.split('.').map(Number); if (maj < 26 || (maj === 26 && min < 5)) { console.error(`Node ${process.versions.node} is below the 26.5.0 floor`); process.exit(1) }"
 version=$(node -p "require('./package.json').version")
 for manifest in pyproject.toml python/native/Cargo.toml node/native/Cargo.toml; do
   grep -q "^version = \"$version\"" "$manifest" || { echo "$manifest version differs from package.json ($version)" >&2; exit 1; }
