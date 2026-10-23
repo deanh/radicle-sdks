@@ -87,11 +87,17 @@ def release_fixture(tmp_path: Path, *, version=VERSION, source=None):
     git(repo, "init", "--initial-branch=main")
     (repo / "file").write_text("x\n")
     git(repo, "add", "."); git(repo, "commit", "-m", "initial")
-    bare = tmp_path / "remote.git"
+    # Like a real rad remote: the fetch URL lists only canonical refs (no tags),
+    # the push URL addresses the publisher's namespace, where the tag is stored.
+    canonical = tmp_path / "canonical.git"
+    git(tmp_path, "init", "--bare", str(canonical))
+    bare = tmp_path / "namespace.git"
     git(tmp_path, "init", "--bare", str(bare))
-    git(repo, "remote", "add", "rad", str(bare))
+    git(repo, "remote", "add", "rad", str(canonical))
+    git(repo, "config", "remote.rad.pushurl", str(bare))
     git(repo, "tag", "-a", f"v{version}", "-m", "release")
     git(repo, "push", "-q", "rad", f"v{version}")
+    assert git(tmp_path, "-C", str(canonical), "tag") == ""  # the fetch side never sees the tag
     commit = git(repo, "rev-parse", "HEAD")
     out = repo / "release" / version
     out.mkdir(parents=True)
@@ -202,7 +208,7 @@ def test_write_manifest_is_deterministic_for_identical_bytes(tmp_path):
     assert "built_at" not in first and sorted(json.loads(first)["files"]) == sorted(NAMES)
 
 
-@pytest.mark.parametrize("corruption", ["version", "hash", "extra-file", "remote-tag", "stale-source", "unpushed"])
+@pytest.mark.parametrize("corruption", ["version", "hash", "extra-file", "remote-tag", "stale-source", "unpushed", "only-on-fetch-url"])
 def test_register_refuses_before_any_registration(tmp_path, shims, corruption):
     repo, out, commit = release_fixture(tmp_path)
     if corruption == "version":
@@ -222,6 +228,10 @@ def test_register_refuses_before_any_registration(tmp_path, shims, corruption):
         git(repo, "push", "-q", "-f", "rad", f"v{VERSION}")  # tag now points past the built commit
     elif corruption == "unpushed":
         git(repo, "push", "-q", "rad", "--delete", f"v{VERSION}")
+    elif corruption == "only-on-fetch-url":
+        # Tag present on the canonical side only, absent from the publisher's namespace.
+        git(repo, "push", "-q", "rad", "--delete", f"v{VERSION}")
+        git(repo, "push", "-q", str(tmp_path / "canonical.git"), f"v{VERSION}")
     result = run("register.sh", VERSION, cwd=repo, shims=shims)
     assert result.returncode != 0, result.stdout
     assert not (tmp_path / "calls.log").exists() or " register " not in (tmp_path / "calls.log").read_text()
