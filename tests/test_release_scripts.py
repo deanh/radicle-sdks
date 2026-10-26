@@ -464,7 +464,10 @@ def test_register_expects_the_macos_wheel_when_the_manifest_covers_darwin(tmp_pa
 def test_audit_macho_gates(tmp_path):
     shims = tmp_path / "shims"; shims.mkdir()
     target = tmp_path / "lib.node"; target.write_bytes(b"not really mach-o")
-    system = ["LC_LOAD_DYLIB /usr/lib/libSystem.B.dylib", "LC_LOAD_DYLIB /System/Library/Frameworks/Security.framework/Versions/A/Security"]
+    # What the real wheel links on the M2: libSystem, libiconv (libgit2-sys links
+    # it on Apple targets; it ships with macOS) and system frameworks.
+    system = ["LC_LOAD_DYLIB /usr/lib/libSystem.B.dylib", "LC_LOAD_DYLIB /usr/lib/libiconv.2.dylib",
+              "LC_LOAD_DYLIB /System/Library/Frameworks/Security.framework/Versions/A/Security"]
 
     def load_commands(minos, loads, identity="@rpath/libradicle_sdk_native.dylib"):
         # The shape `otool -l` prints: an MH_DYLIB such as a Rust cdylib carries its own
@@ -491,6 +494,8 @@ def test_audit_macho_gates(tmp_path):
     tools(minos="11.0"); assert audit().returncode == 0            # lower minimum than the floor is fine
     tools(minos="14.0"); r = audit(); assert r.returncode == 1 and "exceeds 13.5" in r.stderr
     tools(kind="Mach-O 64-bit dynamically linked shared library x86_64"); r = audit(); assert r.returncode == 1 and "arm64" in r.stderr
+    tools(loads=system + ["LC_LOAD_DYLIB /usr/lib/libz.1.dylib"]); r = audit()
+    assert r.returncode == 1 and "unexpected dynamic libraries: /usr/lib/libz.1.dylib" in r.stderr   # /usr/lib is not a blanket allowance
     tools(loads=system + ["LC_LOAD_DYLIB /opt/homebrew/lib/libz.1.dylib"]); r = audit()
     assert r.returncode == 1 and "unexpected dynamic libraries: /opt/homebrew/lib/libz.1.dylib" in r.stderr
     tools(loads=system + ["LC_LOAD_DYLIB @rpath/libfoo.dylib"]); r = audit(); assert r.returncode == 1 and "@rpath/libfoo.dylib" in r.stderr

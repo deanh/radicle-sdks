@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # Gate: a Mach-O shared library is arm64, declares a macOS minimum no newer
-# than the given floor, and links only system libraries and frameworks.
+# than the given floor, and links only system libraries (libSystem, and
+# libiconv, which libgit2-sys links on Apple targets) and system frameworks.
 # Exit 1 otherwise. Runs on macOS (needs file, otool, codesign).
 #
 #   scripts/release/audit-macho.sh <shared-object> <max-macos>    e.g. ... 13.5
@@ -29,7 +30,7 @@ deps=$(printf '%s\n' "$loads" | awk '
   $1 == "cmd" { load = ($2 == "LC_LOAD_DYLIB" || $2 == "LC_LOAD_WEAK_DYLIB" || $2 == "LC_REEXPORT_DYLIB" || $2 == "LC_LOAD_UPWARD_DYLIB" || $2 == "LC_LAZY_LOAD_DYLIB") }
   load && $1 == "name" { print $2 }')
 [ -n "$deps" ] || { echo "$file_: no dylib load commands (not linked against libSystem?)" >&2; exit 1; }
-extra=$(printf '%s\n' "$deps" | grep -v -E '^(/usr/lib/libSystem\.B\.dylib|/System/Library/Frameworks/[A-Za-z]+\.framework/)' || true)
+extra=$(printf '%s\n' "$deps" | grep -v -E '^(/usr/lib/libSystem\.B\.dylib|/usr/lib/libiconv\.2\.dylib|/System/Library/Frameworks/[A-Za-z]+\.framework/)' || true)
 [ -z "$extra" ] || { echo "$file_: unexpected dynamic libraries: $(printf '%s' "$extra" | tr '\n' ' ')" >&2; exit 1; }
 codesign -v "$file_" 2>/dev/null || { echo "$file_: code signature (ad hoc) does not verify" >&2; exit 1; }
 printf '%s: arm64 Mach-O, macOS minimum %s, system libraries only, signature verifies\n' "$(basename "$file_")" "$minos"

@@ -154,7 +154,8 @@ download verifier there.
    Builds the wheel (deployment target 11.0, maturin's arm64 default) and the
    addon (deployment target 13.5, Node 26's minimum), audits each against its
    floor with `scripts/release/audit-macho.sh` (arm64, `LC_BUILD_VERSION`
-   minimum, only `/usr/lib/libSystem` and system frameworks, ad-hoc signature
+   minimum, only `/usr/lib/libSystem`, `/usr/lib/libiconv` and system
+   frameworks, ad-hoc signature
    verifies), runs the packaged consumer smoke on a tarball carrying this
    addon and the wheel-only install smoke, and writes
    `release/incoming/darwin-arm64/` with both files and `AUDIT.json` (source,
