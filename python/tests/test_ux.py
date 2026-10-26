@@ -62,6 +62,16 @@ def test_bytes_paths_rejected(tmp_path, convert):
 @pytest.mark.skipif(os.name != "posix", reason="Unix non-UTF-8 filesystem paths")
 def test_non_utf8_home_paths_are_not_lossy(tmp_path):
     path = os.fsdecode(os.fsencode(tmp_path) + b"/home-\xff")
+    try:
+        os.mkdir(os.fsencode(tmp_path) + b"/probe-\xff")
+    except OSError as e:
+        # APFS refuses non-UTF-8 names (EILSEQ). The bytes must still reach the
+        # OS unchanged: the SDK reports that refusal rather than creating a
+        # directory under a mangled name.
+        with pytest.raises(rad.Error, match="os error"):
+            rad.Home(Path(path))
+        assert os.listdir(tmp_path) == [], f"filesystem refused non-UTF-8 names ({e}) but something was created"
+        return
     home = rad.Home(Path(path))
     assert os.path.isdir(os.fsencode(path))
     with pytest.raises(ValueError, match="not valid UTF-8"):
