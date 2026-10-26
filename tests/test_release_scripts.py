@@ -4,6 +4,7 @@ version. Transport (rad, rad-artifact) is mocked; Git, hashing and installs are 
 import hashlib
 import json
 import os
+import re
 from pathlib import Path
 import shutil
 import stat
@@ -208,13 +209,130 @@ def test_write_manifest_is_deterministic_for_identical_bytes(tmp_path):
     m = json.loads(first)
     assert "built_at" not in first and sorted(m["files"]) == sorted(NAMES) and m["targets"] == ["x86_64-unknown-linux-gnu"]
     assert m["files"][NAMES[0]]["targets"] == ["x86_64-unknown-linux-gnu"] and m["files"][NAMES[2]]["targets"] == ["x86_64-unknown-linux-gnu"]
-    # Two targets: the macOS wheel is attributed by its platform tag; a target without a wheel is an error.
+    # Two targets: the macOS wheel is attributed by its platform tag and the
+    # Mac's receipt is embedded under platforms; a target without a wheel or
+    # without a receipt, or a receipt whose digests disagree, is an error.
     mac = f"radicle_py-{VERSION}-cp39-abi3-macosx_11_0_arm64.whl"; (out / mac).write_bytes(b"mac\n")
-    two = wm.build(out, VERSION, "c" * 40, "d", "x86_64-unknown-linux-gnu,aarch64-apple-darwin", "img", "2.28", "26.5.0", [])
+    both = "x86_64-unknown-linux-gnu,aarch64-apple-darwin"
+    receipt = mac_receipt(out, mac, "radicle-sdk.darwin-arm64.node", source="c" * 40)
+    receipt["files"]["radicle-sdk.darwin-arm64.node"] = {"sha256": "a" * 64, "bytes": 7}  # rides inside the npm tarball
+    two = wm.build(out, VERSION, "c" * 40, "d", both, "img", "2.28", "26.5.0", [], [receipt])
     assert two["files"][mac]["targets"] == ["aarch64-apple-darwin"] and two["files"][NAMES[2]]["targets"] == ["x86_64-unknown-linux-gnu", "aarch64-apple-darwin"]
+    assert two["platforms"]["aarch64-apple-darwin"]["toolchain"]["xcode"] == "Xcode 26.1" and two["platforms"]["aarch64-apple-darwin"]["files"] == sorted([mac, "radicle-sdk.darwin-arm64.node"])
+    assert wm.render(two) == wm.render(wm.build(out, VERSION, "c" * 40, "d", both, "img", "2.28", "26.5.0", [], [receipt]))
+    with pytest.raises(SystemExit, match="no platform receipt for aarch64-apple-darwin"):
+        wm.build(out, VERSION, "c" * 40, "d", both, "img", "2.28", "26.5.0", [])
+    bad = json.loads(json.dumps(receipt)); bad["files"][mac]["sha256"] = "0" * 64
+    with pytest.raises(SystemExit, match="differs from the aarch64-apple-darwin receipt"):
+        wm.build(out, VERSION, "c" * 40, "d", both, "img", "2.28", "26.5.0", [], [bad])
+    bad = json.loads(json.dumps(receipt)); bad["source"] = "e" * 40
+    with pytest.raises(SystemExit, match="is for"):
+        wm.build(out, VERSION, "c" * 40, "d", both, "img", "2.28", "26.5.0", [], [bad])
     (out / mac).unlink()
     with pytest.raises(SystemExit, match="no wheel for target aarch64-apple-darwin"):
-        wm.build(out, VERSION, "c" * 40, "d", "x86_64-unknown-linux-gnu,aarch64-apple-darwin", "img", "2.28", "26.5.0", [])
+        wm.build(out, VERSION, "c" * 40, "d", both, "img", "2.28", "26.5.0", [], [receipt])
+
+
+def mac_receipt(directory: Path, wheel: str, addon: str, *, source, version=VERSION) -> dict:
+    """A complete receipt for the files of those names already in directory."""
+    files = {n: {"sha256": hashlib.sha256((directory / n).read_bytes()).hexdigest(), "bytes": (directory / n).stat().st_size}
+             for n in (wheel, addon) if (directory / n).is_file()}
+    return {"schema": "radicle-sdks-platform-audit/1", "version": version, "source": source, "target": "aarch64-apple-darwin",
+            "floors": {"macos_wheel": "11.0", "macos_addon": "13.5", "python": "3.9 (abi3)", "node": "26.5.0"},
+            "toolchain": {"rustc": "rustc 1.91.0", "maturin": "maturin 1.9.4", "node_loader": "26.5.0", "xcode": "Xcode 26.1"},
+            "files": files,
+            "audit": {wheel: f"{wheel}: arm64 Mach-O, macOS minimum 11.0, system libraries only, signature verifies",
+                      addon: f"{addon}: arm64 Mach-O, macOS minimum 13.5, system libraries only, signature verifies"}}
+
+
+def staged_mac(tmp_path: Path, source="c" * 40):
+    d = tmp_path / "incoming"; d.mkdir(exist_ok=True)
+    wheel, addon = f"radicle_py-{VERSION}-cp39-abi3-macosx_11_0_arm64.whl", "radicle-sdk.darwin-arm64.node"
+    (d / wheel).write_bytes(b"mac wheel\n"); (d / addon).write_bytes(b"mac addon\n")
+    receipt = mac_receipt(d, wheel, addon, source=source)
+    (d / "AUDIT.json").write_text(json.dumps(receipt))
+    return d, wheel, addon, receipt
+
+
+def receipt_cmd(*args):
+    return subprocess.run(["python3", "-I", str(SCRIPTS / "platform_receipt.py"), *map(str, args)], capture_output=True, text=True)
+
+
+def test_platform_receipt_check_accepts_a_complete_receipt_and_verifies_packaged_bytes(tmp_path):
+    d, wheel, addon, _ = staged_mac(tmp_path)
+    r = receipt_cmd("check", d, VERSION, "c" * 40)
+    assert r.returncode == 0, r.stderr
+    assert r.stdout.splitlines() == [f"  {wheel}: arm64 Mach-O, macOS minimum 11.0, system libraries only, signature verifies",
+                                     f"  {addon}: arm64 Mach-O, macOS minimum 13.5, system libraries only, signature verifies"]
+    packaged = tmp_path / "packaged.node"; packaged.write_bytes(b"mac addon\n")
+    assert receipt_cmd("verify", d / "AUDIT.json", addon, packaged).returncode == 0
+    packaged.write_bytes(b"mac addon tampered\n")
+    r = receipt_cmd("verify", d / "AUDIT.json", addon, packaged)
+    assert r.returncode == 1 and "differs from the receipt" in r.stderr
+    r = receipt_cmd("verify", d / "AUDIT.json", "something-else.node", packaged)
+    assert r.returncode == 1 and "does not list something-else.node" in r.stderr
+
+
+@pytest.mark.parametrize("corruption, message", [
+    ("empty-files", "expected exactly"),
+    ("missing-addon", "expected exactly"),
+    ("extra-entry", "expected exactly"),
+    ("wrong-filename", "expected exactly"),
+    ("changed-bytes", "sha256 .* differs from the receipt"),
+    ("changed-size", "size .* differs"),
+    ("file-missing", "missing"),
+    ("no-digest", "no valid sha256"),
+    ("no-audit-line", "audit lines cover"),
+    ("failed-audit-line", "not a passing audit"),
+    ("wrong-version", "receipt version is"),
+    ("wrong-source", "receipt source is"),
+    ("wrong-target", "not one the release assembles"),
+    ("wrong-floor", "receipt floor macos_addon"),
+    ("wrong-schema", "not a radicle-sdks-platform-audit/1 receipt"),
+    ("stray-file", "unexpected files staged"),
+    ("no-receipt", "cannot read receipt"),
+])
+def test_platform_receipt_check_refuses_incomplete_or_mismatched_receipts(tmp_path, corruption, message):
+    d, wheel, addon, receipt = staged_mac(tmp_path)
+    if corruption == "empty-files":
+        receipt["files"] = {}; receipt["audit"] = {}
+    elif corruption == "missing-addon":
+        receipt["files"].pop(addon)
+    elif corruption == "extra-entry":
+        (d / "extra.whl").write_bytes(b"x"); receipt["files"]["extra.whl"] = {"sha256": "0" * 64, "bytes": 1}
+    elif corruption == "wrong-filename":
+        receipt["files"]["radicle_py-9.9.9-cp39-abi3-macosx_11_0_arm64.whl"] = receipt["files"].pop(wheel)
+    elif corruption == "changed-bytes":
+        (d / addon).write_bytes(b"other addon\n")  # same length
+    elif corruption == "changed-size":
+        receipt["files"][addon]["bytes"] += 1
+    elif corruption == "file-missing":
+        (d / addon).unlink()
+    elif corruption == "no-digest":
+        receipt["files"][wheel] = {"bytes": 10}
+    elif corruption == "no-audit-line":
+        receipt["audit"].pop(addon)
+    elif corruption == "failed-audit-line":
+        receipt["audit"][addon] = f"{addon}: macOS minimum 14.0 exceeds 13.5"
+    elif corruption == "wrong-version":
+        receipt["version"] = "9.9.9"
+    elif corruption == "wrong-source":
+        receipt["source"] = "e" * 40
+    elif corruption == "wrong-target":
+        receipt["target"] = "x86_64-apple-darwin"
+    elif corruption == "wrong-floor":
+        receipt["floors"]["macos_addon"] = "14.0"
+    elif corruption == "wrong-schema":
+        receipt["schema"] = "something/2"
+    elif corruption == "stray-file":
+        (d / "radicle-sdk.linux-x64-gnu.node").write_bytes(b"planted")
+    elif corruption == "no-receipt":
+        (d / "AUDIT.json").unlink()
+    if corruption != "no-receipt":
+        (d / "AUDIT.json").write_text(json.dumps(receipt))
+    r = receipt_cmd("check", d, VERSION, "c" * 40)
+    assert r.returncode == 1, (r.stdout, r.stderr)
+    assert re.search(message, r.stderr), r.stderr
 
 
 @pytest.mark.parametrize("corruption", ["version", "hash", "extra-file", "remote-tag", "stale-source", "unpushed", "only-on-fetch-url"])
@@ -346,16 +464,22 @@ def test_register_expects_the_macos_wheel_when_the_manifest_covers_darwin(tmp_pa
 def test_audit_macho_gates(tmp_path):
     shims = tmp_path / "shims"; shims.mkdir()
     target = tmp_path / "lib.node"; target.write_bytes(b"not really mach-o")
+    system = ["LC_LOAD_DYLIB /usr/lib/libSystem.B.dylib", "LC_LOAD_DYLIB /System/Library/Frameworks/Security.framework/Versions/A/Security"]
 
-    def tools(kind="Mach-O 64-bit dynamically linked shared library arm64", minos="13.5",
-              deps="/usr/lib/libSystem.B.dylib (compatibility version 1.0.0)\n\t/System/Library/Frameworks/Security.framework/Versions/A/Security (compatibility version 1.0.0)", sign=0):
+    def load_commands(minos, loads, identity="@rpath/libradicle_sdk_native.dylib"):
+        # The shape `otool -l` prints: an MH_DYLIB such as a Rust cdylib carries its own
+        # install name (LC_ID_DYLIB), which is not a dependency.
+        text = f"Load command 9\n      cmd LC_BUILD_VERSION\n  cmdsize 32\n platform 1\n    minos {minos}\n      sdk 15.0\n"
+        text += f"Load command 10\n          cmd LC_ID_DYLIB\n      cmdsize 56\n         name {identity} (offset 24)\n"
+        for i, load in enumerate(loads):
+            cmd, name = load.split()
+            text += f"Load command {11 + i}\n          cmd {cmd}\n      cmdsize 56\n         name {name} (offset 24)\n   time stamp 2\n      current version 1.0.0\ncompatibility version 1.0.0\n"
+        return text
+
+    def tools(kind="Mach-O 64-bit dynamically linked shared library arm64", minos="13.5", loads=system, sign=0, **kw):
         shim(shims, "file", f"printf '%s\\n' '{kind}'\n")
-        shim(shims, "otool", f"""
-case "$1" in
-  -l) printf 'Load command 9\\n      cmd LC_BUILD_VERSION\\n  cmdsize 32\\n platform 1\\n    minos {minos}\\n      sdk 15.0\\n' ;;
-  -L) printf '%s:\\n\\t{deps}\\n' "$2" ;;
-esac
-""")
+        (shims / "otool-l.txt").write_text(load_commands(minos, loads, **kw))
+        shim(shims, "otool", f'[ "$1" = -l ] && cat "{shims}/otool-l.txt"\n')
         shim(shims, "codesign", f"exit {sign}\n")
 
     def audit(max_="13.5"):
@@ -363,12 +487,16 @@ esac
                               env=dict(os.environ, PATH=f"{shims}:{os.environ['PATH']}"), capture_output=True, text=True)
 
     tools(); r = audit(); assert r.returncode == 0, r.stderr
+    tools(identity="/Users/x/radicle-py/target/aarch64-apple-darwin/release/deps/libradicle_py.dylib"); assert audit().returncode == 0
     tools(minos="11.0"); assert audit().returncode == 0            # lower minimum than the floor is fine
     tools(minos="14.0"); r = audit(); assert r.returncode == 1 and "exceeds 13.5" in r.stderr
     tools(kind="Mach-O 64-bit dynamically linked shared library x86_64"); r = audit(); assert r.returncode == 1 and "arm64" in r.stderr
-    tools(deps="/opt/homebrew/lib/libz.1.dylib (compatibility version 1.0.0)\n\t/usr/lib/libSystem.B.dylib (compatibility version 1.0.0)"); r = audit()
+    tools(loads=system + ["LC_LOAD_DYLIB /opt/homebrew/lib/libz.1.dylib"]); r = audit()
     assert r.returncode == 1 and "unexpected dynamic libraries: /opt/homebrew/lib/libz.1.dylib" in r.stderr
-    tools(deps="@rpath/libfoo.dylib (compatibility version 1.0.0)"); r = audit(); assert r.returncode == 1 and "@rpath/libfoo.dylib" in r.stderr
+    tools(loads=system + ["LC_LOAD_DYLIB @rpath/libfoo.dylib"]); r = audit(); assert r.returncode == 1 and "@rpath/libfoo.dylib" in r.stderr
+    tools(loads=system + ["LC_LOAD_WEAK_DYLIB @rpath/libweak.dylib"]); r = audit(); assert r.returncode == 1 and "@rpath/libweak.dylib" in r.stderr
+    tools(loads=system + ["LC_REEXPORT_DYLIB /opt/homebrew/lib/libre.dylib"]); r = audit(); assert r.returncode == 1 and "libre.dylib" in r.stderr
+    tools(loads=[]); r = audit(); assert r.returncode == 1 and "no dylib load commands" in r.stderr
     tools(sign=1); r = audit(); assert r.returncode == 1 and "signature" in r.stderr
 
 

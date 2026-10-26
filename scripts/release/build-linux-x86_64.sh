@@ -45,25 +45,18 @@ out="release/$version"
 wheel_name="radicle_py-$version-cp39-abi3-manylinux_2_28_x86_64.whl"
 sdist_name="radicle_py-$version.tar.gz"
 tarball_name="radicle-sdk-$version.tgz"
+mac_wheel_name="radicle_py-$version-cp39-abi3-macosx_11_0_arm64.whl"
+mac_addon_name="radicle-sdk.darwin-arm64.node"
 rm -rf "$out" target/release-wheels
 mkdir -p "$out" target/docker-cargo-home target/docker-rustup target/docker
 targets=$target
 incoming="release/incoming/darwin-arm64"
 if [ -d "$incoming" ]; then
   echo "== staged macOS arm64 pieces in $incoming"
-  python3 - "$incoming" "$version" "$source" <<'PY'
-import hashlib, json, sys
-from pathlib import Path
-d = Path(sys.argv[1]); version, source = sys.argv[2:4]
-a = json.load((d / "AUDIT.json").open())
-if a["version"] != version or a["source"] != source or a["target"] != "aarch64-apple-darwin":
-    sys.exit(f"AUDIT.json is for {a['version']} {a['source']} {a['target']}, expected {version} {source} aarch64-apple-darwin")
-for name, entry in a["files"].items():
-    digest = hashlib.sha256((d / name).read_bytes()).hexdigest()
-    if digest != entry["sha256"]:
-        sys.exit(f"{name}: sha256 differs from AUDIT.json")
-    print(f"  {name}: {a['audit'][name]}")
-PY
+  # The receipt must name exactly the macOS wheel and addon, with digests,
+  # sizes and passing audit lines; the files are copied by those names and
+  # their packaged bytes are compared back to the receipt below.
+  python3 scripts/release/platform_receipt.py check "$incoming" "$version" "$source"
   targets="$target,aarch64-apple-darwin"
 fi
 
@@ -87,8 +80,8 @@ echo "== JavaScript loader and declarations (host), then the container-built add
 npm run build >/dev/null
 cp target/docker/release/libradicle_sdk_native.so node/dist/radicle-sdk.linux-x64-gnu.node
 if [ -d "$incoming" ]; then
-  cp "$incoming/radicle-sdk.darwin-arm64.node" node/dist/
-  cp "$incoming"/radicle_py-"$version"-*macosx*.whl "$out/"
+  cp "$incoming/$mac_addon_name" "node/dist/$mac_addon_name"
+  cp "$incoming/$mac_wheel_name" "$out/$mac_wheel_name"
 fi
 echo "== sdist"
 uv run --no-sync maturin sdist --out "$out" >/dev/null
@@ -108,10 +101,10 @@ addon="$tmp/tgz/package/node/dist/radicle-sdk.linux-x64-gnu.node"
 bash "$here/audit-elf.sh" "$wheel_so" "$max_glibc"
 bash "$here/audit-elf.sh" "$addon" "$max_glibc"
 if [ -d "$incoming" ]; then
-  # The macOS pieces were audited on the Mac (AUDIT.json); here only their bytes are checked.
-  for name in radicle-sdk.darwin-arm64.node; do
-    cmp -s "$tmp/tgz/package/node/dist/$name" "$incoming/$name" || { echo "$name in the tarball differs from the staged file" >&2; exit 1; }
-  done
+  # The macOS pieces were audited on the Mac; the packaged bytes must be the
+  # ones the receipt records, not merely whatever is staged now.
+  python3 scripts/release/platform_receipt.py verify "$incoming/AUDIT.json" "$mac_addon_name" "$tmp/tgz/package/node/dist/$mac_addon_name"
+  python3 scripts/release/platform_receipt.py verify "$incoming/AUDIT.json" "$mac_wheel_name" "$out/$mac_wheel_name"
 fi
 [ -f "$tmp"/whl/*.dist-info/licenses/THIRD-PARTY-NOTICES.md ] || { echo "wheel lacks THIRD-PARTY-NOTICES.md" >&2; exit 1; }
 [ -f "$tmp/tgz/package/THIRD-PARTY-NOTICES.md" ] || { echo "npm tarball lacks THIRD-PARTY-NOTICES.md" >&2; exit 1; }
@@ -131,6 +124,8 @@ uv pip install -q --python "$tmp/venv/bin/python" 'pytest>=8'
 
 echo "== manifest"
 (cd "$out" && sha256sum ./*.whl ./*.tar.gz ./*.tgz > SHA256SUMS)
-python3 scripts/release/write_manifest.py "$out" "$version" "$source" "$(git show -s --format=%cI HEAD)" "$targets" "$image" "$max_glibc" "$(node -p process.versions.node)" target/docker/toolchain.txt
+receipts=()
+if [ -d "$incoming" ]; then receipts=("$incoming/AUDIT.json"); fi
+python3 scripts/release/write_manifest.py "$out" "$version" "$source" "$(git show -s --format=%cI HEAD)" "$targets" "$image" "$max_glibc" "$(node -p process.versions.node)" target/docker/toolchain.txt ${receipts[@]+"${receipts[@]}"}
 (cd "$out" && sha256sum -c --quiet SHA256SUMS)
 echo "release $version built from $source: $(ls "$out" | tr '\n' ' ')"

@@ -21,9 +21,15 @@ minos=$(printf '%s\n' "$loads" | awk '/LC_BUILD_VERSION/{b=1} b && /minos/{print
 [ -n "$minos" ] || { echo "$file_: no LC_BUILD_VERSION or LC_VERSION_MIN_MACOSX load command" >&2; exit 1; }
 highest=$(printf '%s\n%s\n' "$minos" "$max" | sort -t. -k1,1n -k2,2n -k3,3n | tail -1)
 [ "$highest" = "$max" ] || { echo "$file_: macOS minimum $minos exceeds $max" >&2; exit 1; }
-deps=$(otool -L "$file_") || { echo "$file_: otool -L failed" >&2; exit 1; }
-# First line is the file itself; the rest are dependencies as "path (compatibility ...)".
-extra=$(printf '%s\n' "$deps" | tail -n +2 | awk '{print $1}' | grep -v -E '^(/usr/lib/libSystem\.B\.dylib|/System/Library/Frameworks/[A-Za-z]+\.framework/)' || true)
+# Dependencies are the names of the load commands that load or re-export a
+# dylib. LC_ID_DYLIB is the file's own install name (an MH_DYLIB such as a
+# Rust cdylib carries one, often @rpath/... or its build path) and is not a
+# dependency; `otool -L` would list it alongside the real ones.
+deps=$(printf '%s\n' "$loads" | awk '
+  $1 == "cmd" { load = ($2 == "LC_LOAD_DYLIB" || $2 == "LC_LOAD_WEAK_DYLIB" || $2 == "LC_REEXPORT_DYLIB" || $2 == "LC_LOAD_UPWARD_DYLIB" || $2 == "LC_LAZY_LOAD_DYLIB") }
+  load && $1 == "name" { print $2 }')
+[ -n "$deps" ] || { echo "$file_: no dylib load commands (not linked against libSystem?)" >&2; exit 1; }
+extra=$(printf '%s\n' "$deps" | grep -v -E '^(/usr/lib/libSystem\.B\.dylib|/System/Library/Frameworks/[A-Za-z]+\.framework/)' || true)
 [ -z "$extra" ] || { echo "$file_: unexpected dynamic libraries: $(printf '%s' "$extra" | tr '\n' ' ')" >&2; exit 1; }
 codesign -v "$file_" 2>/dev/null || { echo "$file_: code signature (ad hoc) does not verify" >&2; exit 1; }
 printf '%s: arm64 Mach-O, macOS minimum %s, system libraries only, signature verifies\n' "$(basename "$file_")" "$minos"

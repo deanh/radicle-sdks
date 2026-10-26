@@ -36,7 +36,10 @@ test('alpha package/native identities agree and source prepare selects release b
   );
   const host = `radicle-sdk.${process.platform}-${process.arch}${process.platform === 'linux' ? '-gnu' : ''}.node`;
   assert.ok(addons.includes(host), `host addon ${host} missing from ${addons}`); // built for this platform
-  assert.ok(addons.every((name) => /^radicle-sdk\.(linux-x64-gnu|darwin-arm64)\.node$/.test(name)), `unexpected addon in ${addons}`);
+  assert.ok(
+    addons.every((name) => /^radicle-sdk\.(linux-x64-gnu|darwin-arm64)\.node$/.test(name)),
+    `unexpected addon in ${addons}`,
+  );
   assert.match(bindings, /radicle-sdk\.linux-x64-gnu\.node/);
   assert.match(bindings, /radicle-sdk\.darwin-arm64\.node/);
   assert.ok(!bindings.includes('radicle-sdk-t0'));

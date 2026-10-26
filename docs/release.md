@@ -31,10 +31,12 @@ verify the installed artifact before it is published.
 - `radicle-sdk-<version>.tgz` (one npm tarball with every released addon
   inside, selected by the loader at import time; installs with no Rust, C
   compiler or Git)
-- `MANIFEST.json`: source commit and date, version, target, toolchain identity
-  and the SHA-256 of each file; registered as an artifact so consumers can
-  check the files they downloaded against it. It carries no build timestamp,
-  so a rebuild that reproduces the same artifact bytes reproduces the same
+- `MANIFEST.json`: source commit and date, version, targets, toolchain
+  identity, the SHA-256 of each file with the targets it serves, and under
+  `platforms` the floors, toolchain and audit lines of every platform built
+  on its own hardware; registered as an artifact so consumers can check the
+  files they downloaded against it. It carries no build timestamp, so a
+  rebuild that reproduces the same artifact bytes reproduces the same
   manifest
 - `SHA256SUMS` (local convenience, not registered)
 
@@ -160,11 +162,15 @@ download verifier there.
 2. Copy that directory to the Linux host as `release/incoming/darwin-arm64/`
    (for example with `scp -r`).
 3. On the Linux host, run `scripts/release/build-linux-x86_64.sh` as usual.
-   It checks the staged files' digests, version and source commit against
-   `AUDIT.json`, folds the macOS wheel into the release and the macOS addon
-   into the npm tarball, confirms the addon inside the final tarball is
-   byte-identical to the staged one, and writes a manifest whose `targets`
-   lists both platforms. Registration then expects both wheels.
+   It checks the receipt with `scripts/release/platform_receipt.py`: it must
+   name exactly the macOS wheel and addon for this version, with digests,
+   sizes and passing audit lines, for this source commit, and nothing else
+   may be staged beside them. The script copies those two files by name,
+   folds the wheel into the release and the addon into the npm tarball,
+   compares the bytes inside the final tarball and release directory back to
+   the receipt's digests, and writes a manifest whose `targets` lists both
+   platforms and whose `platforms` section embeds the receipt's floors,
+   toolchain and audit lines. Registration then expects both wheels.
 4. Verify from a download on both machines with
    `scripts/release/verify-installed.sh <version>`; the script picks this
    machine's wheel from the manifest.
