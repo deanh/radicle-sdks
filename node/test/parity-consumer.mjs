@@ -1,6 +1,6 @@
 // Also executed outside the checkout against the packed public package.
 import assert from 'node:assert/strict';
-import { mkdtemp, mkdir, writeFile, rm } from 'node:fs/promises';
+import { mkdtemp, mkdir, writeFile, rm, realpath } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { execFileSync } from 'node:child_process';
@@ -22,7 +22,9 @@ import {
   parseObjectId,
 } from 'radicle-sdk';
 
-const root = await mkdtemp(join(tmpdir(), 'sdk-parity-consumer-'));
+// Home paths come back canonicalized, so start from the real path: on macOS
+// the temp dir is under /var, a symlink to /private/var.
+const root = await realpath(await mkdtemp(join(tmpdir(), 'sdk-parity-consumer-')));
 const git = (path, ...args) =>
   execFileSync(
     'git',
