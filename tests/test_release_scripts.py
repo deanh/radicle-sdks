@@ -370,3 +370,24 @@ esac
     assert r.returncode == 1 and "unexpected dynamic libraries: /opt/homebrew/lib/libz.1.dylib" in r.stderr
     tools(deps="@rpath/libfoo.dylib (compatibility version 1.0.0)"); r = audit(); assert r.returncode == 1 and "@rpath/libfoo.dylib" in r.stderr
     tools(sign=1); r = audit(); assert r.returncode == 1 and "signature" in r.stderr
+
+
+@pytest.mark.parametrize("have, ok", [("26.5.0", True), ("26.6.1", True), ("27.0.0", True), ("26.4.9", False), ("25.2.0", False), ("20.19.0", False)])
+def test_check_node_floor_compares_major_then_minor(tmp_path, have, ok):
+    shims = tmp_path / "shims"; shims.mkdir()
+    shim(shims, "node", f"printf '%s\\n' '{have}'\n")
+    r = subprocess.run(["bash", str(SCRIPTS / "check-node-floor.sh")],
+                       env=dict(os.environ, PATH=f"{shims}:{os.environ['PATH']}"), capture_output=True, text=True)
+    assert (r.returncode == 0) == ok, r.stderr
+    if not ok:
+        assert f"Node {have} is below the 26.5.0 floor" in r.stderr
+
+
+def test_build_scripts_gate_on_the_node_floor_before_building(tmp_path):
+    # Both build scripts call the gate right after the clean-tree check, so a
+    # Node below the floor stops the run before any toolchain work.
+    for script in ("build-linux-x86_64.sh", "build-macos-arm64.sh"):
+        lines = (SCRIPTS / script).read_text().splitlines()
+        gate = next(i for i, l in enumerate(lines) if "check-node-floor.sh" in l)
+        assert lines[gate].strip() == 'bash "$here/check-node-floor.sh"'
+        assert "git status --porcelain" in lines[gate - 1], script
