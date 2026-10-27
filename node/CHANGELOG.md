@@ -1,5 +1,13 @@
 # radicle-sdk changelog
 
+## 0.1.2 (2026-10-27)
+
+First release on npm. The 0.1.1 package on npm was published from a working
+tree by mistake (Linux addon only, not the audited tarball) and withdrawn;
+0.1.2 is built from the same source as 0.1.1 and verified against its
+rad-artifact receipt. A `prepublishOnly` script now refuses a bare
+`npm publish` from the checkout. No API changes.
+
 ## 0.1.1 (2026-10-27)
 
 Distribution release; no API changes. Pinned to Radicle `=0.25.1` as before.

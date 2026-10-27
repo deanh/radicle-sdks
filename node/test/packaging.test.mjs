@@ -16,7 +16,7 @@ test('alpha package/native identities agree and source prepare selects release b
   assert.match(cargo, /indexmap\.workspace = true/);
   const bindings = await text('../dist/native.cjs');
   assert.equal(pkg.name, 'radicle-sdk');
-  assert.equal(pkg.version, '0.1.1');
+  assert.equal(pkg.version, '0.1.2');
   assert.equal(pkg.private, undefined); // published to npm by scripts/release/publish-registries.sh
   assert.match(
     pkg.repository.url,
@@ -32,6 +32,7 @@ test('alpha package/native identities agree and source prepare selects release b
   assert.ok(cargoLock.includes(`name = "radicle-sdk-native"\nversion = "${pkg.version}"`));
   assert.match(pkg.scripts['build:native'], /\bnapi build --release\b/);
   assert.equal(pkg.scripts.prepare, 'npm run build');
+  assert.equal(pkg.scripts.prepublishOnly, 'node scripts/release/refuse-bare-publish.mjs'); // bare `npm publish` packs the working tree
   assert.equal(pkg.scripts.install, undefined);
   assert.equal(pkg.scripts.postinstall, undefined);
   assert.ok(pkg.files.every((file) => !file.startsWith('node/native') && !file.includes('Cargo')));

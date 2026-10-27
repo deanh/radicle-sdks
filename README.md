@@ -18,10 +18,11 @@ Radicle home you already have. The other documents link here rather than
 restating these points.
 
 - **Alpha, published to PyPI and npm with a Radicle receipt.** Both packages
-  are version `0.1.1` and APIs may change. Releases are built on the
+  are version `0.1.2` and APIs may change. Releases are built on the
   maintainers' machines, recorded as a signed release object on this
   repository through rad-artifact (tag, manifest, digests), and published
-  as `radicle-py` on PyPI and `radicle-sdk` on npm from 0.1.1; see
+  as `radicle-py` on PyPI (from 0.1.1) and `radicle-sdk` on npm (from
+  0.1.2); see
   [Releasing](docs/release.md). Git installs at a reviewed commit remain the
   development path.
 - **Not a node.** Fetching, announcing, connections and daemon control are out
@@ -41,7 +42,7 @@ restating these points.
   with explicit language differences and recorded validation boundaries.
   Both SDKs expose local policy management, routing reads and generic raw COB
   inspection, with intentional language-specific representations.
-- **Platforms.** Release 0.1.1 ships prebuilt artifacts for Linux x86_64
+- **Platforms.** Releases from 0.1.1 ship prebuilt artifacts for Linux x86_64
   (glibc 2.28 or newer) and macOS arm64 (macOS 11.0 or newer for the Python
   wheel, 13.5 for the Node addon, Node 26's own minimum); 0.1.0 was Linux
   only. Building from Git needs

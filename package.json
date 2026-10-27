@@ -1,6 +1,6 @@
 {
   "name": "radicle-sdk",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "description": "TypeScript SDK for local signed Radicle project, issue and patch workflows",
   "license": "MIT OR Apache-2.0",
   "repository": {
@@ -41,6 +41,7 @@
     "clean": "node --input-type=module -e \"import { rmSync } from 'node:fs'; rmSync('node/dist', { recursive: true, force: true });\"",
     "build": "npm run clean && npm run build:native && tsc -p node/tsconfig.json",
     "prepare": "npm run build",
+    "prepublishOnly": "node scripts/release/refuse-bare-publish.mjs",
     "test": "node --test node/test/*.test.mjs",
     "check": "tsc --noEmit -p node/tsconfig.test.json",
     "format": "prettier --write \"node/src/**/*.ts\" \"node/test/**/*.{mjs,ts}\" \"examples/*.mjs\"",

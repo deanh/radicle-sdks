@@ -2,6 +2,12 @@
 
 All notable changes to `radicle-py` are documented here.
 
+## 0.1.2 (2026-10-27)
+
+Same source as 0.1.1, re-released so that PyPI and npm carry the same
+version: the npm 0.1.1 package was published from a working tree by mistake
+and withdrawn, while PyPI 0.1.1 is the audited build. No Python changes.
+
 ## 0.1.1 (2026-10-27)
 
 Distribution release; no API changes. Pinned to Radicle `=0.25.1` as before.

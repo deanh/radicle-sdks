@@ -13,14 +13,18 @@ bytes the receipt records, and verification checks that the registries serve
 those bytes before installing from them.
 
 Tracking: issue `a17f70b` (plan), `fdcfc02` (alpha release). Release 0.1.0
-predates the registry step and is available only through rad-artifact.
+predates the registry step and is available only through rad-artifact;
+0.1.1 is on PyPI only (its npm version was published from a working tree by
+mistake and withdrawn), so 0.1.2 is the first release on both registries.
+Never run a bare `npm publish` from the checkout: `prepublishOnly` refuses
+it, because it would pack the working tree rather than the audited tarball.
 
 ## Targets
 
 | Release | Platforms | Floors |
 | --- | --- | --- |
 | 0.1.0 | Linux x86_64 only | glibc 2.28, CPython 3.9 (abi3), Node 26.5 |
-| 0.1.1 | Linux x86_64 and macOS arm64 | as above; macOS 11.0 for the wheel, 13.5 for the Node addon (Node 26's own minimum) |
+| 0.1.1 and later | Linux x86_64 and macOS arm64 | as above; macOS 11.0 for the wheel, 13.5 for the Node addon (Node 26's own minimum) |
 
 Linux aarch64 would be one more container run but needs an ARM machine to
 verify the installed artifact before it is published.

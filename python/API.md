@@ -1,6 +1,6 @@
 # `radiclepy` Python API
 
-Status: **experimental alpha, version 0.1.1**, pinned to Radicle `=0.25.1`.
+Status: **experimental alpha, version 0.1.2**, pinned to Radicle `=0.25.1`.
 The full reviewed Git SHA identifies a candidate. This Python-only reference
 covers public names, their kinds (class / attribute / method / function),
 conversions and failure modes.
