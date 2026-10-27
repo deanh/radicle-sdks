@@ -629,7 +629,8 @@ esac
 printf 'uv %s\\n' "$*" >> {log}
 case "$1" in
   venv) for d in "$@"; do :; done; mkdir -p "$d/bin"; printf '#!/usr/bin/env bash\\nprintf "python %%s\\\\n" "$*" >> {log}\\n' > "$d/bin/python"; chmod +x "$d/bin/python" ;;
-  publish|pip) exit 0 ;;
+  publish) printf 'uv-token %s\\n' "${{UV_PUBLISH_TOKEN:-}}" >> {log} ;;
+  pip) exit 0 ;;
   *) echo "unexpected uv $*" >&2; exit 9 ;;
 esac
 """)
@@ -725,6 +726,39 @@ def test_publish_registries_refuses_conflicts_before_any_upload(tmp_path, regist
     assert r.returncode == 1, r.stdout
     assert message in r.stderr, r.stderr
     assert "uv publish" not in calls(tmp_path) and "npm publish" not in calls(tmp_path)
+
+
+def test_publish_registries_reads_the_pypi_token_from_a_guarded_dotenv(tmp_path, registry_shims):
+    repo, out, commit = release_fixture(tmp_path)
+    assert run("register.sh", VERSION, cwd=repo, shims=registry_shims).returncode == 0
+    dotenv = repo / ".env"
+    dotenv.write_text("# PyPI\nexport UV_PUBLISH_TOKEN='pypi-from-dotenv'\nOTHER=\"x=y\"\n")
+    dotenv.chmod(0o600)
+    env = {"UV_PUBLISH_TOKEN": "", "NPM_USER": "u"}
+    # Not ignored by git: refused before any upload, without echoing the file.
+    r = run("publish-registries.sh", VERSION, cwd=repo, shims=registry_shims, env=env)
+    assert r.returncode == 1 and "not ignored by git" in r.stderr and "uv publish" not in calls(tmp_path)
+    (repo / ".gitignore").write_text("/.env\n")
+    # Readable by others: refused.
+    dotenv.chmod(0o640)
+    r = run("publish-registries.sh", VERSION, cwd=repo, shims=registry_shims, env=env)
+    assert r.returncode == 1 and "chmod 600" in r.stderr and "uv publish" not in calls(tmp_path)
+    dotenv.chmod(0o600)
+    # Malformed line: refused by line number, content not echoed.
+    dotenv.write_text("UV_PUBLISH_TOKEN=pypi-secret\nnot a line\n")
+    r = run("publish-registries.sh", VERSION, cwd=repo, shims=registry_shims, env=env)
+    assert r.returncode == 1 and ".env line 2" in r.stderr and "pypi-secret" not in r.stderr + r.stdout
+    dotenv.write_text("# PyPI\nexport UV_PUBLISH_TOKEN='pypi-from-dotenv'\nOTHER=\"x=y\"\n")
+    # Guarded .env supplies the token; the value never appears in the output.
+    r = run("publish-registries.sh", VERSION, cwd=repo, shims=registry_shims, env=env)
+    assert r.returncode == 0, r.stderr
+    assert "PyPI token present (.env)" in r.stdout and "pypi-from-dotenv" not in r.stdout + r.stderr
+    assert "uv-token pypi-from-dotenv\n" in calls(tmp_path)
+    # The environment wins over .env.
+    (tmp_path / "calls.log").unlink()
+    r = run("publish-registries.sh", VERSION, cwd=repo, shims=registry_shims, env={"UV_PUBLISH_TOKEN": "pypi-from-env", "NPM_USER": "u"})
+    assert r.returncode == 0 and "PyPI token present (environment)" in r.stdout
+    assert "uv-token pypi-from-env\n" in calls(tmp_path)
 
 
 def registry_fixture(tmp_path, *, names=NAMES):

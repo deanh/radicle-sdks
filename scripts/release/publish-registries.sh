@@ -19,7 +19,11 @@
 #   this version must have the same digest (it is skipped), and PyPI must hold
 #   no file this release did not build;
 # - credentials exist for whatever is still to upload: UV_PUBLISH_TOKEN for
-#   PyPI, a logged-in npm user for npm.
+#   PyPI, a logged-in npm user for npm. UV_PUBLISH_TOKEN comes from the
+#   environment or from `.env` at the repository root (NAME=value lines,
+#   loaded only for names the environment leaves empty). That file must be
+#   ignored by git and readable by its owner only; its contents are never
+#   printed and it is parsed, not executed.
 # --dry-run stops after printing the plan. Uploads: `uv publish` for the
 # pending Python files (with --check-url as a second guard against
 # duplicates), then `npm publish` of the exact tarball (npm may prompt for a
@@ -98,9 +102,28 @@ while read -r action name; do [ "$action" = upload ] && pending_python+=("$dir/$
 read -r npm_action _ < "$work/npm-plan"
 
 echo "== credentials"
+token_source=environment
+if [ -f "$root/.env" ]; then
+  git check-ignore -q "$root/.env" || { echo ".env is not ignored by git: add /.env to .gitignore before it gets committed" >&2; exit 1; }
+  python3 -I -c 'import os, sys; sys.exit(1 if os.stat(sys.argv[1]).st_mode & 0o077 else 0)' "$root/.env" \
+    || { echo ".env is readable by other users: chmod 600 .env" >&2; exit 1; }
+  n=0
+  while IFS= read -r line || [ -n "$line" ]; do
+    n=$((n + 1))
+    case "$line" in ''|'#'*) continue ;; esac
+    line=${line#export }
+    name=${line%%=*}; value=${line#*=}
+    case "$name" in ''|*[!A-Za-z0-9_]*) echo ".env line $n: expected NAME=value" >&2; exit 1 ;; esac
+    case "$value" in \"*\"|\'*\') value=${value:1:${#value}-2} ;; esac   # one layer of matching quotes
+    if [ -z "${!name:-}" ]; then
+      export "$name=$value"
+      [ "$name" = UV_PUBLISH_TOKEN ] && token_source=.env
+    fi
+  done < "$root/.env"
+fi
 if [ "${#pending_python[@]}" -gt 0 ]; then
-  [ -n "${UV_PUBLISH_TOKEN:-}" ] || { echo "set UV_PUBLISH_TOKEN (a PyPI token scoped to $pypi_project) to upload ${#pending_python[@]} Python file(s)" >&2; exit 1; }
-  echo "PyPI token present"
+  [ -n "${UV_PUBLISH_TOKEN:-}" ] || { echo "set UV_PUBLISH_TOKEN (a PyPI token scoped to $pypi_project), in the environment or in $root/.env, to upload ${#pending_python[@]} Python file(s)" >&2; exit 1; }
+  echo "PyPI token present ($token_source)"
 fi
 if [ "$npm_action" = upload ]; then
   npm_user=$(npm whoami --registry "$npm_registry" 2>/dev/null) || { echo "npm login --registry $npm_registry first (publishing $tarball)" >&2; exit 1; }

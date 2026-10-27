@@ -61,9 +61,13 @@ committed file against `Cargo.lock`.
 Prerequisites on the Linux build host: Docker, Node 26.5+, uv, `objdump`,
 `unzip`, `curl`, the `rad` CLI with this profile as a delegate, `rad-artifact`
 and `rad-artifact-node` (`cargo install radicle-artifact radicle-artifact-node`),
-a PyPI token scoped to the `radicle-py` project in `UV_PUBLISH_TOKEN`, and an
-npm login with publish rights on `radicle-sdk` (`npm login`; 2FA may prompt
-at publish time). Local builds cannot use PyPI trusted publishing or npm
+a PyPI token scoped to the `radicle-py` project, and an npm login with
+publish rights on `radicle-sdk` (`npm login`; 2FA may prompt at publish time).
+The PyPI token is read from `UV_PUBLISH_TOKEN` in the environment or, when
+that is empty, from a `.env` file at the repository root holding
+`UV_PUBLISH_TOKEN=pypi-...`. The file is parsed, never executed or printed,
+and the publish script refuses it unless git ignores it (`/.env` is in
+`.gitignore`) and only its owner can read it (`chmod 600 .env`). Local builds cannot use PyPI trusted publishing or npm
 provenance, which need a hosted CI identity; the rad-artifact receipt is the
 provenance record instead.
 
