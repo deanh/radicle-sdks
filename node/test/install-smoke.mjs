@@ -22,7 +22,7 @@ import {
 const installed = JSON.parse(
   await readFile(new URL('../../package.json', import.meta.resolve('radicle-sdk')), 'utf8'),
 );
-assert.equal(installed.version, '0.1.0');
+assert.equal(installed.version, '0.1.1');
 assert.equal(installed.napi.binaryName, 'radicle-sdk');
 assert.match(installed.scripts['build:native'], /\bnapi build --release\b/);
 for (const Handle of [Profile, Signer, Storage, Repository, Issues, IssueMut, Patches, PatchMut]) {

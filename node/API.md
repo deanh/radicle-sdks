@@ -1,6 +1,6 @@
 # radicle-sdk: TypeScript API contract
 
-The current `0.1.0` alpha contract for Node.js/TypeScript, pinned to upstream
+The current `0.1.1` alpha contract for Node.js/TypeScript, pinned to upstream
 Radicle `=0.25.1`. The full reviewed Git SHA identifies a candidate. See the
 [guide](README.md) for installation and an executable quick start, and the
 [changelog](CHANGELOG.md) for package history. Only `radicle-sdk` is exported;

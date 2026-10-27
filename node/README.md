@@ -1,4 +1,4 @@
-# radicle-sdk 0.1.0: TypeScript alpha
+# radicle-sdk 0.1.1: TypeScript alpha
 
 A Node.js/TypeScript SDK for **local signed Radicle projects, issues and patches**,
 plus storage/repository inspection. It is not a node or a network client.
@@ -12,17 +12,17 @@ package history.
 
 ## Requirements
 
-The initial alpha supports **Linux x86_64 (GNU/glibc) only**, tested locally.
-macOS, Windows, other architectures and musl-based Linux are not supported or
-validated yet. Support claims will expand only after source-install and workflow
-validation on those platforms; no multi-platform binary distribution is promised.
+Prebuilt addons ship for **Linux x86_64 (GNU/glibc 2.28+)** and **macOS
+arm64 (13.5+)**, each validated on that platform before release. Windows, other
+architectures and musl-based Linux are not supported or validated; support
+claims expand only after source-install and workflow validation there.
 
 Requires Node **26.5.0+** (the oldest release the suite is run on). Source
 installs additionally need **Rust ≥ 1.91**, a C compiler, and Git; the pinned
 radicle 0.25.1 declares Rust 1.88.0 but doesn't compile on 1.88–1.90. There is
-no Node upper-version cap. The package is not published on npm; releases are
-artifacts on the Radicle repository. Browsers and Deno are unsupported; Bun is
-best effort, as described below.
+no Node upper-version cap. Releases are published on npm from 0.1.1 and
+recorded as rad-artifact release objects on the Radicle repository. Browsers
+and Deno are unsupported; Bun is best effort, as described below.
 
 ## Installing a release
 

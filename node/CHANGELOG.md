@@ -1,5 +1,21 @@
 # radicle-sdk changelog
 
+## 0.1.1 (2026-10-27)
+
+Distribution release; no API changes. Pinned to Radicle `=0.25.1` as before.
+
+- Published to npm as `radicle-sdk`: one package carrying the Linux x86_64
+  (glibc 2.28+) addon and, new in this release, the macOS arm64 addon
+  (macOS 13.5+, Node 26's own minimum), selected at import time. `private` is
+  dropped from `package.json`; `repository`, `homepage` and `bugs` point at
+  the Radicle web view. The rad-artifact release object on the repository
+  remains the signed record of the built tarball, including its npm
+  integrity; see `docs/release.md`.
+- The macOS addon is built natively on Apple silicon, links only system
+  libraries and is audited and signed before assembly.
+- Tests: the parity consumer smoke starts from the resolved temp path, so it
+  passes where the temp directory is a symlink (macOS).
+
 ## 0.1.0 (2026-10-22)
 
 First published release: Linux x86_64 (glibc 2.28 or newer) only, distributed as

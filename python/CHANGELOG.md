@@ -2,6 +2,21 @@
 
 All notable changes to `radicle-py` are documented here.
 
+## 0.1.1 (2026-10-27)
+
+Distribution release; no API changes. Pinned to Radicle `=0.25.1` as before.
+
+- Published to PyPI as `radicle-py`: abi3 wheels for CPython 3.9+ on Linux
+  x86_64 (`manylinux_2_28`) and, new in this release, macOS arm64
+  (`macosx_11_0_arm64`), plus the sdist. The rad-artifact release object on
+  the repository remains the signed record (tag, manifest, digests) of what
+  was built and uploaded; see `docs/release.md`.
+- The macOS wheel is built natively on Apple silicon for macOS 11.0 or newer,
+  links only system libraries (libSystem, libiconv and system frameworks) and
+  is audited and signed before assembly.
+- Tests: the non-UTF-8 home path test tolerates filesystems that refuse such
+  names (APFS); the lossless path behaviour itself is unchanged.
+
 ## 0.1.0 (2026-10-22)
 
 First published release: Linux x86_64 (glibc 2.28 or newer) only, distributed as

@@ -20,7 +20,7 @@ predates the registry step and is available only through rad-artifact.
 | Release | Platforms | Floors |
 | --- | --- | --- |
 | 0.1.0 | Linux x86_64 only | glibc 2.28, CPython 3.9 (abi3), Node 26.5 |
-| next | Linux x86_64 and macOS arm64 | as above; macOS 11.0 for the wheel, 13.5 for the Node addon (Node 26's own minimum) |
+| 0.1.1 | Linux x86_64 and macOS arm64 | as above; macOS 11.0 for the wheel, 13.5 for the Node addon (Node 26's own minimum) |
 
 Linux aarch64 would be one more container run but needs an ARM machine to
 verify the installed artifact before it is published.
