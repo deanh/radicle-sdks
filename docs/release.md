@@ -64,10 +64,11 @@ and `rad-artifact-node` (`cargo install radicle-artifact radicle-artifact-node`)
 a PyPI token scoped to the `radicle-py` project, and an npm login with
 publish rights on `radicle-sdk` (`npm login`; 2FA may prompt at publish time).
 The PyPI token is read from `UV_PUBLISH_TOKEN` in the environment or, when
-that is empty, from a `.env` file at the repository root holding
-`UV_PUBLISH_TOKEN=pypi-...`. The file is parsed, never executed or printed,
-and the publish script refuses it unless git ignores it (`/.env` is in
-`.gitignore`) and only its owner can read it (`chmod 600 .env`). Local builds cannot use PyPI trusted publishing or npm
+that is empty, from a `.env` file at the repository root holding only
+`UV_PUBLISH_TOKEN=pypi-...` and comments. The file is parsed, never executed
+or printed, may set nothing else, and the publish script refuses it unless
+git ignores it (`/.env` is in `.gitignore`) and only its owner can read it
+(`chmod 600 .env`). Local builds cannot use PyPI trusted publishing or npm
 provenance, which need a hosted CI identity; the rad-artifact receipt is the
 provenance record instead.
 
@@ -171,9 +172,15 @@ provenance record instead.
    requires PyPI to hold exactly the manifest's Python files with the
    manifest's digests and downloads each to check the served bytes, requires
    npm to report the manifest's tarball integrity and fetches the tarball to
-   check its digest, and only then installs this platform's wheel from PyPI
-   (wheel-only, no cache, no local files) and the package from npm (scripts
-   disabled) into clean environments, checking the installed versions.
+   check its digest, and only then installs into clean environments: this
+   platform's wheel from PyPI (wheel-only, no cache, no local files) through
+   a requirement pinned with `--hash` to every digest in the manifest, and
+   the package from npm with `npm ci` against a lockfile pinned to the
+   manifest's integrity, scripts disabled. The installers therefore refuse
+   any bytes the receipt does not attest, even if the index or tarball
+   endpoint serves something different from what the lookups showed. A
+   lookup that fails for any reason other than an explicit not-found stops
+   the script; so does a missing release.
 8. **Record.** Comment on the release issue with `SHA256SUMS`, the release
    object ID and the verification results per machine and per channel.
 

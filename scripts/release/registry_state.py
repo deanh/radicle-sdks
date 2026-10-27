@@ -22,6 +22,8 @@ publish a fixed version instead.
         pass the tarball path as a fourth argument for older manifests).
     registry_state.py integrity <file>
         Print the file's npm integrity string (sha512, base64).
+  pypi-requirement <manifest> <project>            requirements line with --hash for every Python file
+  npm-lock <manifest> <registry> <package> <consumer> package-lock.json pinning the tarball integrity
 """
 from __future__ import annotations
 
@@ -113,10 +115,40 @@ def npm_check(m: dict, reported: str, tarball: Path | None) -> str:
     return name
 
 
+def pypi_requirement(m: dict, project: str) -> str:
+    """A requirements line pinning the project version to every Python file digest the
+    manifest records, for `uv pip install --require-hashes`: the installer may then only
+    accept bytes the receipt attests, whatever the index resolves."""
+    hashes = [e["sha256"] for _, e in sorted(python_files(m).items())]
+    if not hashes:
+        raise SystemExit("manifest lists no Python files")
+    return f"{project}=={m['version']} " + " ".join(f"--hash=sha256:{h}" for h in hashes)
+
+
+def npm_lock(m: dict, registry: str, package: str, consumer: str) -> dict:
+    """A package-lock.json (v3) pinning the package to the registry tarball with the
+    manifest's integrity, for `npm ci`: npm refuses tarball bytes that differ."""
+    name = npm_tarball(m)
+    want = m["files"][name].get("integrity")
+    if want is None:
+        raise SystemExit(f"manifest records no integrity for {name}")
+    return {"name": consumer, "version": "1.0.0", "lockfileVersion": 3, "requires": True,
+            "packages": {"": {"name": consumer, "version": "1.0.0", "dependencies": {package: m["version"]}},
+                         f"node_modules/{package}": {"version": m["version"],
+                                                     "resolved": f"{registry.rstrip('/')}/{package}/-/{name}",
+                                                     "integrity": want}}}
+
+
 def main(argv: list[str]) -> int:
     cmd = argv[1] if len(argv) > 1 else ""
     if cmd == "integrity" and len(argv) == 3:
         print(integrity(Path(argv[2])))
+        return 0
+    if cmd == "pypi-requirement" and len(argv) == 4:
+        print(pypi_requirement(json.loads(Path(argv[2]).read_text()), argv[3]))
+        return 0
+    if cmd == "npm-lock" and len(argv) == 6:
+        print(json.dumps(npm_lock(json.loads(Path(argv[2]).read_text()), argv[3], argv[4], argv[5]), indent=2))
         return 0
     if cmd in ("pypi-plan", "pypi-files", "npm-plan", "npm-check") and len(argv) >= 4:
         m = json.loads(Path(argv[2]).read_text())

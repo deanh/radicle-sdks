@@ -20,10 +20,12 @@
 #   no file this release did not build;
 # - credentials exist for whatever is still to upload: UV_PUBLISH_TOKEN for
 #   PyPI, a logged-in npm user for npm. UV_PUBLISH_TOKEN comes from the
-#   environment or from `.env` at the repository root (NAME=value lines,
-#   loaded only for names the environment leaves empty). That file must be
-#   ignored by git and readable by its owner only; its contents are never
-#   printed and it is parsed, not executed.
+#   environment or from `.env` at the repository root, which may hold only
+#   that one NAME=value line (plus comments) and is used only when the
+#   environment leaves the name empty. The file must be ignored by git and
+#   readable by its owner only; it is parsed, not executed, and never printed.
+# A registry lookup that fails for any reason other than an explicit
+# not-found stops the run: an unverifiable registry state is not an empty one.
 # --dry-run stops after printing the plan. Uploads: `uv publish` for the
 # pending Python files (with --check-url as a second guard against
 # duplicates), then `npm publish` of the exact tarball (npm may prompt for a
@@ -36,6 +38,8 @@ case "$dry_run" in ""|--dry-run) ;; *) echo "usage: publish-registries.sh <versi
 root=$(git rev-parse --show-toplevel)
 cd "$root"
 here=$(cd "$(dirname "$0")" && pwd)
+# shellcheck source=registry_lookup.sh
+. "$here/registry_lookup.sh"
 dir="release/$version"
 tag="v$version"
 manifest="$dir/MANIFEST.json"
@@ -92,14 +96,17 @@ print(f"receipt {releases[0]['releaseId']} holds exactly the {len(local)} local 
 PY
 
 echo "== registry state"
-if curl -sSf -o "$work/pypi.json" "$pypi_url/pypi/$pypi_project/$version/json" 2>/dev/null; then pypi_json="$work/pypi.json"; else pypi_json=-; fi
+pypi_state=$(pypi_lookup "$work/pypi.json")
+case "$pypi_state" in present) pypi_json="$work/pypi.json" ;; absent) pypi_json=- ;; esac
 python3 "$here/registry_state.py" pypi-plan "$manifest" "$pypi_json" > "$work/pypi-plan"
-reported=$(npm view "$npm_package@$version" dist.integrity --registry "$npm_registry" 2>/dev/null || true)
-python3 "$here/registry_state.py" npm-plan "$manifest" "$dir/$tarball" "${reported:--}" > "$work/npm-plan"
+reported=$(npm_lookup)
+[ "$reported" != absent ] || reported=-
+python3 "$here/registry_state.py" npm-plan "$manifest" "$dir/$tarball" "$reported" > "$work/npm-plan"
 cat "$work/pypi-plan" "$work/npm-plan"
 pending_python=()
 while read -r action name; do [ "$action" = upload ] && pending_python+=("$dir/$name"); done < "$work/pypi-plan"
 read -r npm_action _ < "$work/npm-plan"
+readonly pending_python npm_action   # the plan printed above is what gets uploaded; nothing below may change it
 
 echo "== credentials"
 token_source=environment
@@ -112,12 +119,15 @@ if [ -f "$root/.env" ]; then
     n=$((n + 1))
     case "$line" in ''|'#'*) continue ;; esac
     line=${line#export }
-    name=${line%%=*}; value=${line#*=}
-    case "$name" in ''|*[!A-Za-z0-9_]*) echo ".env line $n: expected NAME=value" >&2; exit 1 ;; esac
+    case "${line%%=*}" in   # only the one credential name; nothing else may be set from the file
+      UV_PUBLISH_TOKEN) ;;
+      *) echo ".env line $n: only UV_PUBLISH_TOKEN=<token> and comments are accepted" >&2; exit 1 ;;
+    esac
+    value=${line#*=}
     case "$value" in \"*\"|\'*\') value=${value:1:${#value}-2} ;; esac   # one layer of matching quotes
-    if [ -z "${!name:-}" ]; then
-      export "$name=$value"
-      [ "$name" = UV_PUBLISH_TOKEN ] && token_source=.env
+    if [ -z "${UV_PUBLISH_TOKEN:-}" ]; then
+      export UV_PUBLISH_TOKEN="$value"
+      token_source=.env
     fi
   done < "$root/.env"
 fi

@@ -602,22 +602,30 @@ def test_release_files_check_derives_the_expected_set_from_targets(tmp_path):
 def registry_shims(tmp_path, shims):
     """curl, npm, uv and node stand-ins driven by environment variables:
     PYPI_JSON (release JSON served for .../json, else 404), CURL_FILES_DIR
-    (files served by URL basename), NPM_INTEGRITY (what `npm view` reports),
-    NPM_USER (logged in when set), NPM_TARBALL (what `npm pack` fetches)."""
+    (files served by URL basename), NPM_INTEGRITY (what `npm view` reports;
+    empty answers E404), NPM_USER (logged in when set), NPM_TARBALL (what
+    `npm pack` fetches), PYPI_STATUS (HTTP status for the JSON lookup instead
+    of 200/404), CURL_EXIT (curl fails outright), NPM_VIEW_ERROR (`npm view`
+    fails with that npm error code)."""
     log = tmp_path / "calls.log"
     shim(shims, "curl", f"""
 printf 'curl %s\\n' "$*" >> {log}
-out=""; url=""
-while [ $# -gt 0 ]; do case "$1" in -o) out=$2; shift ;; -*) ;; *) url=$1 ;; esac; shift; done
+out=""; url=""; code=""
+while [ $# -gt 0 ]; do case "$1" in -o) out=$2; shift ;; -w) code=1; shift ;; -*) ;; *) url=$1 ;; esac; shift; done
+[ -z "${{CURL_EXIT:-}}" ] || {{ echo "curl: (7) Failed to connect" >&2; exit "$CURL_EXIT"; }}
 case "$url" in
-  */json) [ -n "${{PYPI_JSON:-}}" ] && [ -f "$PYPI_JSON" ] || exit 22; cp "$PYPI_JSON" "$out" ;;
+  */json) if [ -n "${{PYPI_JSON:-}}" ] && [ -f "$PYPI_JSON" ]; then cp "$PYPI_JSON" "$out"; status=200; else echo '{{"message":"Not Found"}}' > "$out"; status=404; fi
+          status=${{PYPI_STATUS:-$status}}; [ -n "$code" ] && printf '%s' "$status" ;;
   *) [ -f "${{CURL_FILES_DIR:-/nonexistent}}/$(basename "$url")" ] || exit 22; cp "$CURL_FILES_DIR/$(basename "$url")" "$out" ;;
 esac
 """)
     shim(shims, "npm", f"""
 printf 'npm %s\\n' "$*" >> {log}
 case "$1" in
-  view) printf '%s\\n' "${{NPM_INTEGRITY:-}}" ;;
+  view) if [ -n "${{NPM_VIEW_ERROR:-}}" ]; then echo "npm error code $NPM_VIEW_ERROR" >&2; exit 1; fi
+        [ -n "${{NPM_INTEGRITY:-}}" ] || {{ echo "npm error code E404" >&2; echo "npm error 404 Not Found" >&2; exit 1; }}
+        printf '%s\\n' "$NPM_INTEGRITY" ;;
+  ci) printf 'lock %s\\n' "$(python3 -c 'import json; l = json.load(open("package-lock.json")); p = l["packages"]["node_modules/radicle-sdk"]; print(l["lockfileVersion"], p["resolved"], p["integrity"])')" >> {log} ;;
   whoami) [ -n "${{NPM_USER:-}}" ] || exit 1; printf '%s\\n' "$NPM_USER" ;;
   pack) dest=.; while [ $# -gt 0 ]; do [ "$1" = --pack-destination ] && dest=$2; shift; done
         [ -n "${{NPM_TARBALL:-}}" ] && [ -f "$NPM_TARBALL" ] || exit 1; cp "$NPM_TARBALL" "$dest/" ;;
@@ -630,7 +638,7 @@ printf 'uv %s\\n' "$*" >> {log}
 case "$1" in
   venv) for d in "$@"; do :; done; mkdir -p "$d/bin"; printf '#!/usr/bin/env bash\\nprintf "python %%s\\\\n" "$*" >> {log}\\n' > "$d/bin/python"; chmod +x "$d/bin/python" ;;
   publish) printf 'uv-token %s\\n' "${{UV_PUBLISH_TOKEN:-}}" >> {log} ;;
-  pip) exit 0 ;;
+  pip) prev=""; for a in "$@"; do [ "$prev" = -r ] && printf 'requirement %s\\n' "$(cat "$a")" >> {log}; prev=$a; done ;;
   *) echo "unexpected uv $*" >&2; exit 9 ;;
 esac
 """)
@@ -732,7 +740,7 @@ def test_publish_registries_reads_the_pypi_token_from_a_guarded_dotenv(tmp_path,
     repo, out, commit = release_fixture(tmp_path)
     assert run("register.sh", VERSION, cwd=repo, shims=registry_shims).returncode == 0
     dotenv = repo / ".env"
-    dotenv.write_text("# PyPI\nexport UV_PUBLISH_TOKEN='pypi-from-dotenv'\nOTHER=\"x=y\"\n")
+    dotenv.write_text("# PyPI\nexport UV_PUBLISH_TOKEN='pypi-from-dotenv'\n")
     dotenv.chmod(0o600)
     env = {"UV_PUBLISH_TOKEN": "", "NPM_USER": "u"}
     # Not ignored by git: refused before any upload, without echoing the file.
@@ -748,7 +756,18 @@ def test_publish_registries_reads_the_pypi_token_from_a_guarded_dotenv(tmp_path,
     dotenv.write_text("UV_PUBLISH_TOKEN=pypi-secret\nnot a line\n")
     r = run("publish-registries.sh", VERSION, cwd=repo, shims=registry_shims, env=env)
     assert r.returncode == 1 and ".env line 2" in r.stderr and "pypi-secret" not in r.stderr + r.stdout
-    dotenv.write_text("# PyPI\nexport UV_PUBLISH_TOKEN='pypi-from-dotenv'\nOTHER=\"x=y\"\n")
+    # Any other name is refused, whatever it is: the file cannot set script variables.
+    # (With both Python files already on PyPI the computed plan is an empty array,
+    # which an exported `pending_python=` line would otherwise seed.)
+    wheel, sdist, tgz = NAMES
+    files = json.loads((out / "MANIFEST.json").read_text())["files"]
+    pypi_json(tmp_path / "pypi.json", {wheel: files[wheel], sdist: files[sdist]})
+    for line in ["pending_python=/elsewhere/radicle_py-0.1.0-py3-none-any.whl", "OTHER=x", "PATH=/tmp"]:
+        dotenv.write_text(f"UV_PUBLISH_TOKEN=pypi-secret\n{line}\n")
+        r = run("publish-registries.sh", VERSION, cwd=repo, shims=registry_shims, env=dict(env, PYPI_JSON=str(tmp_path / "pypi.json")))
+        assert r.returncode == 1 and ".env line 2: only UV_PUBLISH_TOKEN" in r.stderr, r.stderr
+        assert "pypi-secret" not in r.stderr + r.stdout and "uv publish" not in calls(tmp_path) and "npm publish" not in calls(tmp_path)
+    dotenv.write_text("# PyPI\nexport UV_PUBLISH_TOKEN='pypi-from-dotenv'\n")
     # Guarded .env supplies the token; the value never appears in the output.
     r = run("publish-registries.sh", VERSION, cwd=repo, shims=registry_shims, env=env)
     assert r.returncode == 0, r.stderr
@@ -759,6 +778,28 @@ def test_publish_registries_reads_the_pypi_token_from_a_guarded_dotenv(tmp_path,
     r = run("publish-registries.sh", VERSION, cwd=repo, shims=registry_shims, env={"UV_PUBLISH_TOKEN": "pypi-from-env", "NPM_USER": "u"})
     assert r.returncode == 0 and "PyPI token present (environment)" in r.stdout
     assert "uv-token pypi-from-env\n" in calls(tmp_path)
+
+
+@pytest.mark.parametrize("failure, env, message", [
+    ("pypi-unreachable", {"CURL_EXIT": "7"}, "PyPI lookup failed (curl exit 7"),
+    ("pypi-401", {"PYPI_STATUS": "401"}, "PyPI returned HTTP 401"),
+    ("pypi-429", {"PYPI_STATUS": "429"}, "PyPI returned HTTP 429"),
+    ("pypi-503", {"PYPI_STATUS": "503"}, "PyPI returned HTTP 503"),
+    ("pypi-unparseable", {"PYPI_STATUS": "200", "PYPI_JSON": "@garbage"}, "unparseable body"),
+    ("npm-unreachable", {"NPM_VIEW_ERROR": "ECONNREFUSED"}, "npm lookup for radicle-sdk@0.1.0"),
+    ("npm-401", {"NPM_VIEW_ERROR": "E401"}, "npm lookup for radicle-sdk@0.1.0"),
+])
+def test_publish_registries_stops_when_registry_state_cannot_be_confirmed(tmp_path, registry_shims, failure, env, message):
+    """Only an explicit 404/E404 means absent; every other lookup outcome stops the run."""
+    repo, out, commit = release_fixture(tmp_path)
+    assert run("register.sh", VERSION, cwd=repo, shims=registry_shims).returncode == 0
+    if env.get("PYPI_JSON") == "@garbage":
+        (tmp_path / "garbage.json").write_text("<html>maintenance</html>"); env["PYPI_JSON"] = str(tmp_path / "garbage.json")
+    r = run("publish-registries.sh", VERSION, cwd=repo, shims=registry_shims, env={"UV_PUBLISH_TOKEN": "t", "NPM_USER": "u", **env})
+    assert r.returncode == 1, r.stdout
+    assert message in r.stderr and "cannot confirm" in r.stderr or "unparseable" in r.stderr, r.stderr
+    assert "uv publish" not in calls(tmp_path) and "npm publish" not in calls(tmp_path)
+    assert "upload" not in r.stdout, r.stdout   # no plan was printed on unconfirmed state
 
 
 def registry_fixture(tmp_path, *, names=NAMES):
@@ -788,10 +829,14 @@ def test_verify_registries_checks_served_bytes_against_the_receipt_then_installs
     assert r.returncode == 0, r.stderr + r.stdout
     log = calls(tmp_path)
     pip = next(l for l in log.splitlines() if l.startswith("uv pip install"))
-    assert "--no-cache" in pip and "--only-binary :all:" in pip and "--index-url https://pypi.org/simple/" in pip and f"radicle-py=={VERSION}" in pip
+    assert "--no-cache" in pip and "--only-binary :all:" in pip and "--index-url https://pypi.org/simple/" in pip
+    assert "--require-hashes" in pip and pip.endswith("-r requirements.txt")
     assert "--find-links" not in pip and "--no-index" not in pip
-    assert f"npm install --ignore-scripts --registry https://registry.npmjs.org radicle-sdk@{VERSION}" in log
-    assert log.index("curl") < log.index("uv pip install") < log.index("npm install")
+    wheel, sdist, tgz = NAMES
+    assert f"requirement radicle-py=={VERSION} --hash=sha256:{m['files'][wheel]['sha256']} --hash=sha256:{m['files'][sdist]['sha256']}\n" in log
+    assert "npm ci --ignore-scripts --registry https://registry.npmjs.org" in log and "npm install" not in log
+    assert f"lock 3 https://registry.npmjs.org/radicle-sdk/-/{tgz} {m['files'][tgz]['integrity']}\n" in log
+    assert log.index("curl") < log.index("uv pip install") < log.index("npm ci")
     assert "verified from PyPI and npm" in r.stdout
 
 
@@ -804,6 +849,9 @@ def test_verify_registries_checks_served_bytes_against_the_receipt_then_installs
     ("npm-reports-other-integrity", "npm reports integrity"),
     ("npm-serves-other-bytes", "npm served sha256"),
     ("wrong-target", "does not cover"),
+    ("pypi-unreachable", "cannot confirm"),
+    ("pypi-503", "PyPI returned HTTP 503"),
+    ("npm-unreachable", "npm lookup for radicle-sdk"),
 ])
 def test_verify_registries_refuses_before_installing(tmp_path, registry_shims, corruption, message):
     source, served, m, env = registry_fixture(tmp_path)
@@ -824,7 +872,159 @@ def test_verify_registries_refuses_before_installing(tmp_path, registry_shims, c
         (served / tgz).write_bytes(b"not the tarball\n")
     elif corruption == "wrong-target":
         mock_manifest(source, targets=("aarch64-apple-darwin",))
+    elif corruption == "pypi-unreachable":
+        env["CURL_EXIT"] = "7"
+    elif corruption == "pypi-503":
+        env["PYPI_STATUS"] = "503"
+    elif corruption == "npm-unreachable":
+        env["NPM_VIEW_ERROR"] = "ECONNREFUSED"
     r = run("verify-registries.sh", VERSION, RID, cwd=tmp_path, shims=registry_shims, env=env)
     assert r.returncode == 1, r.stdout
     assert message in r.stderr, r.stderr
-    assert "pip install" not in calls(tmp_path) and "npm install" not in calls(tmp_path)
+    assert "pip install" not in calls(tmp_path) and "npm ci" not in calls(tmp_path)
+
+
+# ---- real installers: the registries may serve different bytes to the install path
+
+import http.server
+import io
+import tarfile
+import threading
+import zipfile
+
+
+def fake_wheel(path: Path, marker: str):
+    """A valid abi3 manylinux wheel for radicle-py: radiclepy reports the version and a marker."""
+    info = f"radicle_py-{VERSION}.dist-info"
+    files = {"radiclepy/__init__.py": f'__version__ = "{VERSION}"\nMARKER = "{marker}"\n',
+             f"{info}/METADATA": f"Metadata-Version: 2.1\nName: radicle-py\nVersion: {VERSION}\n",
+             f"{info}/WHEEL": "Wheel-Version: 1.0\nGenerator: test\nRoot-Is-Purelib: false\nTag: cp39-abi3-manylinux_2_28_x86_64\n"}
+    with zipfile.ZipFile(path, "w") as z:
+        for name, text in files.items():
+            z.writestr(name, text)
+        z.writestr(f"{info}/RECORD", "".join(f"{n},,\n" for n in files) + f"{info}/RECORD,,\n")
+
+
+def fake_tarball(path: Path, marker: str):
+    """A valid npm tarball for radicle-sdk exporting what verify-registries.sh imports."""
+    files = {"package/package.json": json.dumps({"name": "radicle-sdk", "version": VERSION, "type": "module", "exports": "./index.mjs"}),
+             "package/index.mjs": f'export const parseRepoId = (x) => x;\nexport const Profile = {{ load() {{}} }};\nexport const MARKER = "{marker}";\n'}
+    with tarfile.open(path, "w:gz") as tar:
+        for name, text in files.items():
+            data = text.encode(); ti = tarfile.TarInfo(name); ti.size = len(data); ti.mtime = 0
+            tar.addfile(ti, io.BytesIO(data))
+
+
+class Registry:
+    """A loopback PyPI and npm serving `routes` (path -> bytes); a path in `after_first`
+    serves those bytes from its second request on, so the verification fetch and the
+    install fetch can see different content."""
+    def __init__(self, routes: dict, after_first: dict):
+        hits = {}
+        class Handler(http.server.BaseHTTPRequestHandler):
+            def log_message(self, *a): pass
+            def respond(self, send_body: bool):
+                path = self.path.split("?")[0].rstrip("/") or "/"
+                if path not in routes:
+                    self.send_response(404); self.end_headers(); return
+                if send_body:
+                    hits[path] = hits.get(path, 0) + 1
+                body = after_first[path] if path in after_first and hits.get(path, 0) > 1 else routes[path]
+                self.send_response(200)
+                self.send_header("Content-Type", "application/json" if path.endswith("json") or path == "/radicle-sdk" else
+                                 "text/html" if path.startswith("/simple/") else "application/octet-stream")
+                self.send_header("Content-Length", str(len(body))); self.end_headers()
+                if send_body:
+                    self.wfile.write(body)
+            def do_GET(self): self.respond(True)
+            def do_HEAD(self): self.respond(False)   # uv probes wheels with HEAD before downloading
+        self.server = http.server.ThreadingHTTPServer(("127.0.0.1", 0), Handler)
+        self.url = f"http://127.0.0.1:{self.server.server_address[1]}"
+        threading.Thread(target=self.server.serve_forever, daemon=True).start()
+        self.hits = hits
+
+    def close(self): self.server.shutdown(); self.server.server_close()
+
+
+def loopback_release(tmp_path, *, index_wheel: Path | None = None, second_tarball: Path | None = None):
+    """A receipt (via the rad-artifact shim) for real wheel A and tarball A; the loopback
+    registries attest A on the lookup paths and serve `index_wheel` on the PyPI simple
+    index and `second_tarball` on the second tarball fetch when given."""
+    source, served, m, env = registry_fixture(tmp_path)
+    wheel, sdist, tgz = NAMES
+    fake_wheel(source / wheel, "A"); fake_tarball(source / tgz, "A")
+    mock_manifest(source)
+    m = json.loads((source / "MANIFEST.json").read_text())
+    m["files"][tgz]["integrity"] = registry_cmd("integrity", source / tgz).stdout.strip()
+    (source / "MANIFEST.json").write_text(json.dumps(m))
+    index = index_wheel or source / wheel
+    index_sha = hashlib.sha256(index.read_bytes()).hexdigest()
+    routes = {
+        f"/pypi/radicle-py/{VERSION}/json": json.dumps({"urls": [
+            {"filename": wheel, "url": f"@/files/{wheel}", "digests": {"sha256": m["files"][wheel]["sha256"]}, "yanked": False},
+            {"filename": sdist, "url": f"@/files/{sdist}", "digests": {"sha256": m["files"][sdist]["sha256"]}, "yanked": False}]}).encode(),
+        f"/files/{wheel}": (source / wheel).read_bytes(), f"/files/{sdist}": (source / sdist).read_bytes(),
+        "/simple/radicle-py": f'<a href="/index-files/{wheel}#sha256={index_sha}">{wheel}</a>'.encode(),
+        f"/index-files/{wheel}": index.read_bytes(),
+        "/radicle-sdk": json.dumps({"name": "radicle-sdk", "dist-tags": {"latest": VERSION}, "versions": {VERSION: {
+            "name": "radicle-sdk", "version": VERSION, "dist": {"tarball": f"@/radicle-sdk/-/{tgz}", "integrity": m["files"][tgz]["integrity"]}}}}).encode(),
+        f"/radicle-sdk/-/{tgz}": (source / tgz).read_bytes(),
+    }
+    after = {f"/radicle-sdk/-/{tgz}": second_tarball.read_bytes()} if second_tarball else {}
+    reg = Registry(routes, after)
+    for path in list(routes):   # absolute URLs now that the port is known
+        routes[path] = routes[path].replace(b"@/", reg.url.encode() + b"/")
+    env = {k: v for k, v in env.items() if k.startswith("ARTIFACT_")}
+    env.update(PYPI_URL=reg.url, NPM_REGISTRY=reg.url, HOME=str(tmp_path / "home"), npm_config_fetch_retries="0")
+    (tmp_path / "home").mkdir()
+    return reg, m, env
+
+
+real_installers = pytest.mark.skipif(
+    os.uname().sysname != "Linux" or os.uname().machine != "x86_64" or not all(shutil.which(t) for t in ("uv", "npm", "node", "curl")),
+    reason="needs Linux x86_64 with uv, npm, node and curl")
+
+
+@real_installers
+def test_verify_registries_installs_the_attested_bytes_with_real_installers(tmp_path, shims):
+    reg, m, env = loopback_release(tmp_path)
+    try:
+        r = run("verify-registries.sh", VERSION, RID, cwd=tmp_path, shims=shims, env=env)
+    finally:
+        reg.close()
+    assert r.returncode == 0, r.stderr + r.stdout
+    assert "verified from PyPI and npm" in r.stdout and "radiclepy 0.1.0 imports" in r.stdout and "radicle-sdk 0.1.0 imports" in r.stdout
+
+
+@real_installers
+def test_verify_registries_refuses_other_bytes_at_install_time_even_at_the_same_version(tmp_path, shims):
+    """The simple index serves a different valid wheel B (own correct hash, same
+    filename and version) while the JSON API and its download serve attested A: the
+    hash-pinned install must fail rather than import B."""
+    wheel_b = tmp_path / "B.whl"; fake_wheel(wheel_b, "UNATTESTED_B")
+    reg, m, env = loopback_release(tmp_path, index_wheel=wheel_b)
+    try:
+        r = run("verify-registries.sh", VERSION, RID, cwd=tmp_path, shims=shims, env=env)
+    finally:
+        reg.close()
+    assert r.returncode != 0, r.stdout
+    assert "matches the receipt" in r.stdout     # the lookup path saw A ...
+    assert "hash" in r.stderr.lower(), r.stderr    # ... and the installer refused B
+    assert "imports" not in r.stdout and "verified" not in r.stdout
+
+
+@real_installers
+def test_verify_registries_refuses_a_tarball_that_changes_between_fetch_and_install(tmp_path, shims):
+    """npm serves attested tarball A to `npm pack` and a different valid tarball B to the
+    install: `npm ci` against the receipt-pinned lockfile must fail (EINTEGRITY)."""
+    tgz_b = tmp_path / "B.tgz"; fake_tarball(tgz_b, "UNATTESTED_B")
+    reg, m, env = loopback_release(tmp_path, second_tarball=tgz_b)
+    try:
+        r = run("verify-registries.sh", VERSION, RID, cwd=tmp_path, shims=shims, env=env)
+    finally:
+        reg.close()
+    assert r.returncode != 0, r.stdout
+    assert "radiclepy 0.1.0 imports" in r.stdout   # Python side was fine
+    assert "EINTEGRITY" in r.stderr, r.stderr
+    assert "radicle-sdk 0.1.0 imports" not in r.stdout and "verified" not in r.stdout
+    assert reg.hits[f"/radicle-sdk/-/radicle-sdk-{VERSION}.tgz"] >= 2   # pack, then the install fetch (npm may retry)
