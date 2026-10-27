@@ -241,7 +241,7 @@ def mac_receipt(directory: Path, wheel: str, addon: str, *, source, version=VERS
             "floors": {"macos_wheel": "11.0", "macos_addon": "13.5", "python": "3.9 (abi3)", "node": "26.5.0"},
             "toolchain": {"rustc": "rustc 1.91.0", "maturin": "maturin 1.9.4", "node_loader": "26.5.0", "xcode": "Xcode 26.1"},
             "files": files,
-            "audit": {wheel: f"{wheel}: arm64 Mach-O, macOS minimum 11.0, system libraries only, signature verifies",
+            "audit": {wheel: "radiclepy.abi3.so: arm64 Mach-O, macOS minimum 11.0, system libraries only, signature verifies",
                       addon: f"{addon}: arm64 Mach-O, macOS minimum 13.5, system libraries only, signature verifies"}}
 
 
@@ -262,7 +262,7 @@ def test_platform_receipt_check_accepts_a_complete_receipt_and_verifies_packaged
     d, wheel, addon, _ = staged_mac(tmp_path)
     r = receipt_cmd("check", d, VERSION, "c" * 40)
     assert r.returncode == 0, r.stderr
-    assert r.stdout.splitlines() == [f"  {wheel}: arm64 Mach-O, macOS minimum 11.0, system libraries only, signature verifies",
+    assert r.stdout.splitlines() == ["  radiclepy.abi3.so: arm64 Mach-O, macOS minimum 11.0, system libraries only, signature verifies",
                                      f"  {addon}: arm64 Mach-O, macOS minimum 13.5, system libraries only, signature verifies"]
     packaged = tmp_path / "packaged.node"; packaged.write_bytes(b"mac addon\n")
     assert receipt_cmd("verify", d / "AUDIT.json", addon, packaged).returncode == 0
@@ -284,6 +284,8 @@ def test_platform_receipt_check_accepts_a_complete_receipt_and_verifies_packaged
     ("no-digest", "no valid sha256"),
     ("no-audit-line", "audit lines cover"),
     ("failed-audit-line", "not a passing audit"),
+    ("audit-of-the-wheel-itself", "not a passing audit of radiclepy.abi3.so"),
+    ("audit-of-another-object", "not a passing audit of radiclepy.abi3.so"),
     ("wrong-version", "receipt version is"),
     ("wrong-source", "receipt source is"),
     ("wrong-target", "not one the release assembles"),
@@ -314,6 +316,10 @@ def test_platform_receipt_check_refuses_incomplete_or_mismatched_receipts(tmp_pa
         receipt["audit"].pop(addon)
     elif corruption == "failed-audit-line":
         receipt["audit"][addon] = f"{addon}: macOS minimum 14.0 exceeds 13.5"
+    elif corruption == "audit-of-the-wheel-itself":   # a wheel is a zip; only the Mach-O inside it is audited
+        receipt["audit"][wheel] = f"{wheel}: arm64 Mach-O, macOS minimum 11.0, system libraries only, signature verifies"
+    elif corruption == "audit-of-another-object":
+        receipt["audit"][wheel] = "other.so: arm64 Mach-O, macOS minimum 11.0, system libraries only, signature verifies"
     elif corruption == "wrong-version":
         receipt["version"] = "9.9.9"
     elif corruption == "wrong-source":

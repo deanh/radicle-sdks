@@ -7,7 +7,8 @@
 # Output under release/incoming/darwin-arm64/: the abi3 wheel
 # (macosx_11_0_arm64), the addon radicle-sdk.darwin-arm64.node, and
 # AUDIT.json (source commit, version, floors, toolchain identity, SHA-256 of
-# both files, audit lines). Copy that directory to the Linux host's
+# both files, audit lines), checked with platform_receipt.py exactly as the
+# Linux assembly will check it. Copy that directory to the Linux host's
 # release/incoming/ before running build-linux-x86_64.sh there; it folds the
 # wheel into the release and the addon into the npm tarball, and the manifest
 # then covers both targets.
@@ -96,4 +97,6 @@ audit = {"schema": "radicle-sdks-platform-audit/1", "version": version, "source"
 (d / "AUDIT.json").write_text(json.dumps(audit, indent=2, sort_keys=True) + "\n")
 print(json.dumps(audit, indent=2, sort_keys=True))
 PY
+echo "== receipt check (as the Linux assembly runs it)"
+python3 scripts/release/platform_receipt.py check "$out" "$version" "$source" >/dev/null
 echo "staged $out from $source: copy this directory to the Linux host's release/incoming/ and run build-linux-x86_64.sh there"

@@ -29,6 +29,7 @@ TARGETS = {
         "floors": {"macos_wheel": "11.0", "macos_addon": "13.5"},
         "audit_prefix": "arm64 Mach-O, macOS minimum ",
         "audit_suffix": ", system libraries only, signature verifies",
+        "wheel_member": "radiclepy.abi3.so",   # the Mach-O audited inside the wheel; the addon is audited as itself
     },
 }
 
@@ -100,8 +101,9 @@ def check(directory: Path, version: str, source: str) -> list[str]:
     for name in expected:
         check_file(receipt, name, directory / name)
         line = audits[name]
-        if not (isinstance(line, str) and line.startswith(f"{name}: {spec['audit_prefix']}") and line.endswith(spec["audit_suffix"])):
-            raise ReceiptError(f"{name}: audit line is not a passing audit of this file: {line!r}")
+        audited = spec["wheel_member"] if name.endswith(".whl") else name
+        if not (isinstance(line, str) and line.startswith(f"{audited}: {spec['audit_prefix']}") and line.endswith(spec["audit_suffix"])):
+            raise ReceiptError(f"{name}: audit line is not a passing audit of {audited}: {line!r}")
         lines.append(line)
     stray = sorted(p.name for p in directory.iterdir() if not p.name.startswith(".") and p.name not in expected and p.name != "AUDIT.json")
     if stray:
