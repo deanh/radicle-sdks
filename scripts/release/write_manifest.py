@@ -21,6 +21,7 @@ the files in the release directory.
 """
 from __future__ import annotations
 
+import base64
 import hashlib
 import json
 import sys
@@ -83,6 +84,8 @@ def build(release_dir: Path, version: str, source: str, source_date: str, target
             continue
         data = p.read_bytes()
         files[p.name] = {"sha256": hashlib.sha256(data).hexdigest(), "bytes": len(data), "targets": file_target(p.name, targets)}
+        if p.name.endswith(".tgz"):  # what npm reports as dist.integrity
+            files[p.name]["integrity"] = "sha512-" + base64.b64encode(hashlib.sha512(data).digest()).decode()
     if not files:
         raise SystemExit(f"no artifacts in {release_dir}")
     for target in targets:

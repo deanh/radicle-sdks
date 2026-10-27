@@ -26,10 +26,19 @@ best effort, as described below.
 
 ## Installing a release
 
-Release 0.1.0 is an npm tarball with the Linux x86_64 addon (glibc 2.28 or
-newer) built in; installing it needs no Rust, C compiler or Git. Download and
-verify it through rad-artifact, then install from the file; see
-[Releasing](../docs/release.md) for the commands and the repository ID:
+From 0.1.1, releases are published to npm as `radicle-sdk`: one package with
+the Linux x86_64 (glibc 2.28+) and macOS arm64 (13.5+) addons built in,
+selected at import time; installing it needs no Rust, C compiler or Git. Each
+release is also recorded as a signed rad-artifact release object on the
+Radicle repository, whose manifest lists the digest and npm integrity of the
+published tarball; see [Releasing](../docs/release.md).
+
+```sh
+npm install radicle-sdk@<version>
+```
+
+Release 0.1.0 (Linux x86_64 only) predates the registry step and is available
+only through rad-artifact:
 
 ```sh
 rad-artifact download <tag-object-id> --cid <cid> --repo rad:z27dDy6sppkZDG8qYcySVX9Qn5jNg

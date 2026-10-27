@@ -524,3 +524,273 @@ def test_build_scripts_gate_on_the_node_floor_before_building(tmp_path):
         gate = next(i for i, l in enumerate(lines) if "check-node-floor.sh" in l)
         assert lines[gate].strip() == 'bash "$here/check-node-floor.sh"'
         assert "git status --porcelain" in lines[gate - 1], script
+
+
+# ---- registries: the receipt is the record, PyPI and npm are the channel ----
+
+def registry_cmd(*args):
+    return subprocess.run(["python3", "-I", str(SCRIPTS / "registry_state.py"), *map(str, args)], capture_output=True, text=True)
+
+
+def pypi_json(path: Path, files: dict, digests: dict | None = None):
+    """A PyPI release JSON (/pypi/<project>/<version>/json) listing those files."""
+    digests = digests or {}
+    path.write_text(json.dumps({"urls": [{"filename": n, "url": f"https://files.example/{n}",
+                                            "digests": {"sha256": digests.get(n, e["sha256"])}, "yanked": False}
+                                           for n, e in files.items()]}))
+
+
+def test_registry_state_plans_uploads_skips_and_conflicts(tmp_path):
+    out = tmp_path / "rel"; out.mkdir()
+    for n in NAMES:
+        (out / n).write_bytes(f"bytes of {n}\n".encode())
+    files = {n: {"sha256": hashlib.sha256((out / n).read_bytes()).hexdigest(), "bytes": 1} for n in NAMES}
+    manifest = out / "MANIFEST.json"
+    manifest.write_text(json.dumps({"version": VERSION, "files": files}))
+    wheel, sdist, tgz = NAMES
+    # PyPI: absent -> upload everything; same digests -> skip; one missing -> upload that one.
+    r = registry_cmd("pypi-plan", manifest, "-"); assert r.returncode == 0 and r.stdout.split("\n")[:2] == [f"upload {wheel}", f"upload {sdist}"]
+    pypi = tmp_path / "pypi.json"
+    pypi_json(pypi, {wheel: files[wheel], sdist: files[sdist]})
+    r = registry_cmd("pypi-plan", manifest, pypi); assert r.returncode == 0 and r.stdout == f"skip {wheel}\nskip {sdist}\n"
+    pypi_json(pypi, {wheel: files[wheel]})
+    r = registry_cmd("pypi-plan", manifest, pypi); assert r.returncode == 0 and r.stdout == f"skip {wheel}\nupload {sdist}\n"
+    # Different bytes under the same name, or a file this release never built: conflict.
+    pypi_json(pypi, {wheel: files[wheel]}, digests={wheel: "0" * 64})
+    r = registry_cmd("pypi-plan", manifest, pypi); assert r.returncode == 1 and "immutable" in r.stderr
+    pypi_json(pypi, {wheel: files[wheel], "radicle_py-0.1.0-py3-none-any.whl": files[wheel]})
+    r = registry_cmd("pypi-plan", manifest, pypi); assert r.returncode == 1 and "did not build" in r.stderr
+    # pypi-files needs full coverage and yields download lines.
+    pypi_json(pypi, {wheel: files[wheel]})
+    r = registry_cmd("pypi-files", manifest, pypi); assert r.returncode == 1 and "lacks" in r.stderr
+    pypi_json(pypi, {wheel: files[wheel], sdist: files[sdist]})
+    r = registry_cmd("pypi-files", manifest, pypi)
+    assert r.returncode == 0 and r.stdout.splitlines() == [f"https://files.example/{wheel} {wheel} {files[wheel]['sha256']}",
+                                                          f"https://files.example/{sdist} {sdist} {files[sdist]['sha256']}"]
+    r = registry_cmd("pypi-files", manifest, "-"); assert r.returncode == 1 and "no release" in r.stderr
+    # npm: absent -> upload; same integrity -> skip; different -> conflict.
+    local = registry_cmd("integrity", out / tgz).stdout.strip()
+    assert local.startswith("sha512-")
+    r = registry_cmd("npm-plan", manifest, out / tgz, "-"); assert r.returncode == 0 and r.stdout == f"upload {tgz}\n"
+    r = registry_cmd("npm-plan", manifest, out / tgz, local); assert r.returncode == 0 and r.stdout == f"skip {tgz}\n"
+    r = registry_cmd("npm-plan", manifest, out / tgz, "sha512-AAAA"); assert r.returncode == 1 and "immutable" in r.stderr
+    # npm-check uses the manifest's recorded integrity when present, the tarball otherwise.
+    r = registry_cmd("npm-check", manifest, local, out / tgz); assert r.returncode == 0
+    r = registry_cmd("npm-check", manifest, "-", out / tgz); assert r.returncode == 1 and "npm has no" in r.stderr
+    files[tgz]["integrity"] = "sha512-recorded"
+    manifest.write_text(json.dumps({"version": VERSION, "files": files}))
+    r = registry_cmd("npm-check", manifest, "sha512-recorded"); assert r.returncode == 0
+    r = registry_cmd("npm-check", manifest, local); assert r.returncode == 1 and "manifest says sha512-recorded" in r.stderr
+
+
+def test_release_files_check_derives_the_expected_set_from_targets(tmp_path):
+    repo, out, commit = release_fixture(tmp_path)
+    r = subprocess.run(["python3", "-I", str(SCRIPTS / "release_files.py"), "check", str(out), VERSION], capture_output=True, text=True)
+    assert r.returncode == 0 and r.stdout.splitlines() == NAMES
+    r = subprocess.run(["python3", "-I", str(SCRIPTS / "release_files.py"), "check", str(out), "0.2.0"], capture_output=True, text=True)
+    assert r.returncode == 1 and "not 0.2.0" in r.stderr
+    rewrite_manifest(out, lambda m: m.update(targets=["x86_64-unknown-linux-gnu", "aarch64-apple-darwin"]))
+    r = subprocess.run(["python3", "-I", str(SCRIPTS / "release_files.py"), "check", str(out), VERSION], capture_output=True, text=True)
+    assert r.returncode == 1 and "macosx_11_0_arm64" in r.stderr
+    rewrite_manifest(out, lambda m: m.update(targets=["x86_64-unknown-linux-gnu"]))
+    (out / NAMES[1]).write_bytes(b"changed\n")
+    r = subprocess.run(["python3", "-I", str(SCRIPTS / "release_files.py"), "check", str(out), VERSION], capture_output=True, text=True)
+    assert r.returncode == 1 and "differs from manifest" in r.stderr
+
+
+@pytest.fixture
+def registry_shims(tmp_path, shims):
+    """curl, npm, uv and node stand-ins driven by environment variables:
+    PYPI_JSON (release JSON served for .../json, else 404), CURL_FILES_DIR
+    (files served by URL basename), NPM_INTEGRITY (what `npm view` reports),
+    NPM_USER (logged in when set), NPM_TARBALL (what `npm pack` fetches)."""
+    log = tmp_path / "calls.log"
+    shim(shims, "curl", f"""
+printf 'curl %s\\n' "$*" >> {log}
+out=""; url=""
+while [ $# -gt 0 ]; do case "$1" in -o) out=$2; shift ;; -*) ;; *) url=$1 ;; esac; shift; done
+case "$url" in
+  */json) [ -n "${{PYPI_JSON:-}}" ] && [ -f "$PYPI_JSON" ] || exit 22; cp "$PYPI_JSON" "$out" ;;
+  *) [ -f "${{CURL_FILES_DIR:-/nonexistent}}/$(basename "$url")" ] || exit 22; cp "$CURL_FILES_DIR/$(basename "$url")" "$out" ;;
+esac
+""")
+    shim(shims, "npm", f"""
+printf 'npm %s\\n' "$*" >> {log}
+case "$1" in
+  view) printf '%s\\n' "${{NPM_INTEGRITY:-}}" ;;
+  whoami) [ -n "${{NPM_USER:-}}" ] || exit 1; printf '%s\\n' "$NPM_USER" ;;
+  pack) dest=.; while [ $# -gt 0 ]; do [ "$1" = --pack-destination ] && dest=$2; shift; done
+        [ -n "${{NPM_TARBALL:-}}" ] && [ -f "$NPM_TARBALL" ] || exit 1; cp "$NPM_TARBALL" "$dest/" ;;
+  publish|install) exit 0 ;;
+  *) echo "unexpected npm $*" >&2; exit 9 ;;
+esac
+""")
+    shim(shims, "uv", f"""
+printf 'uv %s\\n' "$*" >> {log}
+case "$1" in
+  venv) for d in "$@"; do :; done; mkdir -p "$d/bin"; printf '#!/usr/bin/env bash\\nprintf "python %%s\\\\n" "$*" >> {log}\\n' > "$d/bin/python"; chmod +x "$d/bin/python" ;;
+  publish|pip) exit 0 ;;
+  *) echo "unexpected uv $*" >&2; exit 9 ;;
+esac
+""")
+    shim(shims, "node", f"printf 'node %s\\n' \"$*\" >> {log}\n")
+    return shims
+
+
+def calls(tmp_path):
+    return (tmp_path / "calls.log").read_text() if (tmp_path / "calls.log").exists() else ""
+
+
+def test_publish_registries_refuses_until_the_receipt_is_registered(tmp_path, registry_shims):
+    repo, out, commit = release_fixture(tmp_path)
+    r = run("publish-registries.sh", VERSION, cwd=repo, shims=registry_shims, env={"UV_PUBLISH_TOKEN": "t", "NPM_USER": "u"})
+    assert r.returncode == 1 and "expected exactly one (register.sh first)" in r.stderr
+    assert "uv publish" not in calls(tmp_path) and "npm publish" not in calls(tmp_path)
+    # Partially registered (interrupted register.sh): still refused.
+    assert run("register.sh", VERSION, cwd=repo, shims=registry_shims).returncode == 0
+    state = tmp_path / "artifact-state.json"
+    lines = state.read_text().splitlines(); state.write_text("\n".join(lines[:-1]) + "\n")
+    r = run("publish-registries.sh", VERSION, cwd=repo, shims=registry_shims, env={"UV_PUBLISH_TOKEN": "t", "NPM_USER": "u"})
+    assert r.returncode == 1 and "MANIFEST.json: not registered" in r.stderr
+    assert "uv publish" not in calls(tmp_path)
+
+
+def test_publish_registries_uploads_exactly_the_receipt_and_resumes(tmp_path, registry_shims):
+    repo, out, commit = release_fixture(tmp_path)
+    assert run("register.sh", VERSION, cwd=repo, shims=registry_shims).returncode == 0
+    wheel, sdist, tgz = NAMES
+    # Missing credentials stop the run before anything is uploaded.
+    r = run("publish-registries.sh", VERSION, cwd=repo, shims=registry_shims)
+    assert r.returncode == 1 and "UV_PUBLISH_TOKEN" in r.stderr and "uv publish" not in calls(tmp_path)
+    r = run("publish-registries.sh", VERSION, cwd=repo, shims=registry_shims, env={"UV_PUBLISH_TOKEN": "t"})
+    assert r.returncode == 1 and "npm login" in r.stderr and "uv publish" not in calls(tmp_path)
+    # Dry run: full plan, no upload.
+    r = run("publish-registries.sh", VERSION, "--dry-run", cwd=repo, shims=registry_shims, env={"UV_PUBLISH_TOKEN": "t", "NPM_USER": "u"})
+    assert r.returncode == 0, r.stderr
+    assert f"upload {wheel}\nupload {sdist}\nupload {tgz}\n" in r.stdout and "nothing uploaded" in r.stdout
+    assert "uv publish" not in calls(tmp_path) and "npm publish" not in calls(tmp_path)
+    # Real run: both registries, PyPI first, exactly the release files.
+    r = run("publish-registries.sh", VERSION, cwd=repo, shims=registry_shims, env={"UV_PUBLISH_TOKEN": "t", "NPM_USER": "u"})
+    assert r.returncode == 0, r.stderr
+    log = calls(tmp_path)
+    uv_line = next(l for l in log.splitlines() if l.startswith("uv publish"))
+    npm_line = next(l for l in log.splitlines() if l.startswith("npm publish"))
+    assert uv_line == f"uv publish --publish-url https://upload.pypi.org/legacy/ --check-url https://pypi.org/simple/ release/{VERSION}/{wheel} release/{VERSION}/{sdist}"
+    assert npm_line == f"npm publish release/{VERSION}/{tgz} --registry https://registry.npmjs.org --access public"
+    assert log.index(uv_line) < log.index(npm_line)
+    # Resume after a partial upload: the wheel and the tarball are already there with the same bytes.
+    (tmp_path / "calls.log").unlink()
+    m = json.loads((out / "MANIFEST.json").read_text())
+    pypi_json(tmp_path / "pypi.json", {wheel: m["files"][wheel]})
+    integrity = registry_cmd("integrity", out / tgz).stdout.strip()
+    env = {"UV_PUBLISH_TOKEN": "t", "NPM_USER": "u", "PYPI_JSON": str(tmp_path / "pypi.json"), "NPM_INTEGRITY": integrity}
+    r = run("publish-registries.sh", VERSION, cwd=repo, shims=registry_shims, env=env)
+    assert r.returncode == 0, r.stderr
+    assert f"skip {wheel}\nupload {sdist}\nskip {tgz}\n" in r.stdout
+    log = calls(tmp_path)
+    assert f"uv publish --publish-url https://upload.pypi.org/legacy/ --check-url https://pypi.org/simple/ release/{VERSION}/{sdist}\n" in log
+    assert "npm publish" not in log
+    # Fully published: nothing to do, still exits 0.
+    pypi_json(tmp_path / "pypi.json", {wheel: m["files"][wheel], sdist: m["files"][sdist]})
+    (tmp_path / "calls.log").unlink()
+    r = run("publish-registries.sh", VERSION, cwd=repo, shims=registry_shims, env=env)
+    assert r.returncode == 0 and "uv publish" not in calls(tmp_path) and "npm publish" not in calls(tmp_path)
+
+
+@pytest.mark.parametrize("conflict", ["pypi-digest", "pypi-foreign", "npm-integrity", "tag-moved", "hash"])
+def test_publish_registries_refuses_conflicts_before_any_upload(tmp_path, registry_shims, conflict):
+    repo, out, commit = release_fixture(tmp_path)
+    assert run("register.sh", VERSION, cwd=repo, shims=registry_shims).returncode == 0
+    wheel, sdist, tgz = NAMES
+    m = json.loads((out / "MANIFEST.json").read_text())
+    env = {"UV_PUBLISH_TOKEN": "t", "NPM_USER": "u"}
+    if conflict == "pypi-digest":
+        pypi_json(tmp_path / "pypi.json", {wheel: m["files"][wheel]}, digests={wheel: "0" * 64}); env["PYPI_JSON"] = str(tmp_path / "pypi.json")
+        message = "published files are immutable"
+    elif conflict == "pypi-foreign":
+        pypi_json(tmp_path / "pypi.json", {"radicle_py-0.1.0-py3-none-any.whl": m["files"][wheel]}); env["PYPI_JSON"] = str(tmp_path / "pypi.json")
+        message = "did not build"
+    elif conflict == "npm-integrity":
+        env["NPM_INTEGRITY"] = "sha512-somebodyelse"
+        message = "published versions are immutable"
+    elif conflict == "tag-moved":
+        git(repo, "commit", "--allow-empty", "-m", "later"); git(repo, "tag", "-d", f"v{VERSION}")
+        git(repo, "tag", "-a", f"v{VERSION}", "-m", "moved"); git(repo, "push", "-q", "-f", "rad", f"v{VERSION}")
+        message = "built from"
+    else:
+        (out / sdist).write_bytes(b"tampered\n")
+        message = "differs from manifest"
+    (tmp_path / "calls.log").unlink(missing_ok=True)
+    r = run("publish-registries.sh", VERSION, cwd=repo, shims=registry_shims, env=env)
+    assert r.returncode == 1, r.stdout
+    assert message in r.stderr, r.stderr
+    assert "uv publish" not in calls(tmp_path) and "npm publish" not in calls(tmp_path)
+
+
+def registry_fixture(tmp_path, *, names=NAMES):
+    """A served release: manifest via rad-artifact (ARTIFACT_*), files via PyPI and npm."""
+    source = tmp_path / "source"; source.mkdir()
+    for name in names:
+        (source / name).write_bytes(f"bytes of {name}\n".encode())
+    mock_manifest(source, names=names)
+    m = json.loads((source / "MANIFEST.json").read_text())
+    wheel, sdist, tgz = names
+    m["files"][tgz]["integrity"] = registry_cmd("integrity", source / tgz).stdout.strip()  # as write_manifest records it
+    (source / "MANIFEST.json").write_text(json.dumps(m))
+    (tmp_path / "listing.json").write_text(listing(f"v{VERSION}", list(names) + ["MANIFEST.json"]))
+    served = tmp_path / "served"; served.mkdir()
+    for name in names:
+        shutil.copy(source / name, served / name)
+    pypi_json(tmp_path / "pypi.json", {wheel: m["files"][wheel], sdist: m["files"][sdist]})
+    env = {"ARTIFACT_SOURCE": str(source), "ARTIFACT_LISTING": str(tmp_path / "listing.json"),
+           "PYPI_JSON": str(tmp_path / "pypi.json"), "CURL_FILES_DIR": str(served),
+           "NPM_INTEGRITY": registry_cmd("integrity", source / tgz).stdout.strip(), "NPM_TARBALL": str(served / tgz)}
+    return source, served, m, env
+
+
+def test_verify_registries_checks_served_bytes_against_the_receipt_then_installs(tmp_path, registry_shims):
+    source, served, m, env = registry_fixture(tmp_path)
+    r = run("verify-registries.sh", VERSION, RID, cwd=tmp_path, shims=registry_shims, env=env)
+    assert r.returncode == 0, r.stderr + r.stdout
+    log = calls(tmp_path)
+    pip = next(l for l in log.splitlines() if l.startswith("uv pip install"))
+    assert "--no-cache" in pip and "--only-binary :all:" in pip and "--index-url https://pypi.org/simple/" in pip and f"radicle-py=={VERSION}" in pip
+    assert "--find-links" not in pip and "--no-index" not in pip
+    assert f"npm install --ignore-scripts --registry https://registry.npmjs.org radicle-sdk@{VERSION}" in log
+    assert log.index("curl") < log.index("uv pip install") < log.index("npm install")
+    assert "verified from PyPI and npm" in r.stdout
+
+
+@pytest.mark.parametrize("corruption, message", [
+    ("pypi-missing", "PyPI has no"),
+    ("pypi-declares-other-digest", "immutable"),
+    ("pypi-serves-other-bytes", "PyPI served sha256"),
+    ("pypi-lacks-sdist", "lacks"),
+    ("npm-missing", "npm has no"),
+    ("npm-reports-other-integrity", "npm reports integrity"),
+    ("npm-serves-other-bytes", "npm served sha256"),
+    ("wrong-target", "does not cover"),
+])
+def test_verify_registries_refuses_before_installing(tmp_path, registry_shims, corruption, message):
+    source, served, m, env = registry_fixture(tmp_path)
+    wheel, sdist, tgz = NAMES
+    if corruption == "pypi-missing":
+        env.pop("PYPI_JSON")
+    elif corruption == "pypi-declares-other-digest":
+        pypi_json(tmp_path / "pypi.json", {wheel: m["files"][wheel], sdist: m["files"][sdist]}, digests={sdist: "1" * 64})
+    elif corruption == "pypi-serves-other-bytes":
+        (served / wheel).write_bytes(b"not the wheel\n")
+    elif corruption == "pypi-lacks-sdist":
+        pypi_json(tmp_path / "pypi.json", {wheel: m["files"][wheel]})
+    elif corruption == "npm-missing":
+        env["NPM_INTEGRITY"] = ""; env["NPM_TARBALL"] = "/nonexistent"
+    elif corruption == "npm-reports-other-integrity":
+        env["NPM_INTEGRITY"] = "sha512-other"
+    elif corruption == "npm-serves-other-bytes":
+        (served / tgz).write_bytes(b"not the tarball\n")
+    elif corruption == "wrong-target":
+        mock_manifest(source, targets=("aarch64-apple-darwin",))
+    r = run("verify-registries.sh", VERSION, RID, cwd=tmp_path, shims=registry_shims, env=env)
+    assert r.returncode == 1, r.stdout
+    assert message in r.stderr, r.stderr
+    assert "pip install" not in calls(tmp_path) and "npm install" not in calls(tmp_path)

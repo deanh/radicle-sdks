@@ -1,15 +1,19 @@
 # Releasing the SDKs
 
-Releases are built on the maintainer's own machines and distributed as release
-artifacts on this Radicle repository through
+Releases are built on the maintainer's own machines, recorded on this Radicle
+repository as a signed release object through
 [rad-artifact](https://radicle.network/nodes/hdh.radicle.garden/rad%3Az4VYyJ9KuwMNkXGQnmKuGPGKw3inv),
-not through PyPI or npm. A release is a signed object bound to an annotated
-tag; each artifact is recorded by content hash and seeded from the
-maintainer's artifact node. Consumers download, verify and install from files.
+and published to PyPI (`radicle-py`) and npm (`radicle-sdk`). The release
+object is the receipt: bound to the annotated tag, it records every artifact
+by content hash together with `MANIFEST.json` (source commit, targets,
+floors, toolchain, per-file digests), and the bytes are seeded from the
+maintainer's artifact node. The registries are the channel: `pip install
+radicle-py` and `npm install radicle-sdk`. Publishing uploads exactly the
+bytes the receipt records, and verification checks that the registries serve
+those bytes before installing from them.
 
-Tracking: issue `a17f70b` (plan), `fdcfc02` (alpha release). The registry and
-hosted-CI path sketched in `distribution-plan.md`, if present, is a later
-option; this page is the process in use.
+Tracking: issue `a17f70b` (plan), `fdcfc02` (alpha release). Release 0.1.0
+predates the registry step and is available only through rad-artifact.
 
 ## Targets
 
@@ -55,8 +59,13 @@ committed file against `Cargo.lock`.
 ## Process
 
 Prerequisites on the Linux build host: Docker, Node 26.5+, uv, `objdump`,
-`unzip`, the `rad` CLI with this profile as a delegate, `rad-artifact` and
-`rad-artifact-node` (`cargo install radicle-artifact radicle-artifact-node`).
+`unzip`, `curl`, the `rad` CLI with this profile as a delegate, `rad-artifact`
+and `rad-artifact-node` (`cargo install radicle-artifact radicle-artifact-node`),
+a PyPI token scoped to the `radicle-py` project in `UV_PUBLISH_TOKEN`, and an
+npm login with publish rights on `radicle-sdk` (`npm login`; 2FA may prompt
+at publish time). Local builds cannot use PyPI trusted publishing or npm
+provenance, which need a hosted CI identity; the rad-artifact receipt is the
+provenance record instead.
 
 1. **Prepare.** On a branch: set the version in `pyproject.toml`, the two
    native `Cargo.toml` files and `package.json` (all four must agree), fold the
@@ -91,7 +100,7 @@ Prerequisites on the Linux build host: Docker, Node 26.5+, uv, `objdump`,
    smoke with no compiler; the wheel installs wheel-only into a clean
    environment at the expected version and passes the wheel smoke. Only then
    is `MANIFEST.json` written.
-4. **Register and seed.**
+4. **Register and seed the receipt.**
 
    ```sh
    rad-artifact node start
@@ -128,9 +137,41 @@ Prerequisites on the Linux build host: Docker, Node 26.5+, uv, `objdump`,
    and no compiler, and checks that both installed packages report the
    requested version. A listing for another version, an extra artifact, or an
    sdist fallback cannot pass.
-6. **Record.** Comment on the release issue with `SHA256SUMS`, the release
-   object ID and the verification results per machine. Consumers such as
-   rad-pi then pin the downloaded files instead of a Git URL.
+6. **Publish to the registries.**
+
+   ```sh
+   scripts/release/publish-registries.sh <version> --dry-run
+   scripts/release/publish-registries.sh <version>
+   ```
+
+   Preflight, all before any upload: the release directory matches its
+   manifest; the tag is the one on the rad remote and points at the
+   manifest's source commit; the receipt is registered, meaning exactly one
+   release object on the tag whose live artifacts are exactly the manifest's
+   files plus `MANIFEST.json` with the content hashes of the local files; and
+   the registries hold nothing conflicting. A file already on PyPI or npm
+   under this version with the same digest is skipped, so an interrupted run
+   is resumed by rerunning; one with a different digest, or a PyPI file this
+   release did not build, stops the script, because published files are
+   immutable and the fix is a new version. Credentials are checked only for
+   what is still to upload. Then `uv publish` uploads the pending wheels and
+   sdist (with `--check-url` as a second guard against duplicates) and
+   `npm publish` uploads the exact tarball.
+7. **Verify from the registries**, on each released platform:
+
+   ```sh
+   scripts/release/verify-registries.sh <version>
+   ```
+
+   Fetches and verifies the receipt's manifest through `rad-artifact`, then
+   requires PyPI to hold exactly the manifest's Python files with the
+   manifest's digests and downloads each to check the served bytes, requires
+   npm to report the manifest's tarball integrity and fetches the tarball to
+   check its digest, and only then installs this platform's wheel from PyPI
+   (wheel-only, no cache, no local files) and the package from npm (scripts
+   disabled) into clean environments, checking the installed versions.
+8. **Record.** Comment on the release issue with `SHA256SUMS`, the release
+   object ID and the verification results per machine and per channel.
 
 ## Adding macOS arm64
 
@@ -183,11 +224,20 @@ platform-specific bug before users do.
 ## Installing a release (consumer view)
 
 ```sh
+pip install radicle-py==<version>
+npm install radicle-sdk@<version>
+```
+
+To check a registry download against the receipt, compare its SHA-256 with
+the `MANIFEST.json` registered on the release object (`pip download` and
+`npm pack` fetch the files without installing), or run
+`scripts/release/verify-registries.sh <version>` on a machine that seeds the
+repository. The files themselves can also be fetched from the receipt:
+
+```sh
 rad-artifact list --repo rad:z27dDy6sppkZDG8qYcySVX9Qn5jNg
 rad-artifact download <tag-object-id> --cid <cid> --repo rad:z27dDy6sppkZDG8qYcySVX9Qn5jNg
 rad-artifact verify <file> --repo rad:z27dDy6sppkZDG8qYcySVX9Qn5jNg
-pip install ./radicle_py-<version>-*.whl
-npm install ./radicle-sdk-<version>.tgz
 ```
 
 `download` needs a running `rad-artifact node`; `verify` reads local storage
@@ -209,7 +259,9 @@ when a second platform is added, starting with macOS arm64.
   Set the deployment target explicitly and state it as the floor; a successful
   compile on a newer OS proves nothing about older ones.
 - **Same bytes everywhere.** Every verification installs the registered file,
-  downloaded through `rad-artifact`, never a staging copy from the build tree.
+  downloaded through `rad-artifact` or from the registry, never a staging copy
+  from the build tree; what the registries serve is compared with the receipt
+  before it is installed.
 - **No install-time build or download.** A release tarball or wheel must
   install with scripts disabled and no compiler on the path; Git `prepare`
   stays a development path only.
@@ -223,5 +275,7 @@ when a second platform is added, starting with macOS arm64.
 ## Withdrawing an artifact
 
 `rad-artifact redact <tag-oid> --cid <cid> -m "<reason>"` by a delegate makes
-`verify` fail for that file everywhere; the bytes are not deleted. Publish a
-fixed version rather than re-registering different bytes under the same name.
+`verify` fail for that file everywhere; the bytes are not deleted. On the
+registries, yank the PyPI release and `npm deprecate` the version; neither
+removes the files. Publish a fixed version rather than re-registering or
+re-uploading different bytes under the same name.

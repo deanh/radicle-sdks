@@ -17,11 +17,13 @@ Both SDKs do one job: **local, signed project, issue and patch workflows** on a
 Radicle home you already have. The other documents link here rather than
 restating these points.
 
-- **Alpha, released through Radicle.** Both packages are version `0.1.0` and
-  APIs may change. Releases are built on the maintainers' machines and
-  published as signed release artifacts on this repository through
-  rad-artifact, not on PyPI or npm; see [Releasing](docs/release.md). Git
-  installs at a reviewed commit remain the development path.
+- **Alpha, published to PyPI and npm with a Radicle receipt.** Both packages
+  are version `0.1.0` and APIs may change. Releases are built on the
+  maintainers' machines, recorded as a signed release object on this
+  repository through rad-artifact (tag, manifest, digests), and published
+  as `radicle-py` on PyPI and `radicle-sdk` on npm from 0.1.1; see
+  [Releasing](docs/release.md). Git installs at a reviewed commit remain the
+  development path.
 - **Not a node.** Fetching, announcing, connections and daemon control are out
   of scope, and nothing in the SDKs talks to the network.
 - **Git owns working-copy content.** The SDKs never create or import content

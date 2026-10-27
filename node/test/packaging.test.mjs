@@ -17,7 +17,13 @@ test('alpha package/native identities agree and source prepare selects release b
   const bindings = await text('../dist/native.cjs');
   assert.equal(pkg.name, 'radicle-sdk');
   assert.equal(pkg.version, '0.1.0');
-  assert.equal(pkg.private, true); // no accidental registry release
+  assert.equal(pkg.private, undefined); // published to npm by scripts/release/publish-registries.sh
+  assert.match(
+    pkg.repository.url,
+    /^https:\/\/radicle\.network\/nodes\/.*rad%3Az27dDy6sppkZDG8qYcySVX9Qn5jNg$/,
+  );
+  assert.equal(pkg.homepage, pkg.repository.url);
+  assert.match(pkg.bugs.url, /\/issues$/);
   assert.equal(lock.version, pkg.version);
   assert.equal(lock.packages[''].version, pkg.version);
   assert.equal(pkg.napi.binaryName, 'radicle-sdk');

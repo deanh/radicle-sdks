@@ -13,11 +13,18 @@ announcement.
 
 ## Python installation
 
-Releases are published as artifacts on the Radicle repository through
-rad-artifact, **not PyPI**. Release 0.1.0 provides a `manylinux_2_28_x86_64`
-abi3 wheel for CPython ≥ 3.9 on Linux x86_64, plus an sdist. Download and
-verify the wheel, then install it from the file; see
-[Releasing](../docs/release.md) for the commands and the repository ID:
+From 0.1.1, releases are published to PyPI as `radicle-py`: abi3 wheels for
+CPython ≥ 3.9 on Linux x86_64 (`manylinux_2_28`) and macOS arm64 (11.0+),
+plus an sdist. Each release is also recorded as a signed rad-artifact release
+object on the Radicle repository, whose manifest lists the digest of every
+published file; see [Releasing](../docs/release.md).
+
+```sh
+python -m pip install "radicle-py==<version>"
+```
+
+Release 0.1.0 (Linux x86_64 only) predates the registry step and is available
+only through rad-artifact:
 
 ```sh
 rad-artifact download <tag-object-id> --cid <cid> --repo rad:z27dDy6sppkZDG8qYcySVX9Qn5jNg

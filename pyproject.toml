@@ -22,6 +22,11 @@ classifiers = [
     "Typing :: Typed",
 ]
 
+[project.urls]
+Repository = "https://radicle.network/nodes/hdh.radicle.garden/rad%3Az27dDy6sppkZDG8qYcySVX9Qn5jNg"
+Issues = "https://radicle.network/nodes/hdh.radicle.garden/rad%3Az27dDy6sppkZDG8qYcySVX9Qn5jNg/issues"
+Changelog = "https://radicle.network/nodes/hdh.radicle.garden/rad%3Az27dDy6sppkZDG8qYcySVX9Qn5jNg/tree/python/CHANGELOG.md"
+
 [dependency-groups]
 dev = [
     "maturin>=1.7,<2.0",

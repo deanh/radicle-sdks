@@ -19,10 +19,10 @@ set -euo pipefail
 version=${1:?usage: verify-installed.sh <version> [rid]}
 rid=${2:-$(rad .)}
 tag="v$version"
+here=$(cd "$(dirname "$0")" && pwd)
 work=$(mktemp -d)
 trap 'rm -rf "$work"' EXIT
 cd "$work"
-rad-artifact node status >/dev/null 2>&1 || { echo "start the seeder first: rad-artifact node start" >&2; exit 1; }
 case "$(uname -sm)" in
   "Linux x86_64") wheel="radicle_py-$version-cp39-abi3-manylinux_2_28_x86_64.whl"; want_target=x86_64-unknown-linux-gnu ;;
   "Darwin arm64") wheel="radicle_py-$version-cp39-abi3-macosx_11_0_arm64.whl"; want_target=aarch64-apple-darwin ;;
@@ -30,27 +30,7 @@ case "$(uname -sm)" in
 esac
 sdist="radicle_py-$version.tar.gz"
 tarball="radicle-sdk-$version.tgz"
-rad-artifact --repo "$rid" list --json > listing.json
-# Exactly one release on the tag; download and verify its manifest first, then
-# require the live artifact set to be exactly what that manifest covers.
-python3 - "$tag" > release.txt <<'PY'
-import json, sys
-tag = sys.argv[1]
-releases = [r for r in json.load(open("listing.json"))["releases"] if r.get("tagName") == tag]
-if len(releases) != 1:
-    sys.exit(f"{len(releases)} releases are bound to {tag}; expected exactly one")
-r = releases[0]
-live = [a for a in r["artifacts"] if not a["redactions"]]
-manifests = [a for a in live if a["name"] == "MANIFEST.json"]
-if len(manifests) != 1:
-    sys.exit(f"release {tag} has {len(manifests)} live MANIFEST.json artifacts; expected exactly one")
-print(r["tag"], manifests[0]["cid"])
-for a in live:
-    print(r["tag"], a["cid"], a["name"])
-PY
-read -r revision manifest_cid < <(head -1 release.txt)
-rad-artifact --repo "$rid" --no-input download "$revision" --cid "$manifest_cid" -o MANIFEST.json >/dev/null
-rad-artifact --repo "$rid" verify MANIFEST.json --json >/dev/null
+bash "$here/fetch-manifest.sh" "$version" "$rid"
 python3 - "$version" "$want_target" "$wheel" "$sdist" "$tarball" > artifacts.txt <<'PY'
 import json, sys
 version, want_target, wheel, sdist, tarball = sys.argv[1:6]

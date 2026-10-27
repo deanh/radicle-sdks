@@ -1,9 +1,22 @@
 {
   "name": "radicle-sdk",
   "version": "0.1.0",
-  "private": true,
   "description": "TypeScript SDK for local signed Radicle project, issue and patch workflows",
   "license": "MIT OR Apache-2.0",
+  "repository": {
+    "type": "git",
+    "url": "https://radicle.network/nodes/hdh.radicle.garden/rad%3Az27dDy6sppkZDG8qYcySVX9Qn5jNg"
+  },
+  "homepage": "https://radicle.network/nodes/hdh.radicle.garden/rad%3Az27dDy6sppkZDG8qYcySVX9Qn5jNg",
+  "bugs": {
+    "url": "https://radicle.network/nodes/hdh.radicle.garden/rad%3Az27dDy6sppkZDG8qYcySVX9Qn5jNg/issues"
+  },
+  "keywords": [
+    "radicle",
+    "git",
+    "sdk",
+    "code-collaboration"
+  ],
   "type": "module",
   "engines": {
     "node": ">=26.5.0"
