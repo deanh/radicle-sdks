@@ -2,7 +2,9 @@
 
 All notable changes to `radicle-py` are documented here.
 
-## Unreleased
+## 0.1.3 (2026-11-02)
+
+Documentation and packaging update; no native or public API behavior changed.
 
 - Add a task-oriented agent quick reference, an existing-profile quick start,
   and a common-workflow index for the detailed API contract.

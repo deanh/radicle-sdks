@@ -43,7 +43,7 @@ Radicle home you already have. The other documents link here rather than
 restating these points.
 
 - **Alpha, published to PyPI and npm with a Radicle receipt.** Both packages
-  are version `0.1.2` and APIs may change. Releases are built on the
+  are version `0.1.3` and APIs may change. Releases are built on the
   maintainers' machines, recorded as a signed release object on this
   repository through rad-artifact (tag, manifest, digests), and published
   as `radicle-py` on PyPI (from 0.1.1) and `radicle-sdk` on npm (from

@@ -1,4 +1,4 @@
-# radicle-sdk 0.1.2: TypeScript alpha
+# radicle-sdk 0.1.3: TypeScript alpha
 
 A Node.js/TypeScript SDK for **local signed Radicle projects, issues and patches**,
 plus storage/repository inspection. It is not a node or a network client.

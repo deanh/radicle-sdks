@@ -1,4 +1,4 @@
-# radicle-py 0.1.2: Python alpha
+# radicle-py 0.1.3: Python alpha
 
 Typed CPython bindings for local signed Radicle project, issue and patch
 workflows, plus storage/repository inspection, local policy management, routing

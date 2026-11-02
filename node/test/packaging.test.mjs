@@ -16,7 +16,7 @@ test('alpha package/native identities agree and source prepare selects release b
   assert.match(cargo, /indexmap\.workspace = true/);
   const bindings = await text('../dist/native.cjs');
   assert.equal(pkg.name, 'radicle-sdk');
-  assert.equal(pkg.version, '0.1.2');
+  assert.equal(pkg.version, '0.1.3');
   assert.equal(pkg.private, undefined); // published to npm by scripts/release/publish-registries.sh
   assert.match(
     pkg.repository.url,
