@@ -1,5 +1,10 @@
 # radicle-sdk changelog
 
+## Unreleased
+
+- Add a packaged task-oriented agent quick reference, an existing-profile quick
+  start, and a common-workflow index for the detailed API contract.
+
 ## 0.1.2 (2026-10-27)
 
 First release on npm. The 0.1.1 package on npm was published from a working

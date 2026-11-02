@@ -59,6 +59,15 @@ def main() -> int:
     package = Path(rad.__file__).parent
     for filename in ("py.typed", "__init__.pyi", "_types.pyi"):
         assert (package / filename).is_file(), f"missing typing file: {filename}"
+    docs = package / "docs"
+    for filename, heading in (
+        ("AGENT.md", "# `radiclepy` agent quick reference"),
+        ("API.md", "# `radiclepy` Python API"),
+        ("README.md", "# radicle-py "),
+    ):
+        document = docs / filename
+        assert document.is_file(), f"missing installed documentation: {filename}"
+        assert document.read_text().startswith(heading), f"unexpected installed {filename}"
     with tempfile.TemporaryDirectory(prefix="rad-smoke-home-") as root:
         p = rad.Profile.init(str(Path(root) / "ci"), "ci")
         assert rad.parse_did(p.did) == p.did

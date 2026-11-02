@@ -48,6 +48,7 @@ include = [
     { path = "python/README.md", format = "sdist" },
     { path = "python/AGENT.md", format = "sdist" },
     { path = "python/API.md", format = "sdist" },
+    { path = "python/radiclepy/docs/*.md", format = ["sdist", "wheel"] },
     { path = "python/CHANGELOG.md", format = "sdist" },
     { path = "docs/*.md", format = "sdist" },
     { path = "THIRD-PARTY-NOTICES.md", format = "sdist" },

@@ -2,6 +2,13 @@
 
 All notable changes to `radicle-py` are documented here.
 
+## Unreleased
+
+- Add a task-oriented agent quick reference, an existing-profile quick start,
+  and a common-workflow index for the detailed API contract.
+- Ship the guide, agent quick reference and API reference inside wheels under
+  `radiclepy/docs/`, with release smoke coverage for their presence.
+
 ## 0.1.2 (2026-10-27)
 
 Same source as 0.1.1, re-released so that PyPI and npm carry the same

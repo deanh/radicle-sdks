@@ -59,6 +59,12 @@ def test_language_guides_and_references_are_checked():
     assert not (ROOT / "CHANGELOG.md").exists()
 
 
+def test_python_wheel_document_sources_match_canonical_pages():
+    packaged = ROOT / "python" / "radiclepy" / "docs"
+    for name in ("AGENT.md", "API.md", "README.md"):
+        assert (packaged / name).read_text() == (ROOT / "python" / name).read_text()
+
+
 def test_anchor_slugs_follow_github_rules(tmp_path):
     page = tmp_path / "page.md"
     page.write_text("# Python installation\n## `docs/API.md`: the contract!\n"

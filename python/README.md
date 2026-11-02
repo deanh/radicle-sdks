@@ -10,7 +10,9 @@ signatures and conversion rules, the [changelog](CHANGELOG.md) for Python
 changes, and the [project overview](../README.md) for both SDKs, including the
 shared [scope and non-goals](../README.md#scope-and-non-goals). This guide is
 also the Python package's long description; it is not a registry-publication
-announcement.
+announcement. Installed wheels carry the guide, quick reference and API under
+`radiclepy/docs/`; agents can locate them with
+`importlib.resources.files("radiclepy").joinpath("docs")`.
 
 ## Existing-profile quick start
 
