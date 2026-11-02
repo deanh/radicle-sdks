@@ -7,8 +7,11 @@ import { execFileSync } from 'node:child_process';
 
 const entry = import.meta.resolve('radicle-sdk');
 const readme = await readFile(new URL('../README.md', entry), 'utf8');
+const agent = await readFile(new URL('../AGENT.md', entry), 'utf8');
 const api = await readFile(new URL('../API.md', entry), 'utf8');
 const changelog = await readFile(new URL('../CHANGELOG.md', entry), 'utf8');
+assert.ok(agent.startsWith('# `radicle-sdk` agent quick reference'));
+assert.ok(agent.includes('## Task map'));
 assert.ok(api.startsWith('# radicle-sdk: TypeScript API contract'));
 assert.ok(api.includes('## Concurrency and environment boundaries'));
 assert.ok(api.includes('## Timestamp conversion'));

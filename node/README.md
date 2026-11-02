@@ -3,12 +3,37 @@
 A Node.js/TypeScript SDK for **local signed Radicle projects, issues and patches**,
 plus storage/repository inspection. It is not a node or a network client.
 
-An experimental alpha installed from Git at an exact reviewed commit; in a
-source checkout, the root README's
+For the shortest task-oriented introduction, start with the
+[agent quick reference](AGENT.md). In a source checkout, the root README's
 [scope and non-goals](../README.md#scope-and-non-goals) define what both SDKs
-do and do not do. See the [API reference](API.md) for the implemented surface, conversions, errors,
-concurrency and environment contracts, and the [changelog](CHANGELOG.md) for
-package history.
+do and do not do. See the [API reference](API.md) for the implemented surface,
+conversions, errors, concurrency and environment contracts, and the
+[changelog](CHANGELOG.md) for package history.
+
+## Existing-profile quick start
+
+Most automation starts from an existing profile and working copy. This path
+needs no signer for reads and no running node:
+
+```js
+import { Issues, Profile, projectAt } from 'radicle-sdk';
+
+const [profile, location] = await Promise.all([
+  Profile.loadAsync(),
+  projectAt('.'),
+]);
+if (location === null) throw new Error('not a Radicle working copy');
+const repo = profile.storage.repository(location.rid);
+
+for (const issue of await Issues.open(repo).all()) {
+  console.log(issue.id, issue.state, issue.title);
+}
+```
+
+For writes, acquire `await profile.signerAsync()` and use `Issues.openAs` or
+`Patches.openAs`. Writes are signed locally but are not announced. See the
+[agent quick reference](AGENT.md) for task selection, async rules, Git
+boundaries, and mutation postconditions.
 
 ## Requirements
 

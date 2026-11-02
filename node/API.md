@@ -6,6 +6,23 @@ Radicle `=0.25.1`. The full reviewed Git SHA identifies a candidate. See the
 [changelog](CHANGELOG.md) for package history. Only `radicle-sdk` is exported;
 native bridge and probe files are internal, not supported import paths.
 
+For task selection, the async model, and minimal recipes, read the
+[agent quick reference](AGENT.md) first.
+
+### Common workflow index
+
+- [Discover a working-copy project](#working-copy-project-discovery)
+- [Load profiles, signers, homes, and storage](#home-profile-utilities-and-explicit-storage)
+- [Inspect repositories and Git data](#storage-and-repository-contract)
+- [Read or change policy and routing data](#policy-and-routing-databases)
+- [Inspect generic COB data](#generic-raw-cob-inspection)
+- [Read and mutate issues](#issue-contract)
+- [Create, review, and merge-record patches](#patch-contract)
+- [Choose SDK patch writes versus Git push](#patch-contract)
+- [Coordinate replacement-set writes](#consumer-owned-readmodifywrite)
+- [Understand async, locks, and environment behavior](#concurrency-and-environment-boundaries)
+- [Handle timestamps and raw `bigint` values](#timestamp-conversion)
+
 ## Implemented surface
 
 - Async `Profile.init`, `Profile.loadAsync()`/`signerAsync()`; optional synchronous

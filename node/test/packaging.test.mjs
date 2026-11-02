@@ -50,7 +50,7 @@ test('alpha package/native identities agree and source prepare selects release b
   assert.match(bindings, /radicle-sdk\.linux-x64-gnu\.node/);
   assert.match(bindings, /radicle-sdk\.darwin-arm64\.node/);
   assert.ok(!bindings.includes('radicle-sdk-t0'));
-  for (const file of ['node/README.md', 'node/API.md', 'node/CHANGELOG.md']) {
+  for (const file of ['node/README.md', 'node/AGENT.md', 'node/API.md', 'node/CHANGELOG.md']) {
     assert.ok(pkg.files.includes(file), `${file} must ship with the package`);
   }
   assert.ok((await text('../CHANGELOG.md')).includes(`## ${pkg.version}`));

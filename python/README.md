@@ -4,12 +4,36 @@ Typed CPython bindings for local signed Radicle project, issue and patch
 workflows, plus storage/repository inspection, local policy management, routing
 reads and raw COB inspection. Import the package as `radiclepy`.
 
-See the [API reference](API.md) for signatures and conversion rules, the
-[changelog](CHANGELOG.md) for Python changes, and the
-[project overview](../README.md) for both SDKs, including the shared
-[scope and non-goals](../README.md#scope-and-non-goals). This guide is also
-the Python package's long description; it is not a registry-publication
+For the shortest task-oriented introduction, start with the
+[agent quick reference](AGENT.md). See the [API reference](API.md) for exact
+signatures and conversion rules, the [changelog](CHANGELOG.md) for Python
+changes, and the [project overview](../README.md) for both SDKs, including the
+shared [scope and non-goals](../README.md#scope-and-non-goals). This guide is
+also the Python package's long description; it is not a registry-publication
 announcement.
+
+## Existing-profile quick start
+
+Most automation starts from an existing profile and working copy. This path
+needs no signer for reads and no running node:
+
+```python
+import radiclepy as rad
+
+profile = rad.Profile.load()
+location = rad.project_at(".")
+if location is None:
+    raise RuntimeError("not a Radicle working copy")
+repo = profile.storage.repository(location.rid)
+
+for issue in rad.Issues.open(repo).all():
+    print(issue.id, issue.state, issue.title)
+```
+
+For writes, acquire `profile.signer()` and use `Issues.open_as` or
+`Patches.open_as`. Writes are signed locally but are not announced. See the
+[agent quick reference](AGENT.md) for task selection, Git boundaries, and
+mutation safety rules.
 
 ## Python installation
 

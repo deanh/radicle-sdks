@@ -51,7 +51,7 @@ def test_documentation_local_links_and_anchors():
 
 def test_language_guides_and_references_are_checked():
     for language in ("python", "node"):
-        for name in ("README.md", "API.md", "CHANGELOG.md"):
+        for name in ("AGENT.md", "README.md", "API.md", "CHANGELOG.md"):
             assert ROOT / language / name in PAGES
     assert 'readme = "python/README.md"' in (ROOT / "pyproject.toml").read_text()
     overview = (ROOT / "README.md").read_text()

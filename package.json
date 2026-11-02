@@ -30,6 +30,7 @@
   "files": [
     "node/dist",
     "node/README.md",
+    "node/AGENT.md",
     "node/API.md",
     "node/CHANGELOG.md",
     "LICENSE-MIT",

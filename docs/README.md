@@ -18,10 +18,16 @@
 
 Each SDK owns its guide, reference and release history in its language directory.
 
-- Python: [guide](../python/README.md), [API](../python/API.md),
+- Python: [agent quick reference](../python/AGENT.md),
+  [guide](../python/README.md), [API](../python/API.md),
   [changelog](../python/CHANGELOG.md).
-- TypeScript: [guide](../node/README.md), [API](../node/API.md),
+- TypeScript: [agent quick reference](../node/AGENT.md),
+  [guide](../node/README.md), [API](../node/API.md),
   [changelog](../node/CHANGELOG.md).
+
+The onboarding rationale and consumer evidence are recorded in the
+[Python assessment](python-agent-onboarding-assessment.md) and
+[TypeScript assessment](typescript-agent-onboarding-assessment.md).
 
 ## Historical plans, reviews and findings
 

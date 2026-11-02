@@ -17,6 +17,22 @@ Our syntactic validators raise `ValueError`; operational failures raise
 `radiclepy.Error` or its subclasses. Python argument conversion can raise
 `TypeError` or `OverflowError` before a validator runs.
 
+For task selection and minimal recipes, read the
+[agent quick reference](AGENT.md) first.
+
+### Common workflow index
+
+- [Load a profile and repository](#profile)
+- [Inspect storage and Git data](#storage--repository)
+- [Read typed issues and patches](#cob-typed-readers--raw-inspection)
+- [Create and mutate issues](#typed-cob-writes)
+- [Create, review, and merge-record patches](#patches-write-extensions)
+- [Choose SDK patch writes versus Git push](#patches-write-extensions)
+- [Discover a working-copy project](#working-copy-project-discovery)
+- [Initialize, fork, or checkout locally](#local-project-lifecycle-alpha)
+- [Read or change policy and routing data](#policy--routing)
+- [Understand snapshots and concurrency](#collaboration-snapshot-values)
+
 ---
 
 ## Module: `radiclepy`

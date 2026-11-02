@@ -8,8 +8,33 @@ issue discussions and common writes, and patch revisions/reviews/lifecycle.
 
 | SDK | Package / import | Runtime | Documentation |
 | --- | --- | --- | --- |
-| Python | `radicle-py` / `radiclepy` | CPython ≥ 3.9 (abi3) | [Guide](python/README.md), [API](python/API.md), [changelog](python/CHANGELOG.md) |
-| TypeScript | `radicle-sdk` | Node.js ≥ 26.5.0 | [Guide](node/README.md), [API](node/API.md), [changelog](node/CHANGELOG.md) |
+| Python | `radicle-py` / `radiclepy` | CPython ≥ 3.9 (abi3) | [Agent quick reference](python/AGENT.md), [guide](python/README.md), [API](python/API.md), [changelog](python/CHANGELOG.md) |
+| TypeScript | `radicle-sdk` | Node.js ≥ 26.5.0 | [Agent quick reference](node/AGENT.md), [guide](node/README.md), [API](node/API.md), [changelog](node/CHANGELOG.md) |
+
+## Agent onboarding
+
+Start with the language-specific capability router:
+[Python](python/AGENT.md) or [TypeScript](node/AGENT.md). Each maps common user
+intents to the smallest relevant API and identifies when the task belongs to Git
+or the `rad` CLI instead.
+
+The shared mental model is:
+
+```text
+Profile -> Storage -> Repository -> Issues / Patches / Raw
+```
+
+Keep four rules in context before automating writes:
+
+1. The SDKs operate on local Radicle storage; they do not fetch or announce.
+2. Git creates/imports commits and owns working-copy branches, diffs and merges.
+3. Signed issue/patch writes are local until announcement is requested separately.
+4. Inspect persisted or returned state after a mutation; recorded operations,
+   errors and cancellation are not rollback receipts.
+
+Use the language API references only when exact signatures or edge cases are
+needed. The quick references cover signer acquisition, read/write handles,
+working-copy discovery, patch transport boundaries and mutation safety.
 
 ## Scope and non-goals
 

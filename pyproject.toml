@@ -46,6 +46,7 @@ python-source = "python"
 strip = true
 include = [
     { path = "python/README.md", format = "sdist" },
+    { path = "python/AGENT.md", format = "sdist" },
     { path = "python/API.md", format = "sdist" },
     { path = "python/CHANGELOG.md", format = "sdist" },
     { path = "docs/*.md", format = "sdist" },
