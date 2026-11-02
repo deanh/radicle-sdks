@@ -10,6 +10,8 @@
 - [Development and validation](development.md): commands, artifacts and evidence gates.
 - [Releasing](release.md): building release artifacts on the maintainer's machines and
   distributing them through rad-artifact.
+- [GitHub mirror](github-mirror.md): safely publishing canonical `main` and release
+  tags without exposing Radicle-internal refs.
 - [Events contract](events.md): read-only primitives, change records and cursor text
   for the planned repository event feed (draft, issue `0896069`).
 - [Examples](../examples/README.md): the read-only digest in both SDKs.

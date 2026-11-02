@@ -96,6 +96,7 @@ write-side review-bot example is planned separately, not implemented yet.
 - [SDK differences](docs/sdk-differences.md): intentional API, conversion and
   concurrency differences.
 - [Development and validation](docs/development.md): commands and evidence gates.
+- [GitHub mirror](docs/github-mirror.md): canonical-ref mirroring policy and script.
 - [Documentation index](docs/README.md): guides and preserved historical findings.
 
 The architecture migration is tracked in Radicle issue `edcbbd7`. Current code
